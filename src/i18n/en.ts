@@ -130,6 +130,7 @@ export const en: Record<StringKey, string> = {
   'setup.version': 'Version',
   'setup.license': 'Licence',
   'setup.license.sub': 'Free and open source software',
+  'setup.autoTune': 'Self-tuning',
   'setup.clipGap': 'Gap between two clips',
   'setup.source': 'Source code',
   'setup.report': 'Report a bug',
@@ -238,6 +239,13 @@ export const en: Record<StringKey, string> = {
   'stage.faces': 'face detection',
   'stage.report': 'reporting the results',
 
+  // ── self-tuning, decided from the measured frame rate ────────────────
+  'autoTune.none': 'Nothing given up',
+  'autoTune.watching': 'Start monitoring: the measurement comes from analysed frames',
+  'autoTune.shortfall': 'The device analyses {measured} instead of {target}: given up to free compute',
+  'autoTune.noGain': 'Given back: {measured} instead of {target}, dropping it changed nothing',
+  'autoTune.restored': 'The device is keeping up with the target ({measured} of {target})',
+
   // ── clip gap, measured on the device ─────────────────────────────────
   'clipGap.none': 'Not measured yet',
   'clipGap.tooShort': 'Film a passage longer than the max. clip length to get a measurement',
@@ -299,6 +307,8 @@ export const en: Record<StringKey, string> = {
   'value.sens.Basse': 'Low',
   'value.sens.Moyenne': 'Medium',
   'value.sens.Haute': 'High',
+  'value.autoTune.autoZoom': 'Auto-zoom',
+  'value.autoTune.precise': 'Extended detection',
   'value.camera.Arrière (1×)': 'Back (1×)',
   'value.camera.Arrière (0,5×)': 'Back (0.5×)',
   'value.camera.Avant': 'Front',

@@ -352,6 +352,25 @@ les deux ferait d'une seule mauvaise image un enregistrement. Le tout vit dans
 pour la même raison que `captureZoomFor` : un test qui recalculerait l'échange
 au lieu de l'appeler continuerait de passer après qu'il a changé.
 
+**L'auto-réglage ne rend jamais que ce qu'il a pris.** La cadence mesurée
+(`frameRate.ts`) n'était qu'un affichage : un appareil qui n'analyse qu'une image
+par seconde là où « Sensibilité » en demande cinq manquait des passages en le
+disant dans un coin du viseur. `autoTune.ts` agit dessus, et trois règles le
+tiennent — aucune n'est décorative. Il ne fait que **retirer** ce que
+l'utilisateur avait demandé, jamais accorder ce qu'il a laissé éteint, et
+`tunedSettings` est le seul endroit où la fusion se fait : `settings` reste le
+choix de l'utilisateur, n'est pas réécrit sur le disque, et une caméra de
+surveillance qui rallume discrètement ce que son propriétaire a refusé est pire
+qu'une caméra lente. L'échelle commence par le zoom automatique et finit par la
+détection étendue, parce que le premier cadre un sujet quand le second décide
+s'il existe. Et un palier qui n'a rien acheté est repris puis blacklisté :
+throttling thermique, format 4K, téléphone occupé — rien de tout ça n'est sur
+l'échelle, et sans cette vérification l'application se démonterait contre un mur.
+L'hystérésis est volontairement asymétrique (3 fenêtres pour retirer, 15 pour
+rendre) parce que restaurer reconstruit le frame processor et recharge un modèle.
+Enfin le verdict meurt avec la session : ce qu'un téléphone tient dépend du format
+qu'il enregistre, de sa température et de ce qui tourne à côté.
+
 **Une nouvelle référence de tableau est un re-rendu.** `confirmedTracksIfChanged`
 existe pour ça : conserver l'identité quand l'incrustation ne changerait pas.
 

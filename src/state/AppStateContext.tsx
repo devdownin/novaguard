@@ -17,7 +17,7 @@ import { useLatest } from '../utils/useLatest';
 import { confirmTap } from '../utils/haptics';
 import { FrameDetection } from '../ml/types';
 import { confirmedTracksIfChanged, primaryTrack, Track, updateTracks } from '../ml/tracker';
-import { trackerOptionsFor } from '../ml/sensitivity';
+import { SENSITIVITY_PROFILES, trackerOptionsFor } from '../ml/sensitivity';
 import { detectionsInZone } from '../ml/zone';
 import { Clip, useRecorder } from '../recording/useRecorder';
 import {
@@ -39,6 +39,9 @@ import {
   FrameStage, isCompleteFrame, isLaterStage, parseStage, stageDiagnosis,
 } from '../camera/frameTrace';
 import { countFrame, EMPTY_FRAME_RATE_WINDOW, FrameRateWindow } from '../camera/frameRate';
+import {
+  AutoTuneState, decisionChanged, IDLE_AUTO_TUNE, updateAutoTune,
+} from '../camera/autoTune';
 import { ClipGapStats, EMPTY_CLIP_GAP_STATS, recordGap } from '../recording/clipGap';
 import { t } from '../i18n';
 
@@ -65,6 +68,13 @@ interface AppStateValue {
    * answer this — see `clipGap.ts` — so the app measures itself.
    */
   clipGap: ClipGapStats;
+  /**
+   * What the app has given up on its own because the device is not analysing
+   * as often as "Sensibilité" asked for — see `autoTune.ts`. Handed out as the
+   * decision, not as the settings: `settings` stays what the user chose, and
+   * the camera path merges the two through `tunedSettings`.
+   */
+  autoTune: AutoTuneState;
   storage: StorageInfo;
   /** Passed down to the Camera so the recorder can drive it. */
   cameraRef: React.RefObject<VisionCamera | null>;
@@ -319,6 +329,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // Changes only at a cap boundary — minutes apart — so it costs the frame path
   // nothing to hold it in ordinary state.
   const [clipGap, setClipGap] = useState<ClipGapStats>(EMPTY_CLIP_GAP_STATS);
+  /**
+   * Published on decisions only. The fold behind it runs on every closed
+   * frame-rate window — twice a second's worth of evidence — and this setter
+   * re-renders the provider body, so `decisionChanged` is what keeps a
+   * measurement from costing a render.
+   */
+  const [autoTune, setAutoTune] = useState<AutoTuneState>(IDLE_AUTO_TUNE);
 
   const [events, setEvents] = useState<DetectionEvent[]>(defaultEvents);
   const [filter, setFilter] = useState<HistoryFilter>('Toutes');
@@ -506,6 +523,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const lastAlertRef = useRef<number | null>(null);
   /** Rolling count behind the measured frame rate. */
   const frameWindowRef = useRef<FrameRateWindow>({ ...EMPTY_FRAME_RATE_WINDOW });
+  /** The self-tuning state the frame path folds into; `autoTune` is its published half. */
+  const autoTuneRef = useRef<AutoTuneState>(IDLE_AUTO_TUNE);
   /**
    * Last event id minted. Owned here rather than derived from `events[0]`,
    * which would only be the highest id while the list happens to be sorted
@@ -836,7 +855,22 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
     // What "Sensibilité" asked for is a target; this is what the device manages.
     const measured = countFrame(frameWindowRef.current, now);
-    if (measured != null) shown?.setFrameRate(measured);
+    if (measured != null) {
+      shown?.setFrameRate(measured);
+      // Outside the `shown` guard on purpose: the preview is off with the
+      // screen, which is most of a surveillance phone's life, and that is
+      // exactly when a device falling behind matters most.
+      const previous = autoTuneRef.current;
+      const tuned = updateAutoTune(
+        previous,
+        { measured, target: SENSITIVITY_PROFILES[settingsRef.current.sens].fps },
+        settingsRef.current,
+      );
+      if (tuned !== previous) {
+        autoTuneRef.current = tuned;
+        if (decisionChanged(previous, tuned)) setAutoTune(tuned);
+      }
+    }
 
     // The user's threshold is the tracker's entry gate, not the detector's
     // filter: `interpretDetections` now hands over everything above a low floor
@@ -917,6 +951,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setSawFrame(false);
       frameWindowRef.current = { ...EMPTY_FRAME_RATE_WINDOW };
       viewfinder.current?.setFrameRate(0);
+      // The verdict belongs to a session: what a phone can hold up depends on
+      // the format it is recording, how warm it already is and what else is
+      // running. Carrying a step over would keep a capability off long after
+      // the reason for taking it away is gone.
+      autoTuneRef.current = IDLE_AUTO_TUNE;
+      setAutoTune(IDLE_AUTO_TUNE);
       setMonitoring(false);
       return;
     }
@@ -1195,7 +1235,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     hydrated,
     tab, setTab,
     monitoring, det, detToday, lastDetAt,
-    recording: isRecording, recError, clipGap, storage: store, cameraRef, foreground, reportCameraProblem, reportFrameStage,
+    recording: isRecording, recError, clipGap, autoTune, storage: store, cameraRef, foreground, reportCameraProblem, reportFrameStage,
     toggleMonitoring, reportDetections,
     events, filter, setFilter, period, setPeriod, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent,
     confirmDelete, askDelete, cancelDelete, doDelete,
@@ -1208,7 +1248,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
     hydrated, tab, monitoring, det, detToday, lastDetAt,
-    isRecording, recError, clipGap, store, cameraRef, foreground, reportCameraProblem, reportFrameStage, toggleMonitoring, reportDetections,
+    isRecording, recError, clipGap, autoTune, store, cameraRef, foreground, reportCameraProblem, reportFrameStage, toggleMonitoring, reportDetections,
     events, filter, period, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent,
     confirmDelete, askDelete, cancelDelete, doDelete, confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleForceCpu,

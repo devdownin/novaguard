@@ -132,6 +132,7 @@ export const fr = {
   'setup.version': 'Version',
   'setup.license': 'Licence',
   'setup.license.sub': 'Logiciel libre et open source',
+  'setup.autoTune': 'Auto-réglage',
   'setup.clipGap': 'Coupure entre deux clips',
   'setup.source': 'Code source',
   'setup.report': 'Signaler un bug',
@@ -245,6 +246,13 @@ export const fr = {
   'stage.faces': 'la détection de visages',
   'stage.report': 'la remontée des résultats',
 
+  // ── self-tuning, decided from the measured frame rate ────────────────
+  'autoTune.none': 'Rien retiré',
+  'autoTune.watching': 'Lancez la surveillance : la mesure vient des images analysées',
+  'autoTune.shortfall': 'L’appareil analyse {measured} au lieu de {target} : retiré pour lui rendre du calcul',
+  'autoTune.noGain': 'Rendu : {measured} au lieu de {target}, le retrait n’y changeait rien',
+  'autoTune.restored': 'L’appareil suit la cadence demandée ({measured} sur {target})',
+
   // ── clip gap, measured on the device ─────────────────────────────────
   'clipGap.none': 'Pas encore mesuré',
   'clipGap.tooShort': 'Filmez un passage plus long que la durée max. par clip pour obtenir une mesure',
@@ -310,6 +318,8 @@ export const fr = {
   'value.sens.Basse': 'Basse',
   'value.sens.Moyenne': 'Moyenne',
   'value.sens.Haute': 'Haute',
+  'value.autoTune.autoZoom': 'Zoom auto',
+  'value.autoTune.precise': 'Détection étendue',
   'value.camera.Arrière (1×)': 'Arrière (1×)',
   'value.camera.Arrière (0,5×)': 'Arrière (0,5×)',
   'value.camera.Avant': 'Avant',
