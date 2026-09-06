@@ -134,6 +134,7 @@ export const fr = {
   'setup.version': 'Version',
   'setup.license': 'Licence',
   'setup.license.sub': 'Logiciel libre et open source',
+  'setup.autoTune.open': 'Voir les graphiques',
   'setup.autoTune': 'Paramètres dynamiques',
   'setup.clipGap': 'Coupure entre deux clips',
   'setup.source': 'Code source',

@@ -75,6 +75,15 @@ it('puts the self-tuning row in Détection, beside the switch that governs it', 
     .toBeGreaterThan(lines.indexOf(t('setup.autoTuneSwitch')));
 });
 
+it('names the way to the charts instead of leaving a state to be pressed', async () => {
+  const tree = await boot({ det: true });
+
+  // "Rien retiré" is a state, and a state does not read as somewhere to go.
+  expect(texts(tree)).toContain(t('setup.autoTune.open'));
+  const link = tree.root.findAll(n => n.props?.testID === 'autotune-open')[0];
+  expect(typeof link.props.onPress).toBe('function');
+});
+
 it('puts the measured clip gap under the cap that creates it', async () => {
   const tree = await boot({ rec: true });
   const lines = texts(tree);

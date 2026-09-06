@@ -272,7 +272,7 @@ function cycle<T>(options: readonly T[], current: T): T {
 
 const CAMERA_OPTIONS: Camera[] = ['Arrière (1×)', 'Arrière (0,5×)', 'Avant'];
 const POST_OPTIONS: PostRoll[] = ['5 s', '10 s', '30 s'];
-const MAX_OPTIONS: MaxDuration[] = ['1 min', '2 min', '5 min', '10 min', '15 min'];
+const MAX_OPTIONS: MaxDuration[] = ['1 min', '2 min', '5 min', '10 min', '15 min', '20 min'];
 const QUALITY_OPTIONS: Quality[] = ['720p', '1080p', '4K'];
 
 /**
