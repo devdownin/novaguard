@@ -7,13 +7,16 @@ interface ButtonProps {
   onPress: () => void;
   style?: StyleProp<ViewStyle>;
   disabled?: boolean;
+  /** For the end-to-end flows, which have no other handle on a button. */
+  testID?: string;
 }
 
-export function PrimaryOutlineButton({ label, onPress, style, disabled }: ButtonProps) {
+export function PrimaryOutlineButton({ label, onPress, style, disabled, testID }: ButtonProps) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
+      testID={testID}
       accessibilityRole="button"
       accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => [
@@ -29,11 +32,12 @@ export function PrimaryOutlineButton({ label, onPress, style, disabled }: Button
   );
 }
 
-export function SecondaryOutlineButton({ label, onPress, style, disabled }: ButtonProps) {
+export function SecondaryOutlineButton({ label, onPress, style, disabled, testID }: ButtonProps) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
+      testID={testID}
       accessibilityRole="button"
       accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => [
@@ -49,11 +53,12 @@ export function SecondaryOutlineButton({ label, onPress, style, disabled }: Butt
   );
 }
 
-export function TextButton({ label, onPress, style, disabled }: ButtonProps) {
+export function TextButton({ label, onPress, style, disabled, testID }: ButtonProps) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
+      testID={testID}
       accessibilityRole="button"
       accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => [styles.base, styles.text_, pressed && { opacity: 0.6 }, style]}

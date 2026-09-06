@@ -112,15 +112,16 @@ export function SetupScreen() {
             label={t('setup.autoTune')}
             subtitle={describeAutoTune(autoTune, deviceLoad.current)}
           >
-            <ValueButton
-              testID="autotune-open"
-              label={formatAutoTune(autoTune)}
-              onPress={() => s.openInfo('autotune')}
-              accessibilityLabel={t('a11y.setting', {
-                name: t('setup.autoTune'), value: formatAutoTune(autoTune),
-              })}
-            />
+            <StaticValue label={formatAutoTune(autoTune)} />
           </SettingRow>
+          {/* A named button rather than the value doubling as one: "Rien
+              retiré" is a state, and a state does not read as somewhere to go. */}
+          <SecondaryOutlineButton
+            testID="autotune-open"
+            label={t('setup.autoTune.open')}
+            onPress={() => s.openInfo('autotune')}
+            style={styles.autoTuneLink}
+          />
           <SettingRow label={t('setup.zone')} subtitle={t('setup.zone.sub')}>
             <ValueButton
               label={t(settings.zone ? 'setup.zone.set' : 'setup.zone.all')}
@@ -318,6 +319,10 @@ export function SetupScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  autoTuneLink: {
+    marginTop: 8,
+    marginBottom: 4,
+  },
   title: {
     fontFamily: font.medium,
     fontSize: 20,

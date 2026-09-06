@@ -23,7 +23,17 @@ export const defaultSettings: Settings = {
   post: '10 s',
   max: '2 min',
   quality: '1080p',
-  retention: '30 jours',
+  /**
+   * Sept jours, pas trente.
+   *
+   * La rétention supprime : un défaut plus long garde par défaut ce que
+   * personne n'a demandé à garder, et c'est le disque du téléphone qui paie —
+   * un mois de passages en 1080p dépasse ce que beaucoup d'appareils ont de
+   * libre. Une semaine couvre le cas pour lequel on relit un enregistrement.
+   * Ne concerne qu'une nouvelle installation : un réglage déjà écrit est
+   * relu tel quel à l'hydratation.
+   */
+  retention: '7 jours',
   autoDel: true,
   notif: true,
   notifDet: true,

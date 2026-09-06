@@ -23,7 +23,7 @@ import {
   todayCount,
   totalBytes,
 } from '../src/recording/library';
-import { DetectionEvent } from '../src/state/types';
+import { DetectionEvent, MaxDuration } from '../src/state/types';
 
 const MB = 1024 * 1024;
 
@@ -64,6 +64,9 @@ describe('formatBytes', () => {
   });
 });
 
+/** Every value the union offers, so a new one cannot be added and left unmapped. */
+const MAX_DURATIONS: MaxDuration[] = ['1 min', '2 min', '5 min', '10 min', '15 min', '20 min'];
+
 describe('setting translations', () => {
   it('maps every retention option, with "Toujours" meaning no expiry', () => {
     expect(retentionDays('1 jour')).toBe(1);
@@ -76,8 +79,20 @@ describe('setting translations', () => {
   it('maps durations to milliseconds', () => {
     expect(maxDurationMs('1 min')).toBe(60_000);
     expect(maxDurationMs('5 min')).toBe(300_000);
+    expect(maxDurationMs('20 min')).toBe(1_200_000);
     expect(postRollMs('5 s')).toBe(5_000);
     expect(postRollMs('30 s')).toBe(30_000);
+  });
+
+  it('has a real duration for every option the setting cycles through', () => {
+    // The `default` in the switch exists so a value written by another version
+    // degrades to a sane length instead of `NaN` — which `setTimeout` fires on
+    // immediately, cutting every clip at once. It must not be what a *current*
+    // option lands on: that would silently cap a 20-minute setting at two.
+    for (const max of MAX_DURATIONS) {
+      const minutes = Number(max.split(' ')[0]);
+      expect(maxDurationMs(max)).toBe(minutes * 60_000);
+    }
   });
 
   it('gives each quality a distinct resolution and bitrate', () => {
@@ -118,11 +133,18 @@ describe('the space a clip is expected to need', () => {
 
   it('demands more free space than the clip will occupy', () => {
     for (const quality of ['720p', '1080p', '4K'] as const) {
-      for (const max of ['1 min', '2 min', '5 min', '10 min', '15 min'] as const) {
+      for (const max of ['1 min', '2 min', '5 min', '10 min', '15 min', '20 min'] as const) {
         // Equal would be a guard that lets a clip fill the volume exactly.
         expect(minFreeBytes(quality, max)).toBeGreaterThan(expectedClipBytes(quality, max));
       }
     }
+  });
+
+  it('follows the longest cap the setting offers', () => {
+    // A 20-minute clip in 4K is 3 Go: the guard has to ask for more than a
+    // 15-minute one, or the longest setting is the one that fills the volume.
+    expect(expectedClipBytes('4K', '20 min')).toBeCloseTo((20e6 / 8) * 1200, 0);
+    expect(minFreeBytes('4K', '20 min')).toBeGreaterThan(minFreeBytes('4K', '15 min'));
   });
 
   it('scales past the old flat threshold where that threshold was wrong', () => {
@@ -136,7 +158,7 @@ describe('the space a clip is expected to need', () => {
 
   it('never starts auto-delete below the mark a recording needs', () => {
     for (const quality of ['720p', '1080p', '4K'] as const) {
-      for (const max of ['1 min', '15 min'] as const) {
+      for (const max of ['1 min', '20 min'] as const) {
         // Otherwise a sweep deletes the user's history and the camera still
         // refuses to record: the worst of both.
         expect(lowSpaceBytes(quality, max)).toBeGreaterThanOrEqual(minFreeBytes(quality, max));

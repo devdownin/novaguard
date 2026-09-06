@@ -110,6 +110,7 @@ export function maxDurationMs(max: MaxDuration): number {
     case '5 min': return 300_000;
     case '10 min': return 600_000;
     case '15 min': return 900_000;
+    case '20 min': return 1_200_000;
     default: return 120_000;
   }
 }
