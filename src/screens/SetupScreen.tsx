@@ -191,6 +191,13 @@ export function SetupScreen() {
               accessibilityLabel={t('a11y.setting', { name: t('setup.max'), value: settings.max })}
             />
           </SettingRow>
+          {/* Under "Durée max. par clip", which is the setting that creates
+              this gap: the cap ends a file without ending the passage, and this
+              is what that costs. Only a real device can answer it, so the app
+              measures itself rather than shipping a figure nobody took. */}
+          <SettingRow label={t('setup.clipGap')} subtitle={describeClipGap(clipGap)}>
+            <StaticValue label={formatClipGap(clipGap)} />
+          </SettingRow>
           <SettingRow
             label={t('setup.quality')}
             subtitle={settings.quality === '4K' ? t('setup.quality.sub4k') : undefined}
@@ -295,11 +302,6 @@ export function SetupScreen() {
           </SettingRow>
           <SettingRow label={t('setup.license')} subtitle={t('setup.license.sub')}>
             <StaticValue label={APP_LICENSE} />
-          </SettingRow>
-          {/* Only a real device can answer this, so the app measures itself
-              rather than shipping a figure nobody took. */}
-          <SettingRow label={t('setup.clipGap')} subtitle={describeClipGap(clipGap)}>
-            <StaticValue label={formatClipGap(clipGap)} />
           </SettingRow>
           <View style={[styles.subBlock, { flexDirection: 'row', gap: 7 }]}>
             <PrimaryOutlineButton label={t('setup.source')} onPress={() => Linking.openURL(REPO_URL)} style={{ flex: 1 }} />

@@ -2,12 +2,13 @@
  * Where two things sit on the Réglages screen, which is not a cosmetic
  * question in either case.
  *
- * The self-tuning row lived under "À propos", next to the version and the
+ * Two measured rows lived under "À propos", next to the version and the
  * licence — a section people open to read about the build, not to change what
- * the camera does. But what the app has given up *is* a detection setting that
- * moved, and it belongs beside the switch that governs it: a capability that
- * disappears is looked for where it was configured. "À propos" itself goes
- * last, under the privacy card, because nothing in it is an action.
+ * the camera does. Neither is a fact about the build: what the app has given up
+ * is a detection setting that moved, and the gap between two clips is what the
+ * duration cap costs. Each now sits beside the setting it belongs to, because
+ * that is where someone looks for it. "À propos" itself goes last, under the
+ * privacy card, because nothing in it is an action.
  *
  * Driven through the real `App` for the same reason as `accessibility.test.tsx`:
  * a layout assertion against a component rendered in isolation says nothing
@@ -74,12 +75,24 @@ it('puts the self-tuning row in Détection, beside the switch that governs it', 
     .toBeGreaterThan(lines.indexOf(t('setup.autoTuneSwitch')));
 });
 
-it('does not hide it behind À propos', async () => {
-  // The section people open to read about the build, with Détection shut.
-  const tree = await boot({ about: true });
+it('puts the measured clip gap under the cap that creates it', async () => {
+  const tree = await boot({ rec: true });
+  const lines = texts(tree);
 
+  // The cap ends a file without ending the passage; this row is what that
+  // costs. Reading it means having just read the setting above it.
+  expect(lines).toContain(t('setup.clipGap'));
+  expect(lines.indexOf(t('setup.clipGap'))).toBeGreaterThan(lines.indexOf(t('setup.max')));
+});
+
+it('leaves neither measurement in À propos', async () => {
+  const tree = await boot({ about: true });
+  const lines = texts(tree);
+
+  expect(lines).not.toContain(t('setup.clipGap'));
   expect(has(tree, 'autotune-open')).toBe(false);
-  expect(texts(tree)).toContain(t('setup.version'));
+  // The section itself is untouched — it still has what does belong there.
+  expect(lines).toContain(t('setup.version'));
 });
 
 it('leaves À propos at the very bottom of the page', async () => {
