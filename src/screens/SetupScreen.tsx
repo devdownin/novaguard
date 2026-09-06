@@ -104,6 +104,23 @@ export function SetupScreen() {
               accessibilityLabel={t('setup.autoTuneSwitch')}
             />
           </SettingRow>
+          {/* Under the switch it belongs to, not in "À propos": what the app
+              has taken away from itself is a detection setting that moved, not
+              a fact about the build. The value is the current one, and pressing
+              it opens the series behind it. */}
+          <SettingRow
+            label={t('setup.autoTune')}
+            subtitle={describeAutoTune(autoTune, deviceLoad.current)}
+          >
+            <ValueButton
+              testID="autotune-open"
+              label={formatAutoTune(autoTune)}
+              onPress={() => s.openInfo('autotune')}
+              accessibilityLabel={t('a11y.setting', {
+                name: t('setup.autoTune'), value: formatAutoTune(autoTune),
+              })}
+            />
+          </SettingRow>
           <SettingRow label={t('setup.zone')} subtitle={t('setup.zone.sub')}>
             <ValueButton
               label={t(settings.zone ? 'setup.zone.set' : 'setup.zone.all')}
@@ -251,40 +268,6 @@ export function SetupScreen() {
           <Text style={styles.hint}>{t('setup.sound.hint')}</Text>
         </CollapsibleSection>
 
-        <CollapsibleSection title={t('setup.section.about')} expanded={settings.exp.about} onToggle={() => s.toggleSection('about')}>
-          <SettingRow label={t('setup.version')}>
-            <StaticValue label={APP_VERSION} />
-          </SettingRow>
-          <SettingRow label={t('setup.license')} subtitle={t('setup.license.sub')}>
-            <StaticValue label={APP_LICENSE} />
-          </SettingRow>
-          {/* Only a real device can answer this, so the app measures itself
-              rather than shipping a figure nobody took. */}
-          <SettingRow label={t('setup.clipGap')} subtitle={describeClipGap(clipGap)}>
-            <StaticValue label={formatClipGap(clipGap)} />
-          </SettingRow>
-          {/* What the app took away from itself, and the measurement it took it
-              on. A capability that disappears without saying so reads as a bug. */}
-          <SettingRow
-            label={t('setup.autoTune')}
-            subtitle={describeAutoTune(autoTune, deviceLoad.current)}
-          >
-            <ValueButton
-              testID="autotune-open"
-              label={formatAutoTune(autoTune)}
-              onPress={() => s.openInfo('autotune')}
-              accessibilityLabel={t('a11y.setting', {
-                name: t('setup.autoTune'), value: formatAutoTune(autoTune),
-              })}
-            />
-          </SettingRow>
-          <View style={[styles.subBlock, { flexDirection: 'row', gap: 7 }]}>
-            <PrimaryOutlineButton label={t('setup.source')} onPress={() => Linking.openURL(REPO_URL)} style={{ flex: 1 }} />
-            <SecondaryOutlineButton label={t('setup.report')} onPress={() => Linking.openURL(ISSUES_URL)} style={{ flex: 1 }} />
-          </View>
-          <SecondaryOutlineButton label={t('setup.thirdParty')} onPress={() => s.openInfo('licenses')} style={{ marginTop: 8, marginBottom: 6 }} />
-        </CollapsibleSection>
-
         <LinearGradient
           colors={[color.accent900, color.surface]}
           locations={[0, 0.7]}
@@ -305,6 +288,25 @@ export function SetupScreen() {
             <SecondaryOutlineButton label={t('setup.privacy.data')} onPress={() => s.openInfo('data')} style={{ flex: 1 }} />
           </View>
         </LinearGradient>
+
+        <CollapsibleSection title={t('setup.section.about')} expanded={settings.exp.about} onToggle={() => s.toggleSection('about')}>
+          <SettingRow label={t('setup.version')}>
+            <StaticValue label={APP_VERSION} />
+          </SettingRow>
+          <SettingRow label={t('setup.license')} subtitle={t('setup.license.sub')}>
+            <StaticValue label={APP_LICENSE} />
+          </SettingRow>
+          {/* Only a real device can answer this, so the app measures itself
+              rather than shipping a figure nobody took. */}
+          <SettingRow label={t('setup.clipGap')} subtitle={describeClipGap(clipGap)}>
+            <StaticValue label={formatClipGap(clipGap)} />
+          </SettingRow>
+          <View style={[styles.subBlock, { flexDirection: 'row', gap: 7 }]}>
+            <PrimaryOutlineButton label={t('setup.source')} onPress={() => Linking.openURL(REPO_URL)} style={{ flex: 1 }} />
+            <SecondaryOutlineButton label={t('setup.report')} onPress={() => Linking.openURL(ISSUES_URL)} style={{ flex: 1 }} />
+          </View>
+          <SecondaryOutlineButton label={t('setup.thirdParty')} onPress={() => s.openInfo('licenses')} style={{ marginTop: 8, marginBottom: 6 }} />
+        </CollapsibleSection>
 
         <Text style={styles.footer}>NovaGuard {APP_VERSION} · open source · détection sur appareil</Text>
       </ScrollView>

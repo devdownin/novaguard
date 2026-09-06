@@ -132,7 +132,7 @@ export const en: Record<StringKey, string> = {
   'setup.version': 'Version',
   'setup.license': 'Licence',
   'setup.license.sub': 'Free and open source software',
-  'setup.autoTune': 'Self-tuning',
+  'setup.autoTune': 'Dynamic parameters',
   'setup.clipGap': 'Gap between two clips',
   'setup.source': 'Source code',
   'setup.report': 'Report a bug',

@@ -1,8 +1,8 @@
 # The self-tuning screen, from a cold launch.
 #
-# Everything under Réglages → À propos is collapsed by default, so the flow has
-# to open the section before the row exists — a check that asserts the row
-# without that tap passes on an app where the section never opens.
+# Every section of Réglages is collapsed by default, so the flow has to open
+# Détection before the row exists — a check that asserts the row without that
+# tap passes on an app where the section never opens.
 #
 # The screen's own numbers are not asserted: they come from analysed frames, and
 # a device that has not been monitoring has none. What is checked is that the
@@ -16,14 +16,15 @@ appId: com.novaguard
 - tapOn: "Setup"
 - assertVisible: "Réglages"
 
-# The switch that turns the whole thing off lives with what it acts on.
+# The switch that turns the whole thing off, and the row that says what it has
+# done, both live with what they act on — not under "À propos", which is about
+# the build.
 - tapOn: "DÉTECTION"
 - assertVisible: "Auto-réglage"
 - assertVisible:
     text: "Retire du calcul quand l’appareil n’analyse plus assez d’images.*"
 
-- tapOn: "À PROPOS"
-- assertVisible: "Auto-réglage"
+- assertVisible: "Paramètres dynamiques"
 - tapOn:
     id: "autotune-open"
 - assertVisible: "Paramètres dynamiques"
