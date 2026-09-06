@@ -8,6 +8,7 @@ import {
   AUTO_TUNE_LOG_SIZE, AutoTuneSample, cadenceSeries, currentTarget, meanCadence, readSamples,
   StepState, stepSeries, stepUptime,
 } from '../camera/autoTuneLog';
+import { describeDeviceLoad, DeviceLoad, UNKNOWN_DEVICE_LOAD } from '../camera/deviceLoad';
 import { Sheet } from './Sheet';
 import { BarChart } from './BarChart';
 import { t, tValue } from '../i18n';
@@ -56,13 +57,15 @@ function stateOf(step: AutoTuneStep, series: StepState[], blocked: boolean): str
 }
 
 export function AutoTuneSheet() {
-  const { info, closeInfo, autoTune, autoTuneLog } = useAppState();
+  const { info, closeInfo, autoTune, autoTuneLog, deviceLoad } = useAppState();
   const open = info === 'autotune';
 
   const [samples, setSamples] = useState<AutoTuneSample[]>([]);
+  const [load, setLoad] = useState<DeviceLoad>(UNKNOWN_DEVICE_LOAD);
   const refresh = useCallback(() => {
     setSamples(autoTuneLog.current ? readSamples(autoTuneLog.current) : []);
-  }, [autoTuneLog]);
+    setLoad(deviceLoad.current ?? UNKNOWN_DEVICE_LOAD);
+  }, [autoTuneLog, deviceLoad]);
 
   useEffect(() => {
     if (!open) return;
@@ -85,6 +88,9 @@ export function AutoTuneSheet() {
     <Sheet visible={open} onClose={closeInfo} maxHeightPercent={82}>
       <Text style={styles.title}>{t('autoTune.screen.title')}</Text>
       <Text style={styles.intro}>{t('autoTune.screen.intro')}</Text>
+      {/* Measured, shown, and — for the battery — deliberately not acted on:
+          dropping detection because a charge is low is the owner's call. */}
+      <Text style={styles.load}>{describeDeviceLoad(load)}</Text>
 
       {samples.length === 0 ? (
         <Text style={styles.empty}>{t('autoTune.screen.empty')}</Text>
@@ -172,6 +178,12 @@ const styles = StyleSheet.create({
     fontFamily: font.regular,
     fontSize: 12,
     lineHeight: 17,
+    color: color.neutral500,
+    marginBottom: 8,
+  },
+  load: {
+    fontFamily: font.medium,
+    fontSize: 12,
     color: color.neutral500,
     marginBottom: 14,
   },

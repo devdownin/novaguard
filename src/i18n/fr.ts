@@ -88,6 +88,8 @@ export const fr = {
 
   'setup.person': 'Détecter les personnes',
   'setup.animal': 'Détecter les animaux',
+  'setup.autoTuneSwitch': 'Auto-réglage',
+  'setup.autoTuneSwitch.sub': 'Retire du calcul quand l’appareil n’analyse plus assez d’images. Ne rallume jamais ce que vous avez éteint.',
   'setup.autoZoom': 'Zoom auto sur les personnes',
   'setup.autoZoom.sub': 'Plan serré 4 s, puis plan large sur la scène',
   'setup.forceCpu': 'Détection sur le processeur',
@@ -273,6 +275,16 @@ export const fr = {
   'autoTune.axis.past.min': 'il y a {count} min',
   'autoTune.window': 'Une barre par fenêtre de {seconds} s',
 
+  // ── what the platform says about heat and power ──────────────────────
+  'deviceLoad.thermal.nominal': 'Température normale',
+  'deviceLoad.thermal.warm': 'Appareil chaud',
+  'deviceLoad.thermal.hot': 'Appareil en surchauffe',
+  'deviceLoad.battery': 'Batterie {percent} %',
+  'deviceLoad.battery.charging': 'Batterie {percent} % · en charge',
+  'deviceLoad.unknown': 'L’appareil ne rapporte ni température ni batterie',
+  'autoTune.throttled': 'L’appareil est ralenti par la chaleur : ce qui a été retiré reviendra en refroidissant',
+  'setup.deviceLoad': 'État de l’appareil',
+
   // ── clip gap, measured on the device ─────────────────────────────────
   'clipGap.none': 'Pas encore mesuré',
   'clipGap.tooShort': 'Filmez un passage plus long que la durée max. par clip pour obtenir une mesure',
@@ -339,6 +351,7 @@ export const fr = {
   'value.sens.Moyenne': 'Moyenne',
   'value.sens.Haute': 'Haute',
   'value.autoTune.autoZoom': 'Zoom auto',
+  'value.autoTune.sensitivity': 'Un cran de sensibilité',
   'value.autoTune.precise': 'Détection étendue',
   'value.camera.Arrière (1×)': 'Arrière (1×)',
   'value.camera.Arrière (0,5×)': 'Arrière (0,5×)',

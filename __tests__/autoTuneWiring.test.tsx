@@ -20,14 +20,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCameraPermission } from 'react-native-vision-camera';
 import { mountProvider } from '../testing/mountProvider';
 import { FRAME_RATE_WINDOW_MS } from '../src/camera/frameRate';
-import { tunedSettings, WINDOWS_TO_GIVE_UP } from '../src/camera/autoTune';
+import { tunedSettings, WINDOWS_TO_GIVE_UP, WINDOWS_TO_GIVE_UP_HOT } from '../src/camera/autoTune';
+import { DEVICE_LOAD_SWEEP_MS } from '../src/state/AppStateContext';
+import { thermalStatus } from '../src/surveillance/foregroundService';
 import { SENSITIVITY_PROFILES } from '../src/ml/sensitivity';
 import { defaultSettings } from '../src/state/defaults';
+import { FrameDetection } from '../src/ml/types';
 import { Settings } from '../src/state/types';
 
 jest.mock('../src/surveillance/foregroundService');
 
 const SETTINGS_KEY = '@novaguard:settings';
+const AUTOTUNE_KEY = '@novaguard:autotune:v1';
+const thermal = thermalStatus as jest.Mock;
 
 /** One analysed frame per window: 0,5 i/s against the 3 i/s "Moyenne" asks for. */
 async function starve(
@@ -135,5 +140,98 @@ describe('the camera path spends the decision', () => {
     const viewfinder = source('components/Viewfinder.tsx');
 
     expect(viewfinder).toContain("!autoTune.applied.includes('autoZoom')");
+  });
+});
+
+it('reads the heat while monitoring, and acts on it sooner', async () => {
+  // Android CRITICAL: a second, independent witness that the phone is being
+  // clocked down, so the loop does not wait out the usual evidence.
+  thermal.mockReturnValue(4);
+  const handle = await mountProvider();
+  await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(DEVICE_LOAD_SWEEP_MS); });
+
+  await starve(handle.state, WINDOWS_TO_GIVE_UP_HOT);
+
+  expect(thermal).toHaveBeenCalled();
+  expect(handle.state.autoTune.applied).toEqual(['autoZoom']);
+});
+
+it('keeps what a format cost, and starts the next session there', async () => {
+  const handle = await mountProvider();
+  await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
+
+  await starve(handle.state, WINDOWS_TO_GIVE_UP);
+
+  // The app's own reading of the phone — not the user's settings, which this
+  // must never write (see the test above).
+  const written = JSON.parse((await AsyncStorage.getItem(AUTOTUNE_KEY))!);
+  expect(written).toEqual({ [defaultSettings.quality]: ['autoZoom'] });
+});
+
+it('starts a session where the last one on this format ended up', async () => {
+  await AsyncStorage.setItem(AUTOTUNE_KEY, JSON.stringify({ [defaultSettings.quality]: ['autoZoom'] }));
+  const handle = await mountProvider();
+
+  await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
+
+  // Six seconds of degraded detection not paid twice for the same phone on the
+  // same format — and given back from the first sustained stretch of cadence,
+  // because nothing about the verdict was restored with it.
+  expect(handle.state.autoTune.applied).toEqual(['autoZoom']);
+  expect(handle.state.autoTune.blocked).toEqual([]);
+});
+
+it('does nothing at all with self-tuning switched off', async () => {
+  const handle = await mountProvider();
+  await ReactTestRenderer.act(async () => { handle.state.toggleAutoTune(); });
+  await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
+
+  await starve(handle.state, WINDOWS_TO_GIVE_UP * 3);
+
+  expect(handle.state.settings.autoTune).toBe(false);
+  expect(handle.state.autoTune.applied).toEqual([]);
+  expect(tunedSettings(handle.state.settings, handle.state.autoTune).autoZoom).toBe(true);
+});
+
+/**
+ * The sensitivity step has to reach the tracker, not just the camera.
+ *
+ * "Sensibilité" moves three things together (`sensitivity.ts`): looks per
+ * second, how many of them confirm a subject, and the score one has to reach.
+ * A step that lowered only the cadence would buy frames and pay for them in a
+ * corroboration the app can no longer afford — the exact failure that file
+ * exists to prevent, one layer up.
+ */
+describe('a notch of sensitivity given up', () => {
+  const person = (confidence: number): FrameDetection =>
+    ({ kind: 'Personne', confidence, box: { x: 0.3, y: 0.3, width: 0.2, height: 0.5 } });
+
+  /** Long enough for the first step to be tried, fail, and the second to be taken. */
+  const TO_SECOND_STEP = WINDOWS_TO_GIVE_UP * 3;
+
+  it('confirms on one look, as "Basse" does', async () => {
+    const handle = await mountProvider();
+    await starve(handle.state, TO_SECOND_STEP);
+    expect(handle.state.autoTune.applied).toEqual(['sensitivity']);
+
+    await ReactTestRenderer.act(async () => {
+      handle.state.reportDetections([person(0.9)], 9 / 16);
+    });
+
+    // "Moyenne" needs two consecutive looks; "Basse" pays for the one it gives
+    // up with a higher score, which 0,9 clears.
+    expect(handle.state.det).toBe('Personne');
+  });
+
+  it('still needs two looks while the notch is the user’s', async () => {
+    const handle = await mountProvider();
+
+    await ReactTestRenderer.act(async () => {
+      handle.state.reportDetections([person(0.9)], 9 / 16);
+    });
+
+    expect(handle.state.autoTune.applied).toEqual([]);
+    expect(handle.state.det).toBeNull();
   });
 });

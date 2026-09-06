@@ -120,6 +120,16 @@ export interface Settings {
   /** Cinematic auto-zoom: ease in on a detected person, whole, hold, then pull back to the scene. */
   autoZoom: boolean;
   /**
+   * Let the app give up its own costs when the device stops keeping up with
+   * the cadence "Sensibilité" asks for.
+   *
+   * On by default, and switchable off because it changes what the camera does
+   * without being asked: a phone that never falls behind will never notice it,
+   * and someone who would rather miss frames than lose the larger detector has
+   * no other way to say so. Off gives back everything it had taken.
+   */
+  autoTune: boolean;
+  /**
    * Run the detection model on the CPU, skipping the GPU delegate.
    *
    * A diagnostic, not a preference: the automatic fallback only catches a GPU

@@ -21,12 +21,14 @@ export function StaticValue({ label }: { label: string }) {
 }
 
 export function ValueButton({
-  label, onPress, active = false, pill = false, accessibilityLabel,
+  label, onPress, active = false, pill = false, accessibilityLabel, testID,
 }: {
   label: string;
   onPress: () => void;
   active?: boolean;
   pill?: boolean;
+  /** For the end-to-end flows, which have no other handle on a value that changes. */
+  testID?: string;
   /**
    * What a screen reader announces, when the visible label does not stand on
    * its own. "7 jours" says nothing without the row it belongs to; "Autoriser"
@@ -37,6 +39,7 @@ export function ValueButton({
   return (
     <Pressable
       onPress={onPress}
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ selected: !!active }}

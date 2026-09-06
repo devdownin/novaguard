@@ -35,6 +35,20 @@ export interface SensitivityProfile {
   startConfidenceBonus: number;
 }
 
+/**
+ * Lowest first. The order is what "one notch down" means, and the self-tuning
+ * ladder steps through it rather than capping frames per second on its own:
+ * the three values move together (see above), so a cadence lowered by itself
+ * would keep asking for corroboration it can no longer afford.
+ */
+export const SENSITIVITY_ORDER: readonly Sensitivity[] = ['Basse', 'Moyenne', 'Haute'];
+
+/** The next sensitivity down, or the same one at the bottom of the scale. */
+export function oneNotchDown(sens: Sensitivity): Sensitivity {
+  const index = SENSITIVITY_ORDER.indexOf(sens);
+  return index > 0 ? SENSITIVITY_ORDER[index - 1] : sens;
+}
+
 export const SENSITIVITY_PROFILES: Record<Sensitivity, SensitivityProfile> = {
   Basse: { fps: 1, confirmAfter: 1, startConfidenceBonus: 0.1 },
   Moyenne: { fps: 3, confirmAfter: 2, startConfidenceBonus: 0 },

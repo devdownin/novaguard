@@ -24,6 +24,12 @@ export const isForegroundServiceRunning = jest.fn(() => false);
 export const notifyDetection = jest.fn();
 export const dismissDetectionAlert = jest.fn();
 export const openDetectionChannelSettings = jest.fn();
+// -1 is what a device that will not answer reports, and what every suite that
+// does not care about heat should see: the loop then works from the cadence
+// alone, exactly as it did before the reading existed.
+export const thermalStatus = jest.fn(() => -1);
+export const batteryLevel = jest.fn(() => -1);
+export const isCharging = jest.fn(() => false);
 export const shareRecording = jest.fn(() => true);
 // Null by default: no native side under Jest, which is also what a device with
 // an undecodable clip answers. A suite that cares hands back a path.

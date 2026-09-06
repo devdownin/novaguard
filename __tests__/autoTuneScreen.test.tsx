@@ -131,8 +131,9 @@ it('draws one bar per measured window, on every parameter', async () => {
   await starve(handle, 4);
 
   // The cadence chart plus one per ladder step, sharing the same time axis.
-  expect(chartLabels(tree)).toHaveLength(3);
+  expect(chartLabels(tree)).toHaveLength(4);
   expect(barsOf(tree, 'autotune-autoZoom')).toBe(4);
+  expect(barsOf(tree, 'autotune-sensitivity')).toBe(4);
   expect(barsOf(tree, 'autotune-precise')).toBe(4);
 });
 
@@ -154,8 +155,9 @@ it('names the parameter the tuner has just given up', async () => {
 
   expect(handle.state.autoTune.applied).toEqual(['autoZoom']);
   expect(allText(tree)).toContain(t('autoTune.state.given'));
-  // The detector is still the user's to keep: the ladder has not reached it.
-  expect(chartLabels(tree)[2]).toContain(t('autoTune.state.off'));
+  // The detector is still the user's to keep: the ladder has not reached it,
+  // and it is off by default, which the screen says rather than blaming the app.
+  expect(chartLabels(tree)[3]).toContain(t('autoTune.state.off'));
 });
 
 it('keeps drawing while the windows keep coming, without being pushed', async () => {

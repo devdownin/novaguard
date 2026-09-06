@@ -368,8 +368,31 @@ throttling thermique, format 4K, téléphone occupé — rien de tout ça n'est 
 l'échelle, et sans cette vérification l'application se démonterait contre un mur.
 L'hystérésis est volontairement asymétrique (3 fenêtres pour retirer, 15 pour
 rendre) parce que restaurer reconstruit le frame processor et recharge un modèle.
-Enfin le verdict meurt avec la session : ce qu'un téléphone tient dépend du format
-qu'il enregistre, de sa température et de ce qui tourne à côté.
+L'échelle a trois barreaux, et le deuxième descend « Sensibilité » d'un cran
+plutôt que de plafonner les images par seconde : le réglage bouge trois choses
+ensemble (`sensitivity.ts`), donc une cadence baissée toute seule continuerait
+d'exiger une corroboration qu'elle ne peut plus payer. C'est aussi pourquoi la
+vérification se juge sur la **fraction de la cible atteinte** et non en i/s :
+2,5 i/s sur 5 est un échec, les mêmes 2,5 sur 3 non, et lu en i/s le palier de
+sensibilité serait rendu aussitôt pris.
+
+Le verdict meurt avec la session, mais le **point de départ** lui survit
+(`@novaguard:autotune:v1`, une entrée par qualité d'enregistrement) : un
+téléphone qui ne tenait pas la 4K hier ne repaie pas six secondes de détection
+dégradée pour le réapprendre. Ce qui est restauré, ce sont les paliers, jamais
+les échecs ni les preuves — la boucle les rend tous dès une série de fenêtres à
+pleine cadence. Rien de tout ça n'est un réglage utilisateur : c'est la lecture
+que l'application fait de l'appareil, et elle n'écrit jamais dans `settings`.
+
+Et depuis que `thermalStatus()` existe, la boucle voit la **cause** et plus
+seulement le symptôme. Un téléphone bridé par la chaleur est plus lent que
+lui-même : on agit plus tôt (une fenêtre au lieu de trois) et on ne blackliste
+pas un palier que la chaleur a fait échouer. Un téléphone simplement trop lent
+ne changera pas : là, un palier sans effet est définitivement écarté. Le
+silence — la majorité du parc — n'est ni l'un ni l'autre, et surtout pas de la
+chaleur. La batterie est mesurée et affichée, jamais utilisée pour décider :
+baisser la détection parce qu'une charge est basse est un arbitrage qui
+appartient au propriétaire de la caméra.
 `autoTuneLog.ts` garde la série sous ce verdict — bornée, mutée en place, jamais
 rendue directement : une fenêtre y tombe toutes les deux secondes sur le chemin
 d'image, donc l'écran qui la dessine (`AutoTuneSheet`) relit le tampon tant qu'il

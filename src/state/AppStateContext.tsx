@@ -17,7 +17,7 @@ import { useLatest } from '../utils/useLatest';
 import { confirmTap } from '../utils/haptics';
 import { FrameDetection } from '../ml/types';
 import { confirmedTracksIfChanged, primaryTrack, Track, updateTracks } from '../ml/tracker';
-import { SENSITIVITY_PROFILES, trackerOptionsFor } from '../ml/sensitivity';
+import { trackerOptionsFor } from '../ml/sensitivity';
 import { detectionsInZone } from '../ml/zone';
 import { Clip, useRecorder } from '../recording/useRecorder';
 import {
@@ -28,9 +28,10 @@ import {
   deleteFiles, orphanedRecordings, renameRecording, volumeSpace,
 } from '../recording/videoStore';
 import {
-  dismissDetectionAlert, extractThumbnail, foregroundServiceError, hasNotificationPermission, notifyDetection,
-  openAppSettings, openDetectionChannelSettings, requestNotificationPermission,
-  startForegroundService, stopForegroundService,
+  batteryLevel, dismissDetectionAlert, extractThumbnail, foregroundServiceError,
+  hasNotificationPermission, isCharging, notifyDetection, openAppSettings,
+  openDetectionChannelSettings, requestNotificationPermission, startForegroundService,
+  stopForegroundService, thermalStatus,
 } from '../surveillance/foregroundService';
 import { alertContent, shouldAlert } from '../surveillance/alerts';
 import { installFrameErrorGuard } from '../camera/frameErrorGuard';
@@ -40,9 +41,11 @@ import {
 } from '../camera/frameTrace';
 import { countFrame, EMPTY_FRAME_RATE_WINDOW, FrameRateWindow } from '../camera/frameRate';
 import {
-  AutoTuneState, decisionChanged, IDLE_AUTO_TUNE, updateAutoTune,
+  AutoTuneState, decisionChanged, expectedTarget, IDLE_AUTO_TUNE, seedFrom, seedsWith,
+  tunedSettings, updateAutoTune,
 } from '../camera/autoTune';
 import { AutoTuneLog, emptyAutoTuneLog, pushSample, sampleSteps } from '../camera/autoTuneLog';
+import { DeviceLoad, deviceLoadOf, UNKNOWN_DEVICE_LOAD } from '../camera/deviceLoad';
 import { ClipGapStats, EMPTY_CLIP_GAP_STATS, recordGap } from '../recording/clipGap';
 import { t } from '../i18n';
 
@@ -85,6 +88,13 @@ interface AppStateValue {
    * while it is open — see `AutoTuneSheet`.
    */
   autoTuneLog: React.RefObject<AutoTuneLog>;
+  /**
+   * Heat and power as the platform reports them, re-read on a slow interval
+   * while monitoring — the cause behind a cadence that collapsed. A ref for
+   * the same reason as the log: nothing on screen depends on it changing, and
+   * the frame path reads it.
+   */
+  deviceLoad: React.RefObject<DeviceLoad>;
   storage: StorageInfo;
   /** Passed down to the Camera so the recorder can drive it. */
   cameraRef: React.RefObject<VisionCamera | null>;
@@ -133,6 +143,7 @@ interface AppStateValue {
   togglePerson: () => void;
   toggleAnimal: () => void;
   toggleAutoZoom: () => void;
+  toggleAutoTune: () => void;
   toggleForceCpu: () => void;
   togglePreciseDetection: () => void;
   /**
@@ -290,6 +301,16 @@ export const RESUME_ARM_MS = 8000;
 export const DISK_SWEEP_MS = 30_000;
 
 /**
+ * How often heat and power are re-read.
+ *
+ * Three native calls, so not on the frame path: thermal status moves over
+ * minutes, and a reading per analysed frame would cost five bridge round trips
+ * a second for a value that changes at walking pace. Only while monitoring —
+ * with the camera off there is nothing for it to explain.
+ */
+export const DEVICE_LOAD_SWEEP_MS = 10_000;
+
+/**
  * Prefixes of the viewfinder messages the camera owns, and may therefore clear
  * again when it recovers. Anything else there was put up by recording or by the
  * foreground service and is not the camera's to take down.
@@ -384,7 +405,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [s, storedEvents, dt, ld, wasMonitoring, onboarded, lastStage] = await Promise.all([
+      const [s, storedEvents, dt, ld, wasMonitoring, onboarded, lastStage, seeds] = await Promise.all([
         storage.loadSettings(),
         storage.loadEvents(),
         storage.loadDetToday(),
@@ -392,8 +413,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         storage.loadMonitoring(),
         storage.loadOnboardingComplete(),
         storage.loadFrameStage(),
+        storage.loadAutoTuneSeeds(),
       ]);
       if (cancelled) return;
+      autoTuneSeedsRef.current = seeds;
       // Merged over the defaults rather than used as-is: a settings object
       // written by an older version is missing every field added since, and
       // spreading it whole would leave those undefined.
@@ -537,6 +560,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const autoTuneRef = useRef<AutoTuneState>(IDLE_AUTO_TUNE);
   /** One entry per closed window, bounded, never rendered from directly. */
   const autoTuneLogRef = useRef<AutoTuneLog>(emptyAutoTuneLog());
+  /** Heat and power, polled while monitoring; "unknown" everywhere else. */
+  const deviceLoadRef = useRef<DeviceLoad>(UNKNOWN_DEVICE_LOAD);
+  /**
+   * What previous sessions had to give up, per recording quality, as read at
+   * hydration. Held in a ref because a session starts on a tap: an await there
+   * would leave the first windows running on a state the disk was about to
+   * replace.
+   */
+  const autoTuneSeedsRef = useRef<Record<string, string[]> | null>(null);
   /**
    * Last event id minted. Owned here rather than derived from `events[0]`,
    * which would only be the highest id while the list happens to be sorted
@@ -873,21 +905,35 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       // screen, which is most of a surveillance phone's life, and that is
       // exactly when a device falling behind matters most.
       const previous = autoTuneRef.current;
+      // The cadence asked for *during* that window, which the tuner itself can
+      // have lowered: read from the state the window ran under, not from the
+      // one the fold is about to produce.
+      const target = expectedTarget(settingsRef.current, previous);
       const tuned = updateAutoTune(
-        previous,
-        { measured, target: SENSITIVITY_PROFILES[settingsRef.current.sens].fps },
-        settingsRef.current,
+        previous, { measured, target, load: deviceLoadRef.current }, settingsRef.current,
       );
       if (tuned !== previous) {
         autoTuneRef.current = tuned;
-        if (decisionChanged(previous, tuned)) setAutoTune(tuned);
+        if (decisionChanged(previous, tuned)) {
+          setAutoTune(tuned);
+          // Written on decisions only, which are minutes apart at worst: this
+          // is the app's own reading of the phone, kept so the next session on
+          // this format does not re-pay the seconds it took to learn it.
+          if (tuned.applied !== previous.applied) {
+            const seeds = seedsWith(
+              autoTuneSeedsRef.current, settingsRef.current.quality, tuned.applied,
+            );
+            autoTuneSeedsRef.current = seeds;
+            storage.saveAutoTuneSeeds(seeds);
+          }
+        }
       }
       // Recorded after the fold, so the window carries the state it ends in —
       // and per step, so a capability the user switched off is never drawn as
       // one the app took away.
       pushSample(autoTuneLogRef.current, {
         measured,
-        target: SENSITIVITY_PROFILES[settingsRef.current.sens].fps,
+        target,
         steps: sampleSteps(autoTuneRef.current, settingsRef.current),
       });
     }
@@ -900,8 +946,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // The zone comes first: a detection outside it is not a subject, so it
     // must not open a track, keep one alive, or hold off a post-roll.
     const watched = detectionsInZone(detections, settingsRef.current.zone);
+    // Through the tuned settings: "Sensibilité" moves three things together
+    // (see `sensitivity.ts`), so a notch the tuner steps down has to reach
+    // `confirmAfter` and the start score as well as the cadence — otherwise it
+    // buys frames and pays for them in corroboration it can no longer afford.
+    const running = tunedSettings(settingsRef.current, autoTuneRef.current);
     const next = updateTracks(tracksRef.current, watched, now,
-      trackerOptionsFor(settingsRef.current.sens, settingsRef.current.threshold));
+      trackerOptionsFor(running.sens, running.threshold));
     tracksRef.current = next;
     // Keep the previous array when nothing moved: every other setter here
     // already bails on `Object.is`, so this is what makes a still scene free.
@@ -977,6 +1028,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       // the reason for taking it away is gone.
       autoTuneRef.current = IDLE_AUTO_TUNE;
       autoTuneLogRef.current = emptyAutoTuneLog();
+      deviceLoadRef.current = UNKNOWN_DEVICE_LOAD;
       setAutoTune(IDLE_AUTO_TUNE);
       setMonitoring(false);
       return;
@@ -1079,6 +1131,36 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(iv);
   }, [hydrated, sweepDisk]);
 
+  /**
+   * A session starts where the last one on this format ended up — not with its
+   * verdict, only with what it had to give up. Everything else about the
+   * decision (what was tried and failed, the evidence, the pending
+   * verification) is session-scoped and stays behind: a phone that has cooled
+   * down, or been handed a lighter quality, gives it all back from the first
+   * sustained stretch of full cadence.
+   */
+  useEffect(() => {
+    if (!monitoring) return;
+    const seeded = seedFrom(
+      autoTuneSeedsRef.current, settingsRef.current.quality, settingsRef.current,
+    );
+    autoTuneRef.current = seeded;
+    setAutoTune(seeded);
+  }, [monitoring, settingsRef]);
+
+  useEffect(() => {
+    if (!monitoring) {
+      deviceLoadRef.current = UNKNOWN_DEVICE_LOAD;
+      return undefined;
+    }
+    const read = () => {
+      deviceLoadRef.current = deviceLoadOf(thermalStatus(), batteryLevel(), isCharging());
+    };
+    read();
+    const iv = setInterval(read, DEVICE_LOAD_SWEEP_MS);
+    return () => clearInterval(iv);
+  }, [monitoring]);
+
   const store = useMemo<StorageInfo>(
     () => ({ ...volume, used: totalBytes(events) }),
     [events, volume],
@@ -1137,6 +1219,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const togglePerson = useCallback(() => patchSettings({ person: !settings.person }), [patchSettings, settings.person]);
   const toggleAnimal = useCallback(() => patchSettings({ animal: !settings.animal }), [patchSettings, settings.animal]);
   const toggleAutoZoom = useCallback(() => patchSettings({ autoZoom: !settings.autoZoom }), [patchSettings, settings.autoZoom]);
+  /**
+   * Switching it off hands back whatever it had taken at the next window, in
+   * `updateAutoTune`; the published state is cleared here so the screens do not
+   * keep naming a step that is already back.
+   */
+  const toggleAutoTune = useCallback(() => {
+    const enabled = !settings.autoTune;
+    patchSettings({ autoTune: enabled });
+    if (!enabled) {
+      autoTuneRef.current = IDLE_AUTO_TUNE;
+      setAutoTune(IDLE_AUTO_TUNE);
+    }
+  }, [patchSettings, settings.autoTune]);
   const toggleForceCpu = useCallback(() => patchSettings({ forceCpu: !settings.forceCpu }), [patchSettings, settings.forceCpu]);
   const toggleAutoDel = useCallback(() => patchSettings({ autoDel: !settings.autoDel }), [patchSettings, settings.autoDel]);
   const toggleNotif = useCallback(() => patchSettings({ notif: !settings.notif }), [patchSettings, settings.notif]);
@@ -1256,12 +1351,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     hydrated,
     tab, setTab,
     monitoring, det, detToday, lastDetAt,
-    recording: isRecording, recError, clipGap, autoTune, autoTuneLog: autoTuneLogRef, storage: store, cameraRef, foreground, reportCameraProblem, reportFrameStage,
+    recording: isRecording, recError, clipGap, autoTune, autoTuneLog: autoTuneLogRef, deviceLoad: deviceLoadRef, storage: store, cameraRef, foreground, reportCameraProblem, reportFrameStage,
     toggleMonitoring, reportDetections,
     events, filter, setFilter, period, setPeriod, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent,
     confirmDelete, askDelete, cancelDelete, doDelete,
     confirmWipe, askWipe, cancelWipe, doWipe,
-    settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleForceCpu,
+    settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, cyclePost, cycleMax, cycleQuality, setRetention,
     toggleAutoDel, toggleNotif, toggleNotifDet, openAlertSoundSettings, wipeAllVideos,
@@ -1269,10 +1364,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
     hydrated, tab, monitoring, det, detToday, lastDetAt,
-    isRecording, recError, clipGap, autoTune, autoTuneLogRef, store, cameraRef, foreground, reportCameraProblem, reportFrameStage, toggleMonitoring, reportDetections,
+    isRecording, recError, clipGap, autoTune, autoTuneLogRef, deviceLoadRef, store, cameraRef, foreground, reportCameraProblem, reportFrameStage, toggleMonitoring, reportDetections,
     events, filter, period, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent,
     confirmDelete, askDelete, cancelDelete, doDelete, confirmWipe, askWipe, cancelWipe, doWipe,
-    settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleForceCpu,
+    settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, cyclePost, cycleMax, cycleQuality, setRetention,
     toggleAutoDel, toggleNotif, toggleNotifDet, openAlertSoundSettings, wipeAllVideos,
