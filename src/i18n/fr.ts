@@ -253,6 +253,26 @@ export const fr = {
   'autoTune.noGain': 'Rendu : {measured} au lieu de {target}, le retrait n’y changeait rien',
   'autoTune.restored': 'L’appareil suit la cadence demandée ({measured} sur {target})',
 
+  // ── the dynamic-parameters screen ────────────────────────────────────
+  'autoTune.screen.title': 'Paramètres dynamiques',
+  'autoTune.screen.intro': 'Ce que l’application ajuste seule, d’après la cadence qu’elle mesure. Elle ne peut que retirer ce que vous avez demandé, jamais activer ce que vous avez éteint.',
+  'autoTune.screen.empty': 'Aucune mesure pour l’instant : la cadence est prélevée sur les images analysées, donc elle commence avec la surveillance.',
+  'autoTune.chart.cadence': 'Cadence analysée',
+  'autoTune.chart.cadence.a11y': 'Cadence analysée sur les {count} dernières fenêtres : dernière {last}, moyenne {mean}, cible {target}.',
+  'autoTune.chart.step.a11y': '{name} : {state}. Actif sur {on} des {total} dernières fenêtres.',
+  'autoTune.stat.last': 'Dernière',
+  'autoTune.stat.mean': 'Moyenne',
+  'autoTune.stat.target': 'Cible',
+  'autoTune.uptime': 'Actif sur {on} des {total} fenêtres mesurées',
+  'autoTune.state.on': 'Actif',
+  'autoTune.state.given': 'Retiré',
+  'autoTune.state.off': 'Éteint par vous',
+  'autoTune.state.blocked': 'Rendu — sans effet ici',
+  'autoTune.axis.now': 'maintenant',
+  'autoTune.axis.past.s': 'il y a {count} s',
+  'autoTune.axis.past.min': 'il y a {count} min',
+  'autoTune.window': 'Une barre par fenêtre de {seconds} s',
+
   // ── clip gap, measured on the device ─────────────────────────────────
   'clipGap.none': 'Pas encore mesuré',
   'clipGap.tooShort': 'Filmez un passage plus long que la durée max. par clip pour obtenir une mesure',

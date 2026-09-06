@@ -42,6 +42,7 @@ import { countFrame, EMPTY_FRAME_RATE_WINDOW, FrameRateWindow } from '../camera/
 import {
   AutoTuneState, decisionChanged, IDLE_AUTO_TUNE, updateAutoTune,
 } from '../camera/autoTune';
+import { AutoTuneLog, emptyAutoTuneLog, pushSample, sampleSteps } from '../camera/autoTuneLog';
 import { ClipGapStats, EMPTY_CLIP_GAP_STATS, recordGap } from '../recording/clipGap';
 import { t } from '../i18n';
 
@@ -75,6 +76,15 @@ interface AppStateValue {
    * the camera path merges the two through `tunedSettings`.
    */
   autoTune: AutoTuneState;
+  /**
+   * The windows behind that decision, for the screen that draws them.
+   *
+   * Handed out as the buffer rather than as state on purpose: one sample lands
+   * per closed frame-rate window, on the frame path, and publishing that would
+   * re-render every consumer twice a second. The one screen that reads it polls
+   * while it is open — see `AutoTuneSheet`.
+   */
+  autoTuneLog: React.RefObject<AutoTuneLog>;
   storage: StorageInfo;
   /** Passed down to the Camera so the recorder can drive it. */
   cameraRef: React.RefObject<VisionCamera | null>;
@@ -525,6 +535,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const frameWindowRef = useRef<FrameRateWindow>({ ...EMPTY_FRAME_RATE_WINDOW });
   /** The self-tuning state the frame path folds into; `autoTune` is its published half. */
   const autoTuneRef = useRef<AutoTuneState>(IDLE_AUTO_TUNE);
+  /** One entry per closed window, bounded, never rendered from directly. */
+  const autoTuneLogRef = useRef<AutoTuneLog>(emptyAutoTuneLog());
   /**
    * Last event id minted. Owned here rather than derived from `events[0]`,
    * which would only be the highest id while the list happens to be sorted
@@ -870,6 +882,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         autoTuneRef.current = tuned;
         if (decisionChanged(previous, tuned)) setAutoTune(tuned);
       }
+      // Recorded after the fold, so the window carries the state it ends in —
+      // and per step, so a capability the user switched off is never drawn as
+      // one the app took away.
+      pushSample(autoTuneLogRef.current, {
+        measured,
+        target: SENSITIVITY_PROFILES[settingsRef.current.sens].fps,
+        steps: sampleSteps(autoTuneRef.current, settingsRef.current),
+      });
     }
 
     // The user's threshold is the tracker's entry gate, not the detector's
@@ -956,6 +976,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       // running. Carrying a step over would keep a capability off long after
       // the reason for taking it away is gone.
       autoTuneRef.current = IDLE_AUTO_TUNE;
+      autoTuneLogRef.current = emptyAutoTuneLog();
       setAutoTune(IDLE_AUTO_TUNE);
       setMonitoring(false);
       return;
@@ -1235,7 +1256,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     hydrated,
     tab, setTab,
     monitoring, det, detToday, lastDetAt,
-    recording: isRecording, recError, clipGap, autoTune, storage: store, cameraRef, foreground, reportCameraProblem, reportFrameStage,
+    recording: isRecording, recError, clipGap, autoTune, autoTuneLog: autoTuneLogRef, storage: store, cameraRef, foreground, reportCameraProblem, reportFrameStage,
     toggleMonitoring, reportDetections,
     events, filter, setFilter, period, setPeriod, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent,
     confirmDelete, askDelete, cancelDelete, doDelete,
@@ -1248,7 +1269,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
     hydrated, tab, monitoring, det, detToday, lastDetAt,
-    isRecording, recError, clipGap, autoTune, store, cameraRef, foreground, reportCameraProblem, reportFrameStage, toggleMonitoring, reportDetections,
+    isRecording, recError, clipGap, autoTune, autoTuneLogRef, store, cameraRef, foreground, reportCameraProblem, reportFrameStage, toggleMonitoring, reportDetections,
     events, filter, period, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent,
     confirmDelete, askDelete, cancelDelete, doDelete, confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleForceCpu,

@@ -370,6 +370,13 @@ L'hystérésis est volontairement asymétrique (3 fenêtres pour retirer, 15 pou
 rendre) parce que restaurer reconstruit le frame processor et recharge un modèle.
 Enfin le verdict meurt avec la session : ce qu'un téléphone tient dépend du format
 qu'il enregistre, de sa température et de ce qui tourne à côté.
+`autoTuneLog.ts` garde la série sous ce verdict — bornée, mutée en place, jamais
+rendue directement : une fenêtre y tombe toutes les deux secondes sur le chemin
+d'image, donc l'écran qui la dessine (`AutoTuneSheet`) relit le tampon tant qu'il
+est ouvert au lieu que le provider publie. Chaque échantillon porte un état **par**
+palier, pas un drapeau : « actif », « retiré par l'app » et « éteint par vous » sont
+trois choses différentes, et un graphique qui les confond fait porter à
+l'application un retrait qu'elle n'a pas fait.
 
 **Une nouvelle référence de tableau est un re-rendu.** `confirmedTracksIfChanged`
 existe pour ça : conserver l'identité quand l'incrustation ne changerait pas.

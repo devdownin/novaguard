@@ -246,6 +246,26 @@ export const en: Record<StringKey, string> = {
   'autoTune.noGain': 'Given back: {measured} instead of {target}, dropping it changed nothing',
   'autoTune.restored': 'The device is keeping up with the target ({measured} of {target})',
 
+  // ── the dynamic-parameters screen ────────────────────────────────────
+  'autoTune.screen.title': 'Dynamic parameters',
+  'autoTune.screen.intro': 'What the app tunes on its own, from the cadence it measures. It can only give up what you asked for, never switch on what you turned off.',
+  'autoTune.screen.empty': 'Nothing measured yet: the cadence comes from analysed frames, so it starts with monitoring.',
+  'autoTune.chart.cadence': 'Analysed cadence',
+  'autoTune.chart.cadence.a11y': 'Analysed cadence over the last {count} windows: latest {last}, mean {mean}, target {target}.',
+  'autoTune.chart.step.a11y': '{name}: {state}. On for {on} of the last {total} windows.',
+  'autoTune.stat.last': 'Latest',
+  'autoTune.stat.mean': 'Mean',
+  'autoTune.stat.target': 'Target',
+  'autoTune.uptime': 'On for {on} of {total} measured windows',
+  'autoTune.state.on': 'On',
+  'autoTune.state.given': 'Given up',
+  'autoTune.state.off': 'Turned off by you',
+  'autoTune.state.blocked': 'Given back — no effect here',
+  'autoTune.axis.now': 'now',
+  'autoTune.axis.past.s': '{count} s ago',
+  'autoTune.axis.past.min': '{count} min ago',
+  'autoTune.window': 'One bar per {seconds} s window',
+
   // ── clip gap, measured on the device ─────────────────────────────────
   'clipGap.none': 'Not measured yet',
   'clipGap.tooShort': 'Film a passage longer than the max. clip length to get a measurement',

@@ -17,6 +17,13 @@ const TITLES: Record<'perms' | 'data' | 'licenses', StringKey> = {
 
 export function InfoSheet() {
   const { info, closeInfo, perms, events, storage: store, storedSize, grantPermission } = useAppState();
+  /**
+   * `autotune` rides the same "which panel is up" state but is a screen of its
+   * own (`AutoTuneSheet`), not a list of rows. Filtered out here rather than
+   * allowed to fall through to the data rows, which is what it would otherwise
+   * draw under the wrong title.
+   */
+  const panel = info === 'autotune' ? null : info;
 
   const clipCount = events.filter(e => e.path != null).length;
 
@@ -29,7 +36,7 @@ export function InfoSheet() {
    * again. This panel was the natural second chance and only reported the
    * state it was powerless to change.
    */
-  const rows = info === 'perms'
+  const rows = panel === 'perms'
     ? [
       { key: 'cam' as const, label: t('info.perm.cam'), note: t('info.perm.cam.note'), value: t('info.perm.cam.granted') },
       { key: 'mic' as const, label: t('info.perm.mic'), note: t('info.perm.mic.note'), value: t('info.perm.mic.granted') },
@@ -37,7 +44,7 @@ export function InfoSheet() {
       // Granted by installing the app: nothing to ask for, so nothing to press.
       { label: t('info.perm.storage'), note: t('info.perm.storage.note'), value: t('info.perm.storage.granted') },
     ]
-    : info === 'licenses'
+    : panel === 'licenses'
       ? THIRD_PARTY_LICENSES.map(lib => ({ label: lib.name, note: t(lib.noteKey), value: lib.license }))
       : [
         // Files, not events: a sighting the encoder produced nothing for is
@@ -57,8 +64,8 @@ export function InfoSheet() {
       ];
 
   return (
-    <Sheet visible={!!info} onClose={closeInfo} maxHeightPercent={76}>
-      <Text style={styles.title}>{info ? t(TITLES[info]) : ''}</Text>
+    <Sheet visible={!!panel} onClose={closeInfo} maxHeightPercent={76}>
+      <Text style={styles.title}>{panel ? t(TITLES[panel]) : ''}</Text>
       {rows.map(row => {
         const key = 'key' in row ? row.key : null;
         const granted = key ? perms[key] : true;

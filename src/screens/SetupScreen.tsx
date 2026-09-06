@@ -259,7 +259,13 @@ export function SetupScreen() {
           {/* What the app took away from itself, and the measurement it took it
               on. A capability that disappears without saying so reads as a bug. */}
           <SettingRow label={t('setup.autoTune')} subtitle={describeAutoTune(autoTune)}>
-            <StaticValue label={formatAutoTune(autoTune)} />
+            <ValueButton
+              label={formatAutoTune(autoTune)}
+              onPress={() => s.openInfo('autotune')}
+              accessibilityLabel={t('a11y.setting', {
+                name: t('setup.autoTune'), value: formatAutoTune(autoTune),
+              })}
+            />
           </SettingRow>
           <View style={[styles.subBlock, { flexDirection: 'row', gap: 7 }]}>
             <PrimaryOutlineButton label={t('setup.source')} onPress={() => Linking.openURL(REPO_URL)} style={{ flex: 1 }} />
