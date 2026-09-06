@@ -1,5 +1,7 @@
 package com.novaguard.surveillance
 
+import android.os.BatteryManager
+import android.os.PowerManager
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import java.util.concurrent.Executors
@@ -45,6 +47,33 @@ class SurveillanceServiceModule(reactContext: ReactApplicationContext) :
   }
 
   /**
+   * What the platform says about heat and power.
+   *
+   * All three answer with "unknown" rather than throwing: the analysis loop
+   * that reads them runs on every device, and a phone whose OEM does not
+   * implement thermal reporting must degrade to the cadence measurement it
+   * already had, not to a crash. `getSystemService` can return null on a
+   * stripped image, which is the case the null-safe calls cover.
+   */
+  override fun thermalStatus(): Double {
+    val power = reactApplicationContext.getSystemService(PowerManager::class.java)
+    return power?.currentThermalStatus?.toDouble() ?: UNKNOWN
+  }
+
+  override fun batteryLevel(): Double {
+    val battery = reactApplicationContext.getSystemService(BatteryManager::class.java)
+    val level = battery?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+    // The property answers Integer.MIN_VALUE on a device that does not report
+    // it, which is not a percentage and must not be shown as one.
+    return if (level in 0..100) level.toDouble() else UNKNOWN
+  }
+
+  override fun isCharging(): Boolean {
+    val battery = reactApplicationContext.getSystemService(BatteryManager::class.java)
+    return battery?.isCharging ?: false
+  }
+
+  /**
    * Off the calling thread on purpose: this opens and parses the container to
    * decode one frame, and the JS thread it is called from is the one about to
    * file the event.
@@ -58,6 +87,9 @@ class SurveillanceServiceModule(reactContext: ReactApplicationContext) :
 
   companion object {
     const val NAME = "SurveillanceService"
+
+    /** What every reading above answers when the platform will not. */
+    private const val UNKNOWN = -1.0
 
     // One thread, shared: clips are filed one at a time, and a pool would only
     // let several decodes compete for memory on the phone doing the watching.

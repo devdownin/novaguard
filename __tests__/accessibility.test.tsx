@@ -100,7 +100,7 @@ describe('every switch says which setting it is', () => {
     // separate node, and it is the one the reader lands on. Unnamed, nine of
     // them down one screen announce nothing but "off, switch".
     const switches = pressables(renderer).filter(n => n.props.accessibilityRole === 'switch');
-    expect(switches).toHaveLength(10);
+    expect(switches).toHaveLength(11);
     for (const node of switches) {
       expect(typeof node.props.accessibilityLabel).toBe('string');
       expect(node.props.accessibilityLabel.length).toBeGreaterThan(0);

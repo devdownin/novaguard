@@ -86,6 +86,8 @@ export const en: Record<StringKey, string> = {
 
   'setup.person': 'Detect people',
   'setup.animal': 'Detect animals',
+  'setup.autoTuneSwitch': 'Self-tuning',
+  'setup.autoTuneSwitch.sub': 'Gives up compute when the device stops analysing enough frames. Never switches back on what you turned off.',
   'setup.autoZoom': 'Auto-zoom on people',
   'setup.autoZoom.sub': 'Close shot for 4 s, then a wide shot of the scene',
   'setup.forceCpu': 'Detect on the CPU',
@@ -266,6 +268,16 @@ export const en: Record<StringKey, string> = {
   'autoTune.axis.past.min': '{count} min ago',
   'autoTune.window': 'One bar per {seconds} s window',
 
+  // ── what the platform says about heat and power ──────────────────────
+  'deviceLoad.thermal.nominal': 'Temperature normal',
+  'deviceLoad.thermal.warm': 'Device warm',
+  'deviceLoad.thermal.hot': 'Device overheating',
+  'deviceLoad.battery': 'Battery {percent}%',
+  'deviceLoad.battery.charging': 'Battery {percent}% · charging',
+  'deviceLoad.unknown': 'The device reports neither temperature nor battery',
+  'autoTune.throttled': 'The device is slowed by heat: what was given up comes back as it cools',
+  'setup.deviceLoad': 'Device state',
+
   // ── clip gap, measured on the device ─────────────────────────────────
   'clipGap.none': 'Not measured yet',
   'clipGap.tooShort': 'Film a passage longer than the max. clip length to get a measurement',
@@ -328,6 +340,7 @@ export const en: Record<StringKey, string> = {
   'value.sens.Moyenne': 'Medium',
   'value.sens.Haute': 'High',
   'value.autoTune.autoZoom': 'Auto-zoom',
+  'value.autoTune.sensitivity': 'One notch of sensitivity',
   'value.autoTune.precise': 'Extended detection',
   'value.camera.Arrière (1×)': 'Back (1×)',
   'value.camera.Arrière (0,5×)': 'Back (0.5×)',

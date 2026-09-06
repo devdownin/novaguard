@@ -50,6 +50,22 @@ export interface Spec extends TurboModule {
   extractThumbnail(clipPath: string): Promise<string>;
 
   /**
+   * Android's own thermal reading for the device, as
+   * `PowerManager.THERMAL_STATUS_*` (0 none … 6 shutdown), or -1 where the
+   * platform will not answer.
+   *
+   * The self-tuning loop otherwise only sees the symptom — a cadence that
+   * collapsed — and cannot tell a phone that is throttling from one that was
+   * always too slow. The two call for opposite conclusions: throttling passes,
+   * so what it took should be given back; a phone that cannot keep up never
+   * will, so it should not be tried again.
+   */
+  thermalStatus(): number;
+  /** Battery charge as a percentage, or -1 when the platform will not say. */
+  batteryLevel(): number;
+  isCharging(): boolean;
+
+  /**
    * Opens Android's own settings page for the detection channel. Since Android
    * 8 the platform — not the app — owns whether a channel makes sound or
    * vibrates, so this is the only honest place to send someone who wants to

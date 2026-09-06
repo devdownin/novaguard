@@ -52,6 +52,42 @@ export function foregroundServiceError(): string | null {
   }
 }
 
+/**
+ * What the platform says about heat and power, or "unknown".
+ *
+ * Read through the same wrapper as everything else on this module: null under
+ * Jest and on a build where codegen has not run, and a device whose OEM does
+ * not implement thermal reporting answers -1. Both mean the self-tuning loop
+ * falls back to the cadence measurement it already had — never to an
+ * exception on the frame path.
+ */
+export function thermalStatus(): number {
+  if (!NativeSurveillanceService) return -1;
+  try {
+    return NativeSurveillanceService.thermalStatus();
+  } catch {
+    return -1;
+  }
+}
+
+export function batteryLevel(): number {
+  if (!NativeSurveillanceService) return -1;
+  try {
+    return NativeSurveillanceService.batteryLevel();
+  } catch {
+    return -1;
+  }
+}
+
+export function isCharging(): boolean {
+  if (!NativeSurveillanceService) return false;
+  try {
+    return NativeSurveillanceService.isCharging();
+  } catch {
+    return false;
+  }
+}
+
 export function isForegroundServiceRunning(): boolean {
   if (!NativeSurveillanceService) return false;
   try {

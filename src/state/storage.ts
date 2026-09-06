@@ -17,6 +17,7 @@ const KEYS = {
   monitoring: '@novaguard:monitoring',
   onboardingComplete: '@novaguard:onboardingComplete',
   frameStage: '@novaguard:frameStage',
+  autoTune: '@novaguard:autotune:v1',
 } as const;
 
 // '@novaguard:perms' held simulated mic/notification grants; all three
@@ -158,6 +159,23 @@ export const storage = {
    * a frame makes it through, so finding one at launch means the previous
    * session died mid-analysis.
    */
+  /**
+   * What the self-tuning loop had given up, per recording quality.
+   *
+   * Not settings: the user's choices are never written from here (see
+   * `autoTune.ts`). This is the app's own reading of the phone, kept so a
+   * device that could not hold 4K yesterday does not re-pay six seconds of
+   * degraded detection to learn it again — and re-verified from the first
+   * window, so a phone that has cooled down or been given a lighter format
+   * gets everything back.
+   *
+   * Typed loosely on purpose: what comes back off disk is whatever an older
+   * version wrote, and the ladder has already gained a step. `seedFrom` is
+   * where it becomes a state, and it drops anything it does not recognise.
+   */
+  loadAutoTuneSeeds: () => readJson<Record<string, string[]>>(KEYS.autoTune),
+  saveAutoTuneSeeds: (v: Record<string, string[]>) => writeJson(KEYS.autoTune, v),
+
   loadFrameStage: () => readJson<string>(KEYS.frameStage),
   saveFrameStage: (v: string) => writeJson(KEYS.frameStage, v),
   clearFrameStage: async () => {

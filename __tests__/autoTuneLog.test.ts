@@ -21,7 +21,7 @@ import { defaultSettings } from '../src/state/defaults';
 import { Settings } from '../src/state/types';
 
 const withSettings = (over: Partial<Settings>): Settings => ({ ...defaultSettings, ...over });
-const everything = withSettings({ autoZoom: true, preciseDetection: true });
+const everything = withSettings({ autoZoom: true, sens: 'Moyenne', preciseDetection: true });
 const given = (...applied: AutoTuneState['applied']): AutoTuneState => ({ ...IDLE_AUTO_TUNE, applied });
 
 const sample = (measured: number, state = IDLE_AUTO_TUNE, settings = everything): AutoTuneSample =>
@@ -56,21 +56,22 @@ describe('the buffer', () => {
 describe('what a window says about each step', () => {
   it('separates given up from switched off', () => {
     const state = given('autoZoom');
-    const settings = withSettings({ autoZoom: true, preciseDetection: false });
+    const settings = withSettings({ autoZoom: true, sens: 'Basse', preciseDetection: false });
 
-    // The app took the auto-zoom; the user had already declined the detector.
-    // Drawing both as "absent" would credit the app with the second.
-    expect(sampleSteps(state, settings)).toEqual(['given', 'off']);
+    // The app took the auto-zoom; the user had already declined the detector,
+    // and "Basse" leaves no notch to step down to. Drawing all three as
+    // "absent" would credit the app with two removals it did not make.
+    expect(sampleSteps(state, settings)).toEqual(['given', 'off', 'off']);
   });
 
   it('reads a step the user asked for and nobody removed as on', () => {
-    expect(sampleSteps(IDLE_AUTO_TUNE, everything)).toEqual(['on', 'on']);
+    expect(sampleSteps(IDLE_AUTO_TUNE, everything)).toEqual(['on', 'on', 'on']);
   });
 
   it('reports the tuner first, even for a step the user also has off', () => {
-    const settings = withSettings({ autoZoom: false, preciseDetection: true });
+    const settings = withSettings({ autoZoom: false, sens: 'Moyenne', preciseDetection: true });
 
-    expect(sampleSteps(given('autoZoom'), settings)).toEqual(['given', 'on']);
+    expect(sampleSteps(given('autoZoom'), settings)).toEqual(['given', 'on', 'on']);
   });
 });
 

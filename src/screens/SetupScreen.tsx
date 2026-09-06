@@ -40,7 +40,7 @@ const SENS_HINT: Record<Sensitivity, StringKey> = {
 export function SetupScreen() {
   const s = useAppState();
   const landscape = useLandscape();
-  const { settings, events, storage: store, clipGap, autoTune } = s;
+  const { settings, events, storage: store, clipGap, autoTune, deviceLoad } = s;
 
   // Share of the whole volume taken by NovaGuard's own clips. Kept visible at a
   // sliver once anything is stored, so the bar never reads as "nothing on disk".
@@ -95,6 +95,13 @@ export function SetupScreen() {
               value={settings.preciseDetection}
               onValueChange={s.togglePreciseDetection}
               accessibilityLabel={t('setup.precise')}
+            />
+          </SettingRow>
+          <SettingRow label={t('setup.autoTuneSwitch')} subtitle={t('setup.autoTuneSwitch.sub')}>
+            <Switch
+              value={settings.autoTune}
+              onValueChange={s.toggleAutoTune}
+              accessibilityLabel={t('setup.autoTuneSwitch')}
             />
           </SettingRow>
           <SettingRow label={t('setup.zone')} subtitle={t('setup.zone.sub')}>
@@ -258,8 +265,12 @@ export function SetupScreen() {
           </SettingRow>
           {/* What the app took away from itself, and the measurement it took it
               on. A capability that disappears without saying so reads as a bug. */}
-          <SettingRow label={t('setup.autoTune')} subtitle={describeAutoTune(autoTune)}>
+          <SettingRow
+            label={t('setup.autoTune')}
+            subtitle={describeAutoTune(autoTune, deviceLoad.current)}
+          >
             <ValueButton
+              testID="autotune-open"
               label={formatAutoTune(autoTune)}
               onPress={() => s.openInfo('autotune')}
               accessibilityLabel={t('a11y.setting', {

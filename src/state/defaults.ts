@@ -16,6 +16,7 @@ export const defaultSettings: Settings = {
    */
   threshold: 60,
   autoZoom: true,
+  autoTune: true,
   forceCpu: false,
   preciseDetection: false,
   zone: null,
