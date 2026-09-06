@@ -156,7 +156,13 @@ export interface Settings {
   exp: ExpandedSections;
 }
 
-export type InfoPanel = 'perms' | 'data' | 'licenses' | null;
+/**
+ * `autotune` is a screen rather than a row list, and is drawn by its own sheet
+ * — it rides this union because it is opened and dismissed exactly like the
+ * others, and two competing "which panel is up" states would be a way for both
+ * to be up at once.
+ */
+export type InfoPanel = 'perms' | 'data' | 'licenses' | 'autotune' | null;
 export type OnboardingStep = 'intro' | 'perms' | null;
 
 /** Daily detection counter — the day is stored so it can reset at midnight. */

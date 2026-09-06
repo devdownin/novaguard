@@ -7,6 +7,7 @@ import { useAppState } from '../state/AppStateContext';
 import { Retention, Sensitivity } from '../state/types';
 import { formatBytes } from '../recording/library';
 import { describeClipGap, formatClipGap } from '../recording/clipGap';
+import { describeAutoTune, formatAutoTune } from '../camera/autoTune';
 import { APP_LICENSE, APP_VERSION, ISSUES_URL, REPO_URL } from '../constants/app';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 import { SettingRow, StaticValue, ValueButton } from '../components/SetupRows';
@@ -39,7 +40,7 @@ const SENS_HINT: Record<Sensitivity, StringKey> = {
 export function SetupScreen() {
   const s = useAppState();
   const landscape = useLandscape();
-  const { settings, events, storage: store, clipGap } = s;
+  const { settings, events, storage: store, clipGap, autoTune } = s;
 
   // Share of the whole volume taken by NovaGuard's own clips. Kept visible at a
   // sliver once anything is stored, so the bar never reads as "nothing on disk".
@@ -254,6 +255,17 @@ export function SetupScreen() {
               rather than shipping a figure nobody took. */}
           <SettingRow label={t('setup.clipGap')} subtitle={describeClipGap(clipGap)}>
             <StaticValue label={formatClipGap(clipGap)} />
+          </SettingRow>
+          {/* What the app took away from itself, and the measurement it took it
+              on. A capability that disappears without saying so reads as a bug. */}
+          <SettingRow label={t('setup.autoTune')} subtitle={describeAutoTune(autoTune)}>
+            <ValueButton
+              label={formatAutoTune(autoTune)}
+              onPress={() => s.openInfo('autotune')}
+              accessibilityLabel={t('a11y.setting', {
+                name: t('setup.autoTune'), value: formatAutoTune(autoTune),
+              })}
+            />
           </SettingRow>
           <View style={[styles.subBlock, { flexDirection: 'row', gap: 7 }]}>
             <PrimaryOutlineButton label={t('setup.source')} onPress={() => Linking.openURL(REPO_URL)} style={{ flex: 1 }} />

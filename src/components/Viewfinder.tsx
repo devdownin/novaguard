@@ -89,7 +89,7 @@ export function Viewfinder() {
   // rate — the detection boxes and the REC timer — are leaves below, so this
   // component only re-renders when a session starts or a setting changes.
   const {
-    monitoring, det, perms, settings, recording, recError, cameraRef, reportCameraProblem,
+    monitoring, det, perms, settings, autoTune, recording, recError, cameraRef, reportCameraProblem,
     reportFrameStage, zoneEditing,
   } = useAppState();
 
@@ -106,7 +106,11 @@ export function Viewfinder() {
     // Never while the zone is being drawn: a transformed preview is one where
     // what the finger traces is not where the detector looks, and the zone
     // would be saved against a crop that disappears the moment it is saved.
-    enabled: monitoring && settings.autoZoom && !zoneEditing,
+    // `autoTune` is the second way this can be off, and it is not the user's:
+    // the auto-zoom is the first thing given up when the device is measured
+    // analysing fewer frames than "Sensibilité" asked for. It frames a subject,
+    // it never finds one — which is why it goes before the detector does.
+    enabled: monitoring && settings.autoZoom && !autoTune.applied.includes('autoZoom') && !zoneEditing,
     viewWidth: size.width,
     viewHeight: size.height,
     maxCameraZoom,

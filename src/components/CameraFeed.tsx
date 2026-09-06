@@ -15,6 +15,7 @@ import { useDetectionModel } from '../camera/useDetectionModel';
 import { interpretDetections } from '../ml/interpretDetections';
 import { letterboxFor, letterboxInto } from '../ml/letterbox';
 import { SENSITIVITY_PROFILES } from '../ml/sensitivity';
+import { tunedSettings } from '../camera/autoTune';
 import { frameErrorMessage } from '../camera/frameErrors';
 import { FrameStage } from '../camera/frameTrace';
 import { qualityBitRate, qualityResolution } from '../recording/library';
@@ -97,7 +98,14 @@ export function CameraFeed({
   style, active, viewWidth, viewHeight, onFrame, cameraZoom = 1, onZoomRange, cameraRef,
   onProblem, onStage,
 }: CameraFeedProps) {
-  const { perms, settings, foreground, reportDetections } = useAppState();
+  const { perms, settings: chosen, autoTune, foreground, reportDetections } = useAppState();
+  /**
+   * What the user asked for, minus whatever the device has been measured to be
+   * unable to hold up (see `autoTune.ts`). Only the two costs the ladder can
+   * remove differ from `chosen`; everything else here reads the same value it
+   * always did.
+   */
+  const settings = useMemo(() => tunedSettings(chosen, autoTune), [chosen, autoTune]);
 
   const cameraPosition = devicePositionFor(settings.camera);
   const device = useCameraDevice(cameraPosition, physicalDeviceFilterFor(settings.camera));
