@@ -144,11 +144,13 @@ describe('updateTracks', () => {
     expect(new Set(tracks.map(t => t.id)).size).toBe(2);
   });
 
-  it('never hands a track to a detection of another kind', () => {
+  it('never hands a track to a detection of another kind somewhere else', () => {
     let tracks = updateTracks([], [person(0.3)], 1000);
     const id = tracks[0].id;
-    tracks = updateTracks(tracks, [animal(0.3)], 1100);
-    // The person goes to a miss, the animal starts its own track.
+    // Close enough that the same kind would have been matched on proximity,
+    // which is exactly what must not happen across kinds: no overlap and no
+    // shared label is another subject, however near it stands.
+    tracks = updateTracks(tracks, [animal(0.55)], 1100);
     expect(tracks).toHaveLength(2);
     const dog = tracks.find(t => t.kind === 'Animal')!;
     expect(dog.id).not.toBe(id);
@@ -160,6 +162,82 @@ describe('updateTracks', () => {
     tracks = updateTracks(tracks, [person(0.3, 0.3, 0.70)], 1200);
     expect(tracks[0].confidence).toBeCloseTo(0.70);
     expect(tracks[0].maxConfidence).toBeCloseTo(0.91);
+  });
+});
+
+describe('the kind a track carries', () => {
+  /** The same subject, read as an animal on this look and as a person on that one. */
+  const seenAs = (kind: 'Personne' | 'Animal', confidence = 0.9) =>
+    (kind === 'Personne' ? person(0.3, 0.3, confidence) : animal(0.3, confidence));
+
+  it('stays one track when the detector changes its mind about a subject in place', () => {
+    let tracks = updateTracks([], [seenAs('Personne')], 1000);
+    const id = tracks[0].id;
+    tracks = updateTracks(tracks, [seenAs('Personne')], 1100);
+    tracks = updateTracks(tracks, [seenAs('Animal')], 1200);
+
+    // The old behaviour: a second track, a second notification, and two
+    // subjects reported where there is one.
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0].id).toBe(id);
+    expect(tracks[0].confirmed).toBe(true);
+  });
+
+  it('holds its label through a look or two of the other kind', () => {
+    let tracks = updateTracks([], [seenAs('Personne')], 1000);
+    tracks = updateTracks(tracks, [seenAs('Personne')], 1100);
+    tracks = updateTracks(tracks, [seenAs('Animal')], 1200);
+    expect(tracks[0].kind).toBe('Personne');
+    tracks = updateTracks(tracks, [seenAs('Animal')], 1300);
+    expect(tracks[0].kind).toBe('Personne');
+  });
+
+  it('flips the label once the other kind is clearly ahead, keeping the track', () => {
+    let tracks = updateTracks([], [seenAs('Personne')], 1000);
+    const id = tracks[0].id;
+    tracks = updateTracks(tracks, [seenAs('Personne')], 1100);
+    for (const at of [1200, 1300, 1400]) tracks = updateTracks(tracks, [seenAs('Animal')], at);
+
+    expect(tracks[0].kind).toBe('Animal');
+    expect(tracks[0].id).toBe(id);
+  });
+
+  // The case this is all for: a person at the far end of a garden read as a dog
+  // on the looks that open the session. The label decided the notification and
+  // the history entry, and used to be final.
+  it('corrects a weak wrong label as soon as stronger looks disagree', () => {
+    let tracks = updateTracks([], [seenAs('Animal', 0.62)], 1000);
+    tracks = updateTracks(tracks, [seenAs('Animal', 0.6)], 1100);
+    expect(tracks[0].kind).toBe('Animal');
+
+    tracks = updateTracks(tracks, [seenAs('Personne', 0.9)], 1200);
+    tracks = updateTracks(tracks, [seenAs('Personne', 0.92)], 1300);
+    expect(tracks[0].kind).toBe('Personne');
+  });
+
+  it('weighs the recent looks, not every look the track has ever had', () => {
+    let tracks = updateTracks([], [seenAs('Animal')], 1000);
+    for (const at of [1100, 1200, 1300, 1400, 1500]) {
+      tracks = updateTracks(tracks, [seenAs('Animal')], at);
+    }
+    // A long-standing animal is not permanently protected by its own history:
+    // decay keeps the memory to about ten looks, so a subject that really is a
+    // person from here on becomes one.
+    for (const at of [1600, 1700, 1800, 1900, 2000, 2100]) {
+      tracks = updateTracks(tracks, [seenAs('Personne')], at);
+    }
+    expect(tracks[0].kind).toBe('Personne');
+  });
+
+  it('shows the corrected label to the overlay', () => {
+    let tracks = updateTracks([], [seenAs('Personne')], 1000);
+    tracks = updateTracks(tracks, [seenAs('Personne')], 1100);
+    const before = confirmedTracks(tracks);
+    for (const at of [1200, 1300, 1400]) tracks = updateTracks(tracks, [seenAs('Animal')], at);
+
+    // Same id, same box, same confidence: only the label changed, and the
+    // overlay has to redraw for it.
+    expect(sameVisibleTracks(before, confirmedTracks(tracks))).toBe(false);
   });
 });
 

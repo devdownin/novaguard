@@ -26,7 +26,8 @@ CameraFeed (frame processor, worklet)
   → letterbox             réduit l'image sans la déformer dans l'entrée carrée
   → interpretDetections   décode les 4 tenseurs d'EfficientDet-Lite0 / -Lite2
   → detectionsInZone      écarte ce qui se tient hors de la zone surveillée
-  → updateTracks          suivi IoU + prédiction : confirme sur N images, tolère une occlusion
+  → updateTracks          suivi IoU + prédiction : confirme sur N images, tolère une
+                          occlusion, révise l'étiquette du sujet sur les regards suivants
   → reportDetections      ouvre/ferme une session, pilote l'enregistrement
   → useRecorder           VisionCamera, cap de durée, clip rendu par callback
   → videoStore            nommage, renommage sans écrasement, suppression

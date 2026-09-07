@@ -528,6 +528,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // Active-session bookkeeping. Refs (not state) because reportDetections
   // fires many times a second and only some updates should trigger a render.
   const sessionKindRef = useRef<DetectionKind | null>(null);
+  /**
+   * The track the session opened on.
+   *
+   * Kept so the session's label can follow that track's own change of mind —
+   * the tracker revises what it holds a subject to be as the looks accumulate
+   * (see `evidence` in `tracker.ts`) — without ever following a *different*
+   * subject: a dog wandering in while someone is being filmed can become the
+   * primary track on its own, and the passage this clip and this history entry
+   * describe is still the person's.
+   */
+  const sessionTrackIdRef = useRef<number | null>(null);
   const sessionStartRef = useRef(0);
   /**
    * When the *current clip* began, as opposed to the passage.
@@ -666,6 +677,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const clearSession = useCallback(() => {
     sessionKindRef.current = null;
+    sessionTrackIdRef.current = null;
     setDet(null);
     viewfinder.current?.setRecSec(0);
   }, []);
@@ -965,6 +977,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       cancelPostRoll();
       if (sessionKindRef.current == null) {
         sessionKindRef.current = primary.kind;
+        sessionTrackIdRef.current = primary.id;
         sessionStartRef.current = now;
         segmentStartRef.current = now;
         sessionMaxConfRef.current = primary.maxConfidence;
@@ -987,6 +1000,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           notifyDetection(title, body);
         }
       } else {
+        // A subject the detector first read as an animal and then, on the next
+        // looks, as a person is one the tracker relabels — and the label a
+        // session opened with is the one the notification used and the one the
+        // history entry keeps for good. Following the revision on the *same*
+        // track is what makes the correction reach the clip's own name and the
+        // journal, instead of stopping at the badge on screen.
+        if (primary.id === sessionTrackIdRef.current) sessionKindRef.current = primary.kind;
         sessionMaxConfRef.current = Math.max(sessionMaxConfRef.current, primary.maxConfidence);
         shown?.setRecSec(Math.floor((now - sessionStartRef.current) / 1000));
       }
