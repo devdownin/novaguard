@@ -54,7 +54,7 @@ export const fr = {
   'hist.empty.never.sub': 'Démarrez la surveillance depuis l’onglet Caméra : chaque personne ou animal confirmé écrira une vidéo ici.',
   'hist.event.person': 'Personne détectée',
   'hist.event.animal': 'Animal détecté',
-  'hist.event.meta': '{dur} secondes · {conf} %',
+  'hist.event.noClip': 'Sans vidéo',
 
   // ── event detail ─────────────────────────────────────────────────────
   'detail.play': "Lire l'enregistrement",
@@ -153,6 +153,11 @@ export const fr = {
   'a11y.dismiss': 'Fermer',
   'a11y.period': 'Période : {value}',
   'a11y.event': '{title}, {when}',
+  'a11y.stat.last': 'Ouvrir la dernière détection',
+  'a11y.stat.today': "Voir les détections d'aujourd'hui",
+  'a11y.stat.space': "Ouvrir les réglages d'enregistrement",
+  'a11y.tab.watching': '{name}, surveillance active',
+  'a11y.tab.recording': '{name}, enregistrement en cours',
 
   // ── info sheets ──────────────────────────────────────────────────────
   'info.perms': 'Permissions',

@@ -22,7 +22,7 @@ const TABS: { key: Tab; labelKey: StringKey; Icon: typeof CameraIcon }[] = [
  * there instead, which spends width, of which there is plenty.
  */
 export function TabBar() {
-  const { tab, setTab } = useAppState();
+  const { tab, setTab, monitoring, det } = useAppState();
   const insets = useSafeAreaInsets();
   const landscape = useLandscape();
 
@@ -40,6 +40,13 @@ export function TabBar() {
       {TABS.map(({ key, labelKey, Icon }) => {
         const active = tab === key;
         const tint = active ? color.accent : color.neutral600;
+        // Recording is a state of the app, not of the camera screen, and it was
+        // only ever drawn there: from Historique or Réglages — where somebody
+        // reviewing what was filmed spends their time — a passage being filmed
+        // right now was invisible. Hollow while the camera is merely watching,
+        // filled while a clip is being written.
+        const watching = key === 'cam' && monitoring;
+        const recording = watching && det != null;
         return (
           <Pressable
             key={key}
@@ -50,9 +57,15 @@ export function TabBar() {
             ]}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
+            accessibilityLabel={watching
+              ? t(recording ? 'a11y.tab.recording' : 'a11y.tab.watching', { name: t(labelKey) })
+              : undefined}
           >
             <View style={[styles.pill, { backgroundColor: active ? color.accent900 : 'transparent' }]}>
               <Icon size={22} color={tint} />
+              {watching && (
+                <View style={[styles.liveDot, recording && styles.liveDotOn]} pointerEvents="none" />
+              )}
             </View>
             <Text style={[styles.label, { color: tint }]} maxFontSizeMultiplier={MAX_FONT_SCALE}>
               {t(labelKey)}
@@ -107,6 +120,20 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  liveDot: {
+    position: 'absolute',
+    top: 4,
+    right: 14,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    borderWidth: 1,
+    borderColor: color.accent,
+    backgroundColor: 'transparent',
+  },
+  liveDotOn: {
+    backgroundColor: color.accent,
   },
   label: {
     fontFamily: font.regular,

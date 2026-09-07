@@ -173,6 +173,30 @@ describe('the card shows the clip, not a decoration', () => {
     expect(handle.renderer.root.findAllByType(EventCard)).toHaveLength(1);
   });
 
+  it('says which events have no video to open', async () => {
+    // The one thing about an event a list of cards could not otherwise tell
+    // you: the encoder produced nothing (no permission, a full disk, a stop it
+    // never answered). These cards looked exactly like the others, and were
+    // opened to find out.
+    const handle = await showHistory([{ ...event(1, 0), path: null, bytes: 0, thumbPath: null }]);
+    expect(texts(handle)).toContain(t('hist.event.noClip'));
+  });
+
+  it('marks nothing on an event that does have its clip', async () => {
+    const handle = await showHistory([event(1, 0)]);
+    expect(texts(handle)).not.toContain(t('hist.event.noClip'));
+  });
+
+  it('gives the clock, not the day the heading above it already gives', async () => {
+    const handle = await showHistory([event(1, 0)]);
+    // "Aujourd'hui" is the day heading; repeating it on the card underneath is
+    // words that carry nothing. The full instant is still what the reader is
+    // given, and what the detail sheet shows.
+    expect(texts(handle)).toContain('18:00');
+    const onCards = texts(handle).filter(text => typeof text === 'string' && text.includes('18:00'));
+    expect(onCards).toEqual(['18:00']);
+  });
+
   it('falls back when the still is gone from disk', async () => {
     const handle = await showHistory([event(1, 0)]);
     const image = handle.renderer.root.findByType(Image);

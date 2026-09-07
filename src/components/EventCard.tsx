@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { color, font } from '../theme';
 import { DetectionEvent } from '../state/types';
-import { formatDuration, formatWhen } from '../utils/date';
+import { formatDuration, formatTimeOfDay, formatWhen } from '../utils/date';
 import { ChevronRightIcon } from './icons';
 import { ClipThumbnail } from './ClipThumbnail';
 import { t } from '../i18n';
@@ -36,8 +36,16 @@ export function EventCard({ event, onPress }: { event: DetectionEvent; onPress: 
           <View style={styles.dot} />
           <Text style={styles.title}>{title}</Text>
         </View>
-        <Text style={styles.when}>{formatWhen(event.timestamp)}</Text>
-        <Text style={styles.meta}>{t('hist.event.meta', { dur: event.dur, conf: event.conf })}</Text>
+        {/* The clock alone: the day is on the heading this card sits under, and
+            the full instant is still what the reader is given (below) and what
+            the detail sheet shows. */}
+        <Text style={styles.when}>{formatTimeOfDay(event.timestamp)}</Text>
+        {/* The one thing about an event the list could not otherwise tell you.
+            The duration was already on the thumbnail, in the form a video is
+            read in, and the confidence is an engineer's number the detail sheet
+            already carries — while an event whose encoder produced no file
+            looked exactly like the others, and was opened to find out. */}
+        {event.path == null && <Text style={styles.noClip}>{t('hist.event.noClip')}</Text>}
       </View>
       <ChevronRightIcon size={7} color={color.neutral700} />
     </Pressable>
@@ -112,9 +120,9 @@ const styles = StyleSheet.create({
     color: color.neutral500,
     fontVariant: ['tabular-nums'],
   },
-  meta: {
+  noClip: {
     fontFamily: font.regular,
     fontSize: 11,
-    color: color.neutral600,
+    color: color.neutral400,
   },
 });
