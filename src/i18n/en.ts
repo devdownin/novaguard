@@ -23,6 +23,7 @@ export const en: Record<StringKey, string> = {
   'surv.tagline': 'Local smart camera',
   'surv.status.on': 'Monitoring on',
   'surv.status.off': 'Monitoring off',
+  'surv.status.interrupted': 'Camera interrupted',
   'surv.cta.start': 'START MONITORING',
   'surv.cta.stop': 'STOP MONITORING',
   'surv.stat.last': 'Last',
@@ -299,6 +300,7 @@ export const en: Record<StringKey, string> = {
   // ── notifications ────────────────────────────────────────────────────
   'notif.title': 'Monitoring on',
   'notif.monitoring': 'NovaGuard is watching the camera. Everything stays on this device.',
+  'notif.interrupted': 'Camera interrupted — trying again',
   'notif.person': 'Person detected',
   'notif.animal': 'Animal detected',
 

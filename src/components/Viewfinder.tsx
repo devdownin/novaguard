@@ -90,7 +90,7 @@ export function Viewfinder() {
   // component only re-renders when a session starts or a setting changes.
   const {
     monitoring, det, perms, settings, autoTune, recording, recError, cameraRef, reportCameraProblem,
-    reportFrameStage, zoneEditing,
+    reportCameraError, cameraActive, reportFrameStage, zoneEditing,
   } = useAppState();
 
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -172,7 +172,10 @@ export function Viewfinder() {
           // Drawing a zone needs the picture the zone applies to, so the
           // camera runs for it too. Nothing seen during it is surveillance —
           // `reportDetections` returns before it tracks anything.
-          active={monitoring || recording || zoneEditing}
+          // `cameraActive` is false for the moment a restart takes: unmounting
+          // the session is what lets CameraX give the device back and take it
+          // again (see `cameraHealth.ts`).
+          active={(monitoring || recording || zoneEditing) && cameraActive}
           viewWidth={size.width}
           viewHeight={size.height}
           onFrame={autoZoom.submitFrame}
@@ -183,6 +186,7 @@ export function Viewfinder() {
           onZoomRange={setMaxCameraZoom}
           cameraRef={cameraRef}
           onProblem={reportCameraProblem}
+          onSessionError={reportCameraError}
           onStage={reportFrameStage}
         />
 

@@ -23,6 +23,7 @@ export const fr = {
   'surv.tagline': 'Caméra intelligente locale',
   'surv.status.on': 'Surveillance active',
   'surv.status.off': 'Surveillance inactive',
+  'surv.status.interrupted': 'Caméra interrompue',
   'surv.cta.start': 'DÉMARRER LA SURVEILLANCE',
   'surv.cta.stop': 'ARRÊTER LA SURVEILLANCE',
   'surv.stat.last': 'Dernière',
@@ -309,6 +310,7 @@ export const fr = {
   // ── notifications ────────────────────────────────────────────────────
   'notif.title': 'Surveillance active',
   'notif.monitoring': 'NovaGuard analyse la caméra. Tout reste sur cet appareil.',
+  'notif.interrupted': 'Caméra interrompue — reprise en cours',
   'notif.person': 'Personne détectée',
   'notif.animal': 'Animal détecté',
 

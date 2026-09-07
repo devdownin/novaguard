@@ -81,6 +81,12 @@ interface CameraFeedProps {
   /** Camera and model failures, which are otherwise completely silent. */
   onProblem?: (message: string | null) => void;
   /**
+   * The capture session died and no frame is coming until something restarts
+   * it — separate from `onProblem`, which also carries a model that would not
+   * load and a frame-processor error, neither of which stops the session.
+   */
+  onSessionError?: (message: string) => void;
+  /**
    * Called before each native call the analysis makes, so a crash that takes
    * the process down still says which one it was in. See `frameTrace.ts`.
    */
@@ -96,7 +102,7 @@ interface CameraFeedProps {
  */
 export function CameraFeed({
   style, active, viewWidth, viewHeight, onFrame, cameraZoom = 1, onZoomRange, cameraRef,
-  onProblem, onStage,
+  onProblem, onSessionError, onStage,
 }: CameraFeedProps) {
   const { perms, settings: chosen, autoTune, foreground, reportDetections } = useAppState();
   /**
@@ -370,7 +376,11 @@ export function CameraFeed({
       frameProcessor={active ? frameProcessor : undefined}
       pixelFormat="yuv"
       resizeMode="cover"
-      onError={error => onProblem?.(t('error.camera', { message: error.message }))}
+      // CameraX hands the session back on a phone call, on another app opening
+      // the camera, on an OEM policy reclaiming it. Painting the message in the
+      // viewfinder was the whole response, on the one screen a surveillance
+      // phone keeps switched off.
+      onError={error => onSessionError?.(t('error.camera', { message: error.message }))}
       video={true}
       // Audio is only captured once the OS microphone permission is actually
       // granted — asking the camera for audio without it aborts the recording.

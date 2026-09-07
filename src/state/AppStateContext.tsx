@@ -39,6 +39,9 @@ import { FRAME_ERROR_PREFIX } from '../camera/frameErrors';
 import {
   FrameStage, isCompleteFrame, isLaterStage, parseStage, stageDiagnosis,
 } from '../camera/frameTrace';
+import {
+  cameraDeliveredFrame, cameraFailed, CameraHealth, cameraRetried, HEALTHY_CAMERA, retryDelayFor,
+} from '../camera/cameraHealth';
 import { countFrame, EMPTY_FRAME_RATE_WINDOW, FrameRateWindow } from '../camera/frameRate';
 import {
   AutoTuneState, decisionChanged, expectedTarget, IDLE_AUTO_TUNE, seedFrom, seedsWith,
@@ -105,6 +108,16 @@ interface AppStateValue {
   foreground: boolean;
   /** Camera runtime errors and model load failures, reported from CameraFeed. */
   reportCameraProblem: (message: string | null) => void;
+  /**
+   * The capture session died — an incoming call, another app taking the camera.
+   * Distinct from `reportCameraProblem`, which also carries model failures and
+   * frame-processor errors: those leave the session running, this one does not.
+   */
+  reportCameraError: (message: string) => void;
+  /** Whether the camera is delivering, or is down and being restarted. */
+  cameraHealth: CameraHealth;
+  /** False for the moment a restart takes: what unmounts the dead session. */
+  cameraActive: boolean;
   /** Called before each native call an analysed frame makes — see `frameTrace.ts`. */
   reportFrameStage: (stage: FrameStage) => void;
   toggleMonitoring: () => void;
@@ -333,6 +346,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   /** True once the camera has delivered a frame for the current session. */
   const [sawFrame, setSawFrame] = useState(false);
   const sawFrameRef = useRef(false);
+  /** See `cameraHealth.ts`: the session can be taken from us at any moment. */
+  const [recovery, setRecovery] = useState(HEALTHY_CAMERA);
+  const recoveryRef = useRef(HEALTHY_CAMERA);
+  const [cameraActive, setCameraActive] = useState(true);
   const [det, setDet] = useState<DetectionKind | null>(null);
   // Frame-rate state lives in `ViewfinderProvider` below; the provider reaches
   // its setters through this sink, so a detection never re-renders this body.
@@ -606,6 +623,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // below reads it and has to be defined after everything it touches.
   const [zoneEditing, setZoneEditing] = useState(false);
   const zoneEditingRef = useLatest(zoneEditing);
+  const monitoringRef = useLatest(monitoring);
   /**
    * The recorder's own `start` and `stop`, reached through refs.
    *
@@ -914,6 +932,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       sawFrameRef.current = true;
       setSawFrame(true);
     }
+    // An image is the only proof the camera came back: a session that mounts
+    // and then delivers nothing looks exactly like the failure it replaced.
+    if (recoveryRef.current.health !== 'healthy') {
+      recoveryRef.current = cameraDeliveredFrame(recoveryRef.current);
+      setRecovery(recoveryRef.current);
+    }
     // What "Sensibilité" asked for is a target; this is what the device manages.
     const measured = countFrame(frameWindowRef.current, now);
     if (measured != null) {
@@ -1047,6 +1071,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       viewfinder.current?.setTracks(() => []);
       sawFrameRef.current = false;
       setSawFrame(false);
+      recoveryRef.current = HEALTHY_CAMERA;
+      setRecovery(HEALTHY_CAMERA);
+      setCameraActive(true);
       frameWindowRef.current = { ...EMPTY_FRAME_RATE_WINDOW };
       viewfinder.current?.setFrameRate(0);
       // The verdict belongs to a session: what a phone can hold up depends on
@@ -1102,6 +1129,35 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     dismissDetectionAlert();
     lastAlertRef.current = null;
   }, [monitoring]);
+
+  /**
+   * The camera is down: say so where it can be read, and take it back.
+   *
+   * Both halves matter and neither is cosmetic. The notification is the only
+   * surface a surveillance phone shows — its screen is off — so leaving it on
+   * "surveillance active" is the app asserting something false for as long as
+   * the interruption lasts. And the restart is what ends the interruption: the
+   * app that took the camera gives it back, usually within seconds, and only a
+   * delivered frame proves we have it again (see `cameraHealth.ts`).
+   */
+  useEffect(() => {
+    if (!monitoring) return undefined;
+    if (recovery.health === 'healthy') {
+      // Back to the standing text. Called on every recovery rather than only
+      // after an interruption: `startForegroundService` is what rewrites the
+      // notification, and it is idempotent.
+      startForegroundService();
+      return undefined;
+    }
+    startForegroundService(t('notif.interrupted'));
+    if (cameraActive) return undefined;
+    const retry = setTimeout(() => {
+      recoveryRef.current = cameraRetried(recoveryRef.current);
+      setRecovery(recoveryRef.current);
+      setCameraActive(true);
+    }, retryDelayFor(recovery.attempts));
+    return () => clearTimeout(retry);
+  }, [monitoring, recovery, cameraActive]);
 
   // Leaving a "surveillance active" notification behind after the process is
   // gone would be worse than not showing one at all.
@@ -1299,6 +1355,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     setRecError(prev => (message ?? (prev && CAMERA_OWNED_ERROR.test(prev) ? null : prev)));
   }, []);
 
+  /**
+   * The capture session itself failed. Unlike a model that would not load, this
+   * one means no frame is coming until something restarts it.
+   *
+   * The camera is dropped at once — an unmounted session is what lets CameraX
+   * hand the device back and take it again — and the restart is scheduled by
+   * the effect below, which also says so where it can be read with the screen
+   * off. Outside surveillance there is nothing to keep alive: the message alone
+   * is the whole answer.
+   */
+  const reportCameraError = useCallback((message: string) => {
+    setRecError(message);
+    if (!monitoringRef.current) return;
+    recoveryRef.current = cameraFailed(recoveryRef.current);
+    setRecovery(recoveryRef.current);
+    setCameraActive(false);
+  }, [monitoringRef]);
+
   // A frame-processor error that escapes the worklet's own `try` — a closure the
   // runtime refuses to copy, say — still reaches React Native's fatal reporter
   // and closes the app. Downgrade exactly those; everything else keeps crashing.
@@ -1378,7 +1452,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     hydrated,
     tab, setTab,
     monitoring, det, detToday, lastDetAt,
-    recording: isRecording, recError, clipGap, autoTune, autoTuneLog: autoTuneLogRef, deviceLoad: deviceLoadRef, storage: store, cameraRef, foreground, reportCameraProblem, reportFrameStage,
+    recording: isRecording, recError, clipGap, autoTune, autoTuneLog: autoTuneLogRef, deviceLoad: deviceLoadRef, storage: store, cameraRef, foreground, reportCameraProblem, reportCameraError, cameraHealth: recovery.health, cameraActive, reportFrameStage,
     toggleMonitoring, reportDetections,
     events, filter, setFilter, period, setPeriod, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent,
     confirmDelete, askDelete, cancelDelete, doDelete,
@@ -1391,7 +1465,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
     hydrated, tab, monitoring, det, detToday, lastDetAt,
-    isRecording, recError, clipGap, autoTune, autoTuneLogRef, deviceLoadRef, store, cameraRef, foreground, reportCameraProblem, reportFrameStage, toggleMonitoring, reportDetections,
+    isRecording, recError, clipGap, autoTune, autoTuneLogRef, deviceLoadRef, store, cameraRef, foreground, reportCameraProblem, reportCameraError, recovery, cameraActive, reportFrameStage, toggleMonitoring, reportDetections,
     events, filter, period, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent,
     confirmDelete, askDelete, cancelDelete, doDelete, confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
