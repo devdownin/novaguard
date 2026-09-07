@@ -86,6 +86,6 @@ describe('trackerOptionsFor', () => {
     const options = trackerOptionsFor('Haute', 60);
     expect(options.iouThreshold).toBe(DEFAULT_TRACKER_OPTIONS.iouThreshold);
     expect(options.dropAfterMs).toBe(DEFAULT_TRACKER_OPTIONS.dropAfterMs);
-    expect(options.maxTravel).toBe(DEFAULT_TRACKER_OPTIONS.maxTravel);
+    expect(options.maxTravelPerSecond).toBe(DEFAULT_TRACKER_OPTIONS.maxTravelPerSecond);
   });
 });

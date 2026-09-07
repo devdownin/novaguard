@@ -88,8 +88,8 @@ export interface TrackerOptions {
    */
   startConfidence: number;
   /**
-   * How far a subject's centre may travel between two looks, as a multiple of
-   * its own diagonal, and still be recognised once the boxes no longer overlap.
+   * How fast a subject's centre may travel and still be recognised once the
+   * boxes no longer overlap: multiples of its own diagonal **per second**.
    *
    * Overlap alone cannot follow anybody at these rates. At 3 fps a person
    * walking across the field of view moves further than their own width between
@@ -97,8 +97,18 @@ export interface TrackerOptions {
    * `confirmAfter` looks to be trusted — by which point it has moved again. At
    * "Basse" (1 fps) that is every passage that is not a subject standing still:
    * the app filmed people who stopped and missed people who walked past.
+   *
+   * A speed, not a distance per look — the same correction `dropAfterMs` needed,
+   * and for the same reason. As a flat distance it was a claim about frames
+   * about something that is a claim about the world: a person covers about three
+   * of their own diagonals a second whatever rate we analyse at. One diagonal
+   * per look happens to be right at 3 fps, is generous at 5, and at "Basse"
+   * asks a walker to have moved a third of what they really moved — so the gate
+   * refused them, which is precisely the passage this reach exists to follow.
+   * A *fresh* track is where it bites: it has no velocity yet, so its predicted
+   * box is simply its last one and the whole step has to fit inside the reach.
    */
-  maxTravel: number;
+  maxTravelPerSecond: number;
 }
 
 export const DEFAULT_TRACKER_OPTIONS: TrackerOptions = {
@@ -106,7 +116,7 @@ export const DEFAULT_TRACKER_OPTIONS: TrackerOptions = {
   confirmAfter: 2,
   dropAfterMs: 1200,
   startConfidence: 0.6,
-  maxTravel: 1,
+  maxTravelPerSecond: 3,
 };
 
 /** How much of a new velocity estimate to believe. One noisy box must not fling the prediction. */
@@ -204,10 +214,18 @@ export function predictedBox(track: Track, now: number): DetectionBox {
  * How well `detection` continues a track whose predicted position is `predicted`,
  * when the two do not overlap at all. 0 when it does not, at all.
  *
+ * `elapsed` is how long the track has gone unseen, in milliseconds: the reach
+ * is what a subject could have covered in that time, so a look that comes late
+ * — the analysis fell behind, or the subject was occluded for a frame — is
+ * allowed the distance it is actually worth. Nothing may travel in no time, so
+ * an elapsed of 0 leaves only overlap, which is all that can be true anyway.
+ *
  * Kept strictly below 1 so that in the greedy pass every real overlap outranks
  * every proximity match, whatever their distances (see `associationScore`).
  */
-function proximityScore(predicted: DetectionBox, detection: DetectionBox, maxTravel: number): number {
+function proximityScore(
+  predicted: DetectionBox, detection: DetectionBox, elapsed: number, maxTravelPerSecond: number,
+): number {
   const area = predicted.width * predicted.height;
   const detectedArea = detection.width * detection.height;
   if (area <= 0 || detectedArea <= 0) return 0;
@@ -216,7 +234,8 @@ function proximityScore(predicted: DetectionBox, detection: DetectionBox, maxTra
 
   const dx = detection.x + detection.width / 2 - (predicted.x + predicted.width / 2);
   const dy = detection.y + detection.height / 2 - (predicted.y + predicted.height / 2);
-  const reach = Math.sqrt(predicted.width * predicted.width + predicted.height * predicted.height) * maxTravel;
+  const diagonal = Math.sqrt(predicted.width * predicted.width + predicted.height * predicted.height);
+  const reach = diagonal * maxTravelPerSecond * (Math.max(0, elapsed) / 1000);
   if (reach <= 0) return 0;
   const distance = Math.sqrt(dx * dx + dy * dy);
   return distance < reach ? 1 - distance / reach : 0;
@@ -237,14 +256,17 @@ function proximityScore(predicted: DetectionBox, detection: DetectionBox, maxTra
  * neither overlaps nor carries the same label is another subject.
  */
 function associationScore(
-  track: Track, predicted: DetectionBox, detection: FrameDetection, options: TrackerOptions,
+  track: Track, predicted: DetectionBox, detection: FrameDetection, now: number,
+  options: TrackerOptions,
 ): number {
   const overlap = iou(predicted, detection.box);
   if (detection.kind !== track.kind) {
     return overlap >= CROSS_KIND_IOU ? 2 + overlap : 0;
   }
   if (overlap >= options.iouThreshold) return 3 + overlap;
-  const proximity = proximityScore(predicted, detection.box, options.maxTravel);
+  const proximity = proximityScore(
+    predicted, detection.box, now - track.lastSeen, options.maxTravelPerSecond,
+  );
   return proximity > 0 ? 1 + proximity : 0;
 }
 
@@ -292,7 +314,7 @@ export function updateTracks(
   const pairs: { t: number; d: number; score: number }[] = [];
   tracks.forEach((track, t) => {
     detections.forEach((detection, d) => {
-      const score = associationScore(track, predicted[t], detection, options);
+      const score = associationScore(track, predicted[t], detection, now, options);
       if (score > 0) pairs.push({ t, d, score });
     });
   });
