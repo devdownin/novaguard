@@ -96,10 +96,25 @@ describe('box geometry', () => {
     expect(d.box.y + d.box.height).toBeLessThanOrEqual(1);
   });
 
-  it('collapses a box that is entirely off-frame rather than inverting it', () => {
-    const [d] = interpretDetections(outputs([det([1.2, 1.1, 1.6, 1.5])]), BOTH);
-    expect(d.box.width).toBe(0);
-    expect(d.box.height).toBe(0);
+  it('drops a box that is entirely off-frame instead of collapsing it to nothing', () => {
+    // It used to come back with width and height 0. A box with no area cannot
+    // be associated with anything — `iou` reads 0 and the tracker's proximity
+    // fallback refuses a zero area — so it opened a fresh track on every frame,
+    // and at "Basse", where one look confirms, that is a recording.
+    expect(interpretDetections(outputs([det([1.2, 1.1, 1.6, 1.5])]), BOTH)).toEqual([]);
+  });
+
+  it('drops a sliver too thin to be anything the model can have seen', () => {
+    // A hundredth of the frame is four pixels of the detector's own input.
+    expect(interpretDetections(outputs([det([0.40, 0.30, 0.95, 0.304])]), BOTH)).toEqual([]);
+  });
+
+  it('keeps a subject that is small but real', () => {
+    // The whole point of the 448 px model is the far end of a garden; a floor
+    // that reached this far would undo it.
+    const [d] = interpretDetections(outputs([det([0.40, 0.30, 0.46, 0.32])]), BOTH);
+    expect(d.box.width).toBeCloseTo(0.02);
+    expect(d.box.height).toBeCloseTo(0.06);
   });
 });
 

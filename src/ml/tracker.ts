@@ -13,10 +13,34 @@ import { DetectionBox, FrameDetection } from './types';
 
 export interface Track {
   id: number;
+  /**
+   * What the track is currently held to be — the label the overlay, the
+   * notification and the history entry all read.
+   *
+   * Follows `evidence` rather than being fixed at creation. It used to be
+   * fixed, and the model changes its mind about exactly the subjects
+   * surveillance is made of: a person at the end of a garden, crouching or
+   * half-lit, reads as a dog or a bear for a look or two before reading as a
+   * person for the next twenty. The first look wrote the label, so the session
+   * that opened on it buzzed the phone with the wrong one and wrote it to
+   * history for good.
+   */
   kind: DetectionKind;
+  /**
+   * Confidence accumulated for each kind over the track's recent life, decayed
+   * at every look so an old burst of wrong labels cannot outvote what the
+   * detector says now.
+   */
+  evidence: Record<DetectionKind, number>;
   /** Latest box, normalized to the uprighted frame. */
   box: DetectionBox;
   confidence: number;
+  /**
+   * The same score with the per-look wobble taken out, used to decide which
+   * subject the app is following — never shown, since the overlay's label
+   * should say what the detector just answered.
+   */
+  stableConfidence: number;
   maxConfidence: number;
   /**
    * Centre velocity in frame widths (and heights) per millisecond, smoothed.
@@ -88,6 +112,56 @@ export const DEFAULT_TRACKER_OPTIONS: TrackerOptions = {
 /** How much of a new velocity estimate to believe. One noisy box must not fling the prediction. */
 const VELOCITY_SMOOTHING = 0.5;
 
+/** How much of a new score to believe, for the same reason. */
+const CONFIDENCE_SMOOTHING = 0.5;
+
+/**
+ * How far ahead of the subject being followed another track has to be before
+ * the app changes subject.
+ *
+ * Two people in frame score within a few hundredths of each other and each look
+ * reshuffles them, so "the most confident confirmed track" was a different
+ * person several times a second: the auto-zoom retargeted, and `captureZoomFor`
+ * recomputed the crop, on a subject that had not moved. Whoever is being
+ * followed keeps the role until somebody is *clearly* ahead.
+ */
+const PRIMARY_SWITCH_MARGIN = 0.1;
+
+/**
+ * Overlap above which a detection of *another* kind is the same subject read
+ * differently rather than a second subject — the same threshold, for the same
+ * reason, as `CROSS_CLASS_IOU` in `interpretDetections`.
+ *
+ * The two act on different things and both are needed. That one drops the
+ * weaker of two hypotheses returned for one subject *in one frame*; this one
+ * handles the case that leaves no trace inside a frame, because only one label
+ * is returned at a time — a subject read as an animal on one look and as a
+ * person on the next. Without it those looks are two tracks: the wrong one
+ * lives out its occlusion tolerance, the right one has to be confirmed from
+ * scratch, and for as long as both stand the app reports two subjects where
+ * there is one.
+ *
+ * Deliberately high. A dog crossing exactly where a person stood, close enough
+ * to overlap this far within a single look, is one subject as far as a
+ * recording is concerned; anything less is two.
+ */
+const CROSS_KIND_IOU = 0.6;
+
+/**
+ * How much of the accumulated evidence survives each look — about ten looks of
+ * memory, two to ten seconds depending on the cadence.
+ */
+const KIND_EVIDENCE_DECAY = 0.9;
+
+/**
+ * How far ahead the other kind must be before the label flips.
+ *
+ * Not a bare comparison: a subject the detector is genuinely torn about would
+ * otherwise change label on every look, and the label is what the overlay
+ * shows, what the notification says and what the history entry keeps.
+ */
+const KIND_SWITCH_MARGIN = 1.5;
+
 /**
  * A subject does not change size abruptly between two looks; two different
  * people crossing paths do. Bounds the size ratio a proximity match will accept.
@@ -130,8 +204,8 @@ export function predictedBox(track: Track, now: number): DetectionBox {
  * How well `detection` continues a track whose predicted position is `predicted`,
  * when the two do not overlap at all. 0 when it does not, at all.
  *
- * Kept strictly below 1 so that in the greedy pass any real overlap — scored
- * `1 + iou` — outranks every proximity match, whatever their distances.
+ * Kept strictly below 1 so that in the greedy pass every real overlap outranks
+ * every proximity match, whatever their distances (see `associationScore`).
  */
 function proximityScore(predicted: DetectionBox, detection: DetectionBox, maxTravel: number): number {
   const area = predicted.width * predicted.height;
@@ -146,6 +220,48 @@ function proximityScore(predicted: DetectionBox, detection: DetectionBox, maxTra
   if (reach <= 0) return 0;
   const distance = Math.sqrt(dx * dx + dy * dy);
   return distance < reach ? 1 - distance / reach : 0;
+}
+
+/**
+ * How well a detection continues a track, on one scale for the greedy pass.
+ *
+ * Three tiers, each strictly above the next, because they are three different
+ * strengths of claim and mixing them by raw score would let the weakest kind of
+ * match win on a good number:
+ *   3 + iou   same kind, boxes overlap — the ordinary case;
+ *   2 + iou   another kind over the same place, which is one subject the
+ *             detector has read two ways (see `CROSS_KIND_IOU`);
+ *   1 + p     same kind, no overlap left, close enough to be the same subject
+ *             moving fast (see `proximityScore`).
+ * 0 means no claim at all. Proximity is never granted across kinds: a box that
+ * neither overlaps nor carries the same label is another subject.
+ */
+function associationScore(
+  track: Track, predicted: DetectionBox, detection: FrameDetection, options: TrackerOptions,
+): number {
+  const overlap = iou(predicted, detection.box);
+  if (detection.kind !== track.kind) {
+    return overlap >= CROSS_KIND_IOU ? 2 + overlap : 0;
+  }
+  if (overlap >= options.iouThreshold) return 3 + overlap;
+  const proximity = proximityScore(predicted, detection.box, options.maxTravel);
+  return proximity > 0 ? 1 + proximity : 0;
+}
+
+/** The track's evidence after one more look, the older looks weighing less. */
+function evidenceWith(track: Track, detection: FrameDetection): Record<DetectionKind, number> {
+  const next = {
+    Personne: track.evidence.Personne * KIND_EVIDENCE_DECAY,
+    Animal: track.evidence.Animal * KIND_EVIDENCE_DECAY,
+  };
+  next[detection.kind] += detection.confidence;
+  return next;
+}
+
+/** The label the evidence supports, sticking with the current one until clearly beaten. */
+function dominantKind(current: DetectionKind, evidence: Record<DetectionKind, number>): DetectionKind {
+  const other: DetectionKind = current === 'Personne' ? 'Animal' : 'Personne';
+  return evidence[other] > evidence[current] * KIND_SWITCH_MARGIN ? other : current;
 }
 
 let nextId = 1;
@@ -165,20 +281,18 @@ export function updateTracks(
   now: number,
   options: TrackerOptions = DEFAULT_TRACKER_OPTIONS,
 ): Track[] {
-  // Greedy association, best score first, and only within the same kind — a dog
-  // walking over where a person stood should not inherit their track. Matching
-  // is done against where each track is *predicted* to be, so a subject that
-  // moved a long way since the last look is still recognised at the far end of
-  // that movement rather than at the near one.
+  // Greedy association, best score first. Matching is done against where each
+  // track is *predicted* to be, so a subject that moved a long way since the
+  // last look is still recognised at the far end of that movement rather than
+  // at the near one. A detection of another kind may only continue a track it
+  // lands on top of — a dog walking over where a person stood a second ago does
+  // not inherit their track, but the same subject read as a dog on one look and
+  // as a person on the next stays one track and one label decision.
   const predicted = tracks.map(track => predictedBox(track, now));
   const pairs: { t: number; d: number; score: number }[] = [];
   tracks.forEach((track, t) => {
     detections.forEach((detection, d) => {
-      if (detection.kind !== track.kind) return;
-      const overlap = iou(predicted[t], detection.box);
-      const score = overlap >= options.iouThreshold
-        ? 1 + overlap
-        : proximityScore(predicted[t], detection.box, options.maxTravel);
+      const score = associationScore(track, predicted[t], detection, options);
       if (score > 0) pairs.push({ t, d, score });
     });
   });
@@ -215,10 +329,15 @@ export function updateTracks(
       - (track.box.x + track.box.width / 2)) / dt : 0;
     const stepY = moved ? (detection.box.y + detection.box.height / 2
       - (track.box.y + track.box.height / 2)) / dt : 0;
+    const evidence = evidenceWith(track, detection);
     next.push({
       ...track,
+      kind: dominantKind(track.kind, evidence),
+      evidence,
       box: detection.box,
       confidence: detection.confidence,
+      stableConfidence: track.stableConfidence
+        + (detection.confidence - track.stableConfidence) * CONFIDENCE_SMOOTHING,
       maxConfidence: Math.max(track.maxConfidence, detection.confidence),
       vx: moved ? track.vx + (stepX - track.vx) * VELOCITY_SMOOTHING : track.vx,
       vy: moved ? track.vy + (stepY - track.vy) * VELOCITY_SMOOTHING : track.vy,
@@ -237,8 +356,12 @@ export function updateTracks(
     next.push({
       id: nextId++,
       kind: detection.kind,
+      evidence: detection.kind === 'Personne'
+        ? { Personne: detection.confidence, Animal: 0 }
+        : { Personne: 0, Animal: detection.confidence },
       box: detection.box,
       confidence: detection.confidence,
+      stableConfidence: detection.confidence,
       maxConfidence: detection.confidence,
       vx: 0,
       vy: 0,
@@ -273,14 +396,17 @@ export function confirmedTracks(tracks: Track[]): Track[] {
  * Confidence is compared as the whole percent the label actually shows: the raw
  * float wobbles on every frame for a subject standing still, and treating that
  * as a change forces a redraw that alters no pixel. Boxes are compared exactly —
- * they are positioned at full precision. `kind` needs no check: a track's kind
- * is fixed at creation and `updateTracks` only matches within a kind, so an
- * equal id already implies an equal kind. Velocity is not compared either: it is
- * an association aid, and nothing on screen is drawn from it.
+ * they are positioned at full precision. `kind` is compared: an equal id used to
+ * imply it, back when a track's kind was fixed at creation, and the overlay
+ * would now keep drawing "Animal" over a track the evidence has since decided
+ * is a person. Velocity is not compared: it is an association aid, and nothing
+ * on screen is drawn from it. Neither is the evidence behind the kind — the
+ * label it produces is the whole of what is shown.
  */
 function sameTrack(x: Track, y: Track): boolean {
   return (
     x.id === y.id &&
+    x.kind === y.kind &&
     Math.round(x.confidence * 100) === Math.round(y.confidence * 100) &&
     x.box.x === y.box.x && x.box.y === y.box.y &&
     x.box.width === y.box.width && x.box.height === y.box.height
@@ -316,17 +442,28 @@ export function confirmedTracksIfChanged(previous: Track[], tracks: Track[]): Tr
 }
 
 /**
- * The track the UI treats as the subject: highest confidence among confirmed.
+ * The track the UI treats as the subject: the most confident confirmed one,
+ * with `currentId` — whoever is being followed already — keeping the role until
+ * another track is ahead by `PRIMARY_SWITCH_MARGIN`.
+ *
+ * Compared on `stableConfidence`, not on the last look: this decides where the
+ * camera zooms, and a decision made on a number that wobbles every frame is a
+ * camera that hunts between two people standing still. Passing no `currentId`
+ * asks the plain question, which is what a caller with no subject yet wants.
  *
  * Walks the list directly rather than going through `confirmedTracks`, which
  * allocated a filtered array per call to produce a single element — on a path
  * the frame processor hits several times a second.
  */
-export function primaryTrack(tracks: Track[]): Track | null {
+export function primaryTrack(tracks: Track[], currentId: number | null = null): Track | null {
   let best: Track | null = null;
+  let current: Track | null = null;
   for (const t of tracks) {
     if (!t.confirmed) continue;
-    if (!best || t.confidence > best.confidence) best = t;
+    if (t.id === currentId) current = t;
+    if (!best || t.stableConfidence > best.stableConfidence) best = t;
   }
-  return best;
+  // The subject being followed is gone — dropped, or not confirmed any more.
+  if (current == null || best == null) return best;
+  return best.stableConfidence > current.stableConfidence + PRIMARY_SWITCH_MARGIN ? best : current;
 }

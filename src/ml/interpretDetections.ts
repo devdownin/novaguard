@@ -31,6 +31,21 @@ export interface InterpretOptions {
 const CROSS_CLASS_IOU = 0.6;
 
 /**
+ * Smallest side a box may have, as a fraction of the frame, to be a subject at
+ * all — a hundredth of the frame, which is four pixels of the detector's own
+ * 448 px input and about ten of a 1080p frame.
+ *
+ * Nothing the model can genuinely have recognised is that thin, and two kinds
+ * of box are: a sliver of noise, and one the clamp above has flattened because
+ * the model put it (partly or wholly) outside the frame. The flattened ones are
+ * worse than useless downstream. A box with no area cannot be associated with
+ * anything — `iou` reads 0 and the tracker's proximity fallback refuses a zero
+ * area outright — so it can only ever *open* a track and never continue one:
+ * a new id every frame, and at "Basse", where one look confirms, a recording.
+ */
+const MIN_BOX_SIDE = 0.01;
+
+/**
  * Decodes the 4 output tensors of the bundled detection model
  * (efficientdet-lite0.tflite). Verified against the model file itself:
  *   [0] locations  — [1, N, 4] normalized (yMin, xMin, yMax, xMax) per box
@@ -112,15 +127,14 @@ export function interpretDetections(outputs: Float32Array[], options: InterpretO
     const yMax = clamp01(locations[o + 2] * options.scaleY);
     const xMax = clamp01(locations[o + 3] * options.scaleX);
 
+    const width = xMax - xMin;
+    const height = yMax - yMin;
+    if (width < MIN_BOX_SIDE || height < MIN_BOX_SIDE) continue;
+
     results.push({
       kind,
       confidence,
-      box: {
-        x: xMin,
-        y: yMin,
-        width: Math.max(0, xMax - xMin),
-        height: Math.max(0, yMax - yMin),
-      },
+      box: { x: xMin, y: yMin, width, height },
     });
   }
 
