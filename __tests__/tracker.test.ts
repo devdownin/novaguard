@@ -524,10 +524,36 @@ describe('following a subject that moves', () => {
 
   it('prefers a real overlap to a nearer box the prediction only reaches', () => {
     // Greedy association takes the best score first, and an overlap must
-    // outrank every proximity match whatever their distances.
+    // outrank every proximity match whatever their distances. A third of a
+    // second apart, so the far box is genuinely within reach and the choice is
+    // a choice — at 100 ms nothing could have gone that far and there would be
+    // nothing to prefer.
     let tracks = updateTracks([], [walking(0.3)], 1000);
-    tracks = updateTracks(tracks, [walking(0.32), walking(0.55)], 1100);
+    tracks = updateTracks(tracks, [walking(0.32), walking(0.55)], 1333);
     const continued = tracks.find(t => t.hits === 2)!;
     expect(continued.box.x).toBeCloseTo(0.32);
+  });
+
+  it('follows a walker at one look per second, where the whole step is the reach', () => {
+    // The reach is a speed, not a distance per look. As a flat diagonal it was
+    // right at 3 fps and a third of what it should be at "Basse" (1 fps) — and
+    // a fresh track has no velocity, so its predicted box is its last one and
+    // the whole step has to fit. Someone walking briskly across the frame was
+    // therefore a new track on every look, never confirmed, never filmed.
+    let tracks = updateTracks([], [walking(0.05)], 1000);
+    const id = tracks[0].id;
+    tracks = updateTracks(tracks, [walking(0.55)], 2000);
+
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0].id).toBe(id);
+    expect(confirmedTracks(tracks)).toHaveLength(1);
+  });
+
+  it('refuses that same step when it is a fifth of a second, not a second', () => {
+    // Half the frame in 200 ms is nobody walking; the pair is what pins the
+    // reach to elapsed time rather than to the number of looks.
+    let tracks = updateTracks([], [walking(0.05)], 1000);
+    tracks = updateTracks(tracks, [walking(0.55)], 1200);
+    expect(tracks).toHaveLength(2);
   });
 });
