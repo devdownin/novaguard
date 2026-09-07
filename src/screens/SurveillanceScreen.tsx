@@ -24,8 +24,8 @@ export function SurveillanceScreen() {
 
   const brand = (
     <View>
-      <Text style={styles.brand}>NOVAGUARD</Text>
-      <Text style={styles.brandSub}>{t('surv.tagline')}</Text>
+      <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.brand}>NOVAGUARD</Text>
+      <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.brandSub}>{t('surv.tagline')}</Text>
     </View>
   );
 
@@ -40,7 +40,7 @@ export function SurveillanceScreen() {
       ]}
     >
       <View style={[styles.statusDot, { backgroundColor: monitoring ? color.accent : color.neutral600 }]} />
-      <Text style={[styles.statusLabel, { color: monitoring ? color.accent200 : color.neutral500 }]}>
+      <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={[styles.statusLabel, { color: monitoring ? color.accent200 : color.neutral500 }]}>
         {t(monitoring ? 'surv.status.on' : 'surv.status.off')}
       </Text>
     </View>

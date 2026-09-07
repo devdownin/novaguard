@@ -131,7 +131,7 @@ export function ZoneLayer({ viewWidth, viewHeight }: { viewWidth: number; viewHe
             accessibilityLabel={t('zone.cancel')}
             onPress={cancelZoneEdit}
           >
-            <Text style={styles.editorButtonText}>{t('zone.cancel')}</Text>
+            <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.editorButtonText}>{t('zone.cancel')}</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.editorButton, pressed && styles.editorButtonPressed]}
@@ -139,7 +139,7 @@ export function ZoneLayer({ viewWidth, viewHeight }: { viewWidth: number; viewHe
             accessibilityLabel={t('zone.all')}
             onPress={() => saveZone(null)}
           >
-            <Text style={styles.editorButtonText}>{t('zone.all')}</Text>
+            <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.editorButtonText}>{t('zone.all')}</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [
@@ -155,7 +155,7 @@ export function ZoneLayer({ viewWidth, viewHeight }: { viewWidth: number; viewHe
             // is a different size.
             onPress={() => saveZone(viewBoxToUprightBox(drawn!, frameAspect, viewWidth, viewHeight))}
           >
-            <Text style={[styles.editorButtonText, styles.editorButtonTextPrimary]}>{t('zone.save')}</Text>
+            <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={[styles.editorButtonText, styles.editorButtonTextPrimary]}>{t('zone.save')}</Text>
           </Pressable>
         </View>
       </View>

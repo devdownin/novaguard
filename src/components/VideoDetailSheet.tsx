@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Video from 'react-native-video';
-import { color, font, radius } from '../theme';
+import { color, font, radius, MAX_FONT_SCALE } from '../theme';
 import { useAppState } from '../state/AppStateContext';
 import { formatBytes } from '../recording/library';
 import { t, tValue } from '../i18n';
@@ -133,8 +133,8 @@ interface StatCellProps {
 function StatCell({ label, value, accent, small }: StatCellProps) {
   return (
     <View style={styles.cell}>
-      <Text style={styles.cellLabel}>{label}</Text>
-      <Text style={[styles.cellValue, small && styles.cellValueSmall, accent && styles.cellValueAccent]}>
+      <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.cellLabel}>{label}</Text>
+      <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={[styles.cellValue, small && styles.cellValueSmall, accent && styles.cellValueAccent]}>
         {value}
       </Text>
     </View>

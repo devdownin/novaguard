@@ -234,7 +234,7 @@ export function Viewfinder() {
 
       {recError && (
         <View style={styles.errorChip} pointerEvents="none">
-          <Text style={styles.errorText}>{recError}</Text>
+          <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.errorText}>{recError}</Text>
         </View>
       )}
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { color, font, radius, shadow } from '../theme';
+import { color, font, radius, shadow, MAX_FONT_SCALE } from '../theme';
 import { useAppState } from '../state/AppStateContext';
 import { Permissions } from '../state/types';
 import { SolidAccentButton } from './OutlineButton';
@@ -54,7 +54,7 @@ export function OnboardingModal() {
                 {STEPS.map(step => (
                   <View key={step.n} style={styles.stepRow}>
                     <View style={styles.stepBadge}>
-                      <Text style={styles.stepBadgeText}>{step.n}</Text>
+                      <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.stepBadgeText}>{step.n}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.stepTitle}>{t(step.title)}</Text>
@@ -89,8 +89,8 @@ export function OnboardingModal() {
                       ]}
                     >
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.permLabel}>{row.label}</Text>
-                        <Text style={styles.permNote}>{row.note}</Text>
+                        <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.permLabel}>{row.label}</Text>
+                        <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.permNote}>{row.note}</Text>
                       </View>
                       <Pressable
                         testID={`onb-${row.key}`}
@@ -109,7 +109,7 @@ export function OnboardingModal() {
                           },
                         ]}
                       >
-                        <Text
+                        <Text maxFontSizeMultiplier={MAX_FONT_SCALE}
                           style={[
                             styles.permButtonText,
                             { color: granted ? color.accent300 : row.enabled ? color.accent : color.neutral600 },

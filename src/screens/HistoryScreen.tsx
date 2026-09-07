@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { color, font } from '../theme';
+import { color, font, MAX_FONT_SCALE } from '../theme';
 import { useAppState, useFilteredEvents } from '../state/AppStateContext';
 import { HistoryFilter } from '../state/types';
 import { SegmentedControl } from '../components/SegmentedControl';
@@ -66,8 +66,8 @@ export function HistoryScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.title}>{t('hist.title')}</Text>
-        <Text style={styles.count}>{tn('hist.count.other', shown.length)}</Text>
+        <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.title}>{t('hist.title')}</Text>
+        <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.count}>{tn('hist.count.other', shown.length)}</Text>
       </View>
 
       <View style={styles.filters}>

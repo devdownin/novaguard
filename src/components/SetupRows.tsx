@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { color, font, TOUCH_SLOP } from '../theme';
+import { color, font, MAX_FONT_SCALE, TOUCH_SLOP } from '../theme';
 
 export function SettingRow({
   label, subtitle, children,
@@ -8,8 +8,8 @@ export function SettingRow({
   return (
     <View style={styles.row}>
       <View style={styles.labelCol}>
-        <Text style={styles.label}>{label}</Text>
-        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.label}>{label}</Text>
+        {subtitle ? <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
       {children}
     </View>
@@ -17,7 +17,7 @@ export function SettingRow({
 }
 
 export function StaticValue({ label }: { label: string }) {
-  return <Text style={styles.staticValue}>{label}</Text>;
+  return <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.staticValue}>{label}</Text>;
 }
 
 export function ValueButton({
@@ -55,7 +55,7 @@ export function ValueButton({
         pressed && { opacity: 0.62 },
       ]}
     >
-      <Text style={[styles.valueButtonText, active && { color: color.accent200 }]}>{label}</Text>
+      <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={[styles.valueButtonText, active && { color: color.accent200 }]}>{label}</Text>
     </Pressable>
   );
 }
