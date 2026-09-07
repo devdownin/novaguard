@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { color, font } from '../theme';
+import { color, font, MAX_FONT_SCALE } from '../theme';
 
 interface Option<T extends string> {
   label: string;
@@ -39,7 +39,7 @@ export function SegmentedControl<T extends string>({
               },
             ]}
           >
-            <Text style={{ fontFamily: font.medium, fontSize, color: active ? color.accent200 : color.neutral500 }}>
+            <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={{ fontFamily: font.medium, fontSize, color: active ? color.accent200 : color.neutral500 }}>
               {opt.label}
             </Text>
           </Pressable>

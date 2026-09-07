@@ -98,8 +98,8 @@ export function AutoTuneSheet() {
         <>
           <View style={styles.card}>
             <View style={styles.cardHead}>
-              <Text style={styles.cardTitle}>{t('autoTune.chart.cadence')}</Text>
-              <Text style={styles.cardValue}>{formatFrameRate(latest)}</Text>
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.cardTitle}>{t('autoTune.chart.cadence')}</Text>
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.cardValue}>{formatFrameRate(latest)}</Text>
             </View>
             <BarChart
               values={cadence}
@@ -130,8 +130,8 @@ export function AutoTuneSheet() {
             return (
               <View key={step} style={styles.card} testID={`autotune-${step}`}>
                 <View style={styles.cardHead}>
-                  <Text style={styles.cardTitle}>{name}</Text>
-                  <Text style={styles.cardValue}>{state}</Text>
+                  <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.cardTitle}>{name}</Text>
+                  <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.cardValue}>{state}</Text>
                 </View>
                 <BarChart
                   values={series.map(value => STEP_VALUES[value])}

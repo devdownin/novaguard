@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { color, font } from '../theme';
+import { color, font, MAX_FONT_SCALE } from '../theme';
 import { useViewfinderState } from '../state/AppStateContext';
 import { uprightBoxToViewBox } from '../camera/framing';
 
@@ -38,8 +38,8 @@ export function DetectionOverlay({ viewWidth, viewHeight }: { viewWidth: number;
             ]}
           >
             <View style={[styles.detLabelChip, !isPrimary && styles.detLabelChipSecondary]}>
-              <Text style={styles.detLabelText}>{track.kind}</Text>
-              <Text style={styles.detConfText}>{Math.round(track.confidence * 100)} %</Text>
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.detLabelText}>{track.kind}</Text>
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.detConfText}>{Math.round(track.confidence * 100)} %</Text>
             </View>
           </View>
         );

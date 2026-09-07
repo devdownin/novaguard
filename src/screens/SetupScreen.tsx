@@ -2,7 +2,7 @@ import React from 'react';
 import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Slider from '@react-native-community/slider';
-import { color, font, radius } from '../theme';
+import { color, font, radius, MAX_FONT_SCALE } from '../theme';
 import { useAppState } from '../state/AppStateContext';
 import { Retention, Sensitivity } from '../state/types';
 import { formatBytes } from '../recording/library';
@@ -155,8 +155,8 @@ export function SetupScreen() {
           </View>
           <View style={[styles.subBlock, { paddingTop: 14, paddingBottom: 2 }]}>
             <View style={styles.thresholdRow}>
-              <Text style={styles.subLabel}>{t('setup.threshold')}</Text>
-              <Text style={styles.thresholdValue}>{t('detail.percent', { value: settings.threshold })}</Text>
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.subLabel}>{t('setup.threshold')}</Text>
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.thresholdValue}>{t('detail.percent', { value: settings.threshold })}</Text>
             </View>
             <Slider
               accessibilityRole="adjustable"
@@ -218,16 +218,16 @@ export function SetupScreen() {
             </View>
             <View style={styles.storageStatsRow}>
               <View>
-                <Text style={styles.storageStatLabel}>{t('setup.storage.used')}</Text>
-                <Text style={styles.storageStatValue}>{formatBytes(store.used)}</Text>
+                <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.storageStatLabel}>{t('setup.storage.used')}</Text>
+                <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.storageStatValue}>{formatBytes(store.used)}</Text>
               </View>
               <View>
-                <Text style={styles.storageStatLabel}>{t('setup.storage.free')}</Text>
-                <Text style={styles.storageStatValue}>{formatBytes(store.free)}</Text>
+                <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.storageStatLabel}>{t('setup.storage.free')}</Text>
+                <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.storageStatValue}>{formatBytes(store.free)}</Text>
               </View>
               <View>
-                <Text style={styles.storageStatLabel}>{t('setup.storage.videos')}</Text>
-                <Text style={styles.storageStatValue}>{events.length}</Text>
+                <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.storageStatLabel}>{t('setup.storage.videos')}</Text>
+                <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.storageStatValue}>{events.length}</Text>
               </View>
             </View>
           </View>

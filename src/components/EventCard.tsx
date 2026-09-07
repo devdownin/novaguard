@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { color, font } from '../theme';
+import { color, font, MAX_FONT_SCALE } from '../theme';
 import { DetectionEvent } from '../state/types';
 import { formatDuration, formatTimeOfDay, formatWhen } from '../utils/date';
 import { ChevronRightIcon } from './icons';
@@ -29,7 +29,7 @@ export function EventCard({ event, onPress }: { event: DetectionEvent; onPress: 
           end={{ x: 0.85, y: 1 }}
           placeholder={<View style={styles.thumbFrame} />}
         />
-        <Text style={styles.thumbDur}>{durLabel}</Text>
+        <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.thumbDur}>{durLabel}</Text>
       </View>
       <View style={styles.info}>
         <View style={styles.titleRow}>

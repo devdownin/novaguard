@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { color, font, shadow, TOUCH_SLOP } from '../theme';
+import { color, font, shadow, MAX_FONT_SCALE, TOUCH_SLOP } from '../theme';
 import { Period } from '../state/types';
 import { ChevronDownIcon } from './icons';
 import { t, tValue } from '../i18n';
@@ -25,7 +25,7 @@ export function PeriodDropdown({ value, open, onToggle, onSelect }: PeriodDropdo
         hitSlop={TOUCH_SLOP}
         style={({ pressed }) => [styles.trigger, pressed && { opacity: 0.62 }]}
       >
-        <Text style={styles.triggerLabel}>{tValue(`value.period.${value}`)}</Text>
+        <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.triggerLabel}>{tValue(`value.period.${value}`)}</Text>
         <ChevronDownIcon size={9} color={color.neutral300} />
       </Pressable>
       {open && (
@@ -38,8 +38,8 @@ export function PeriodDropdown({ value, open, onToggle, onSelect }: PeriodDropdo
               accessibilityState={{ selected: opt === value }}
               style={({ pressed }) => [styles.menuItem, pressed && { opacity: 0.62 }]}
             >
-              <Text style={styles.menuLabel}>{tValue(`value.period.${opt}`)}</Text>
-              {opt === value && <Text style={styles.menuCheck}>✓</Text>}
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.menuLabel}>{tValue(`value.period.${opt}`)}</Text>
+              {opt === value && <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.menuCheck}>✓</Text>}
             </Pressable>
           ))}
         </View>

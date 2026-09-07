@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { StyleProp, Text, TextStyle } from 'react-native';
+import { MAX_FONT_SCALE } from '../theme';
 import { formatClock } from '../utils/date';
 
 /**
@@ -17,5 +18,5 @@ export function LiveClock({ style }: { style?: StyleProp<TextStyle> }) {
     return () => clearInterval(iv);
   }, []);
 
-  return <Text style={style}>{now}</Text>;
+  return <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={style}>{now}</Text>;
 }
