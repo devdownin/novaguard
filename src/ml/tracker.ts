@@ -35,6 +35,12 @@ export interface Track {
   /** Latest box, normalized to the uprighted frame. */
   box: DetectionBox;
   confidence: number;
+  /**
+   * The same score with the per-look wobble taken out, used to decide which
+   * subject the app is following — never shown, since the overlay's label
+   * should say what the detector just answered.
+   */
+  stableConfidence: number;
   maxConfidence: number;
   /**
    * Centre velocity in frame widths (and heights) per millisecond, smoothed.
@@ -105,6 +111,21 @@ export const DEFAULT_TRACKER_OPTIONS: TrackerOptions = {
 
 /** How much of a new velocity estimate to believe. One noisy box must not fling the prediction. */
 const VELOCITY_SMOOTHING = 0.5;
+
+/** How much of a new score to believe, for the same reason. */
+const CONFIDENCE_SMOOTHING = 0.5;
+
+/**
+ * How far ahead of the subject being followed another track has to be before
+ * the app changes subject.
+ *
+ * Two people in frame score within a few hundredths of each other and each look
+ * reshuffles them, so "the most confident confirmed track" was a different
+ * person several times a second: the auto-zoom retargeted, and `captureZoomFor`
+ * recomputed the crop, on a subject that had not moved. Whoever is being
+ * followed keeps the role until somebody is *clearly* ahead.
+ */
+const PRIMARY_SWITCH_MARGIN = 0.1;
 
 /**
  * Overlap above which a detection of *another* kind is the same subject read
@@ -315,6 +336,8 @@ export function updateTracks(
       evidence,
       box: detection.box,
       confidence: detection.confidence,
+      stableConfidence: track.stableConfidence
+        + (detection.confidence - track.stableConfidence) * CONFIDENCE_SMOOTHING,
       maxConfidence: Math.max(track.maxConfidence, detection.confidence),
       vx: moved ? track.vx + (stepX - track.vx) * VELOCITY_SMOOTHING : track.vx,
       vy: moved ? track.vy + (stepY - track.vy) * VELOCITY_SMOOTHING : track.vy,
@@ -338,6 +361,7 @@ export function updateTracks(
         : { Personne: 0, Animal: detection.confidence },
       box: detection.box,
       confidence: detection.confidence,
+      stableConfidence: detection.confidence,
       maxConfidence: detection.confidence,
       vx: 0,
       vy: 0,
@@ -418,17 +442,28 @@ export function confirmedTracksIfChanged(previous: Track[], tracks: Track[]): Tr
 }
 
 /**
- * The track the UI treats as the subject: highest confidence among confirmed.
+ * The track the UI treats as the subject: the most confident confirmed one,
+ * with `currentId` — whoever is being followed already — keeping the role until
+ * another track is ahead by `PRIMARY_SWITCH_MARGIN`.
+ *
+ * Compared on `stableConfidence`, not on the last look: this decides where the
+ * camera zooms, and a decision made on a number that wobbles every frame is a
+ * camera that hunts between two people standing still. Passing no `currentId`
+ * asks the plain question, which is what a caller with no subject yet wants.
  *
  * Walks the list directly rather than going through `confirmedTracks`, which
  * allocated a filtered array per call to produce a single element — on a path
  * the frame processor hits several times a second.
  */
-export function primaryTrack(tracks: Track[]): Track | null {
+export function primaryTrack(tracks: Track[], currentId: number | null = null): Track | null {
   let best: Track | null = null;
+  let current: Track | null = null;
   for (const t of tracks) {
     if (!t.confirmed) continue;
-    if (!best || t.confidence > best.confidence) best = t;
+    if (t.id === currentId) current = t;
+    if (!best || t.stableConfidence > best.stableConfidence) best = t;
   }
-  return best;
+  // The subject being followed is gone — dropped, or not confirmed any more.
+  if (current == null || best == null) return best;
+  return best.stableConfidence > current.stableConfidence + PRIMARY_SWITCH_MARGIN ? best : current;
 }

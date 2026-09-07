@@ -551,6 +551,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const sessionMaxConfRef = useRef(0);
   const tracksRef = useRef<Track[]>([]);
   /**
+   * The subject currently being followed, so `primaryTrack` can keep it rather
+   * than reshuffling two people who score within a hundredth of each other.
+   */
+  const primaryIdRef = useRef<number | null>(null);
+  /**
    * Set while a stop is in flight, so the arriving clip knows what it belongs to.
    *
    * `rollover` says the stop came from the duration cap with the subject still
@@ -824,7 +829,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     pendingRef.current = { ...meta, rollover: true };
     // The next clip's window starts now. Confidence restarts from whatever is in
     // frame at this instant so each event describes its own clip.
-    const primary = primaryTrack(tracksRef.current);
+    const primary = primaryTrack(tracksRef.current, primaryIdRef.current);
     segmentStartRef.current = Date.now();
     sessionMaxConfRef.current = primary ? primary.maxConfidence : 0;
   }, [sessionMeta]);
@@ -970,8 +975,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // already bails on `Object.is`, so this is what makes a still scene free.
     shown?.setTracks(prev => confirmedTracksIfChanged(prev, next));
 
-    const primary = primaryTrack(next);
-    shown?.setPrimaryTrackId(primary ? primary.id : null);
+    const primary = primaryTrack(next, primaryIdRef.current);
+    primaryIdRef.current = primary ? primary.id : null;
+    shown?.setPrimaryTrackId(primaryIdRef.current);
 
     if (primary) {
       cancelPostRoll();
@@ -1037,6 +1043,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (monitoring) {
       endSession();
       tracksRef.current = [];
+      primaryIdRef.current = null;
       viewfinder.current?.setTracks(() => []);
       sawFrameRef.current = false;
       setSawFrame(false);

@@ -253,6 +253,42 @@ describe('primaryTrack', () => {
     expect(primaryTrack(tracks)!.confidence).toBeCloseTo(0.95);
   });
 
+  it('keeps following its subject when the other is barely ahead', () => {
+    // Two people standing still score within a few hundredths of each other and
+    // each look reshuffles them. Following the winner of every look retargeted
+    // the auto-zoom, and recomputed the capture crop, on subjects that had not
+    // moved.
+    const pair = (a: number, b: number) => [person(0.05, 0.3, a), person(0.6, 0.3, b)];
+    let tracks = updateTracks([], pair(0.88, 0.86), 1000);
+    tracks = updateTracks(tracks, pair(0.88, 0.86), 1100);
+    const subject = primaryTrack(tracks)!;
+
+    tracks = updateTracks(tracks, pair(0.85, 0.91), 1200);
+    expect(primaryTrack(tracks, subject.id)!.id).toBe(subject.id);
+  });
+
+  it('hands the subject over when the other is clearly ahead', () => {
+    let tracks = updateTracks([], [person(0.05, 0.3, 0.7), person(0.6, 0.3, 0.68)], 1000);
+    tracks = updateTracks(tracks, [person(0.05, 0.3, 0.7), person(0.6, 0.3, 0.68)], 1100);
+    const subject = primaryTrack(tracks)!;
+
+    // Someone walks up to the camera while the first subject fades into the
+    // background: that is a change of subject, not a wobble.
+    for (const at of [1200, 1300, 1400]) {
+      tracks = updateTracks(tracks, [person(0.05, 0.3, 0.45), person(0.6, 0.3, 0.95)], at);
+    }
+    expect(primaryTrack(tracks, subject.id)!.id).not.toBe(subject.id);
+  });
+
+  it('falls back to the best track once its subject is gone', () => {
+    let tracks = updateTracks([], [person(0.6, 0.3, 0.9)], 1000);
+    tracks = updateTracks(tracks, [person(0.6, 0.3, 0.9)], 1100);
+
+    // An id no track carries any more — the subject left, and the pick must not
+    // stay null while somebody else is in frame.
+    expect(primaryTrack(tracks, 999)!.confidence).toBeCloseTo(0.9);
+  });
+
   it('holds on to a confirmed track through a miss, and lets go once dropped', () => {
     // This used to assert the opposite. Going null on the first miss is what
     // made the overlay blink and started the post-roll early; the track is only
