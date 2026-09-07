@@ -232,6 +232,20 @@ export function SetupScreen() {
             </View>
           </View>
 
+          <SettingRow
+            label={t('setup.lockHistory')}
+            // What the switch is worth on this device, said on the row itself:
+            // with no screen lock configured there is nobody for Android to ask.
+            subtitle={t(s.identityAvailable ? 'setup.lockHistory.sub' : 'setup.lockHistory.unavailable')}
+          >
+            <Switch
+              value={settings.lockHistory && s.identityAvailable}
+              onValueChange={s.toggleLockHistory}
+              disabled={!s.identityAvailable}
+              accessibilityLabel={t('setup.lockHistory')}
+            />
+          </SettingRow>
+
           <View style={[styles.subBlock, { borderTopWidth: 1, borderTopColor: color.divider }]}>
             <Text style={styles.subLabel}>{t('setup.retention')}</Text>
             <View style={styles.retentionWrap}>

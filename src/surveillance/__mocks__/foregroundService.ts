@@ -30,6 +30,10 @@ export const openDetectionChannelSettings = jest.fn();
 export const thermalStatus = jest.fn(() => -1);
 export const batteryLevel = jest.fn(() => -1);
 export const isCharging = jest.fn(() => false);
+// A device that can confirm, and a confirmation that succeeds: the suites that
+// care about the history lock override one or both.
+export const canConfirmIdentity = jest.fn(() => true);
+export const confirmIdentity = jest.fn<Promise<boolean>, [string, string]>(async () => true);
 export const shareRecording = jest.fn(() => true);
 // Null by default: no native side under Jest, which is also what a device with
 // an undecodable clip answers. A suite that cares hands back a path.

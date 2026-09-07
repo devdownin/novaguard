@@ -28,7 +28,8 @@ import {
   deleteFiles, orphanedRecordings, renameRecording, volumeSpace,
 } from '../recording/videoStore';
 import {
-  batteryLevel, dismissDetectionAlert, extractThumbnail, foregroundServiceError,
+  batteryLevel, canConfirmIdentity, confirmIdentity, dismissDetectionAlert, extractThumbnail,
+  foregroundServiceError,
   hasNotificationPermission, isCharging, notifyDetection, openAppSettings,
   openDetectionChannelSettings, requestNotificationPermission, startForegroundService,
   stopForegroundService, thermalStatus,
@@ -136,6 +137,12 @@ interface AppStateValue {
   /** The event `selected` names, resolved once for every consumer that needs it. */
   selectedEvent: DetectionEvent | null;
   selectEvent: (id: number | null) => void;
+  /** True while the recordings are behind the device's own lock (see `IdentityCheck.kt`). */
+  historyLocked: boolean;
+  /** Raises the system prompt; resolves whether the history opened. */
+  unlockHistory: () => Promise<boolean>;
+  /** False on a device with no screen lock, where the setting would protect nothing. */
+  identityAvailable: boolean;
 
   // confirmations
   confirmDelete: boolean;
@@ -152,6 +159,7 @@ interface AppStateValue {
   toggleSection: (key: keyof ExpandedSections) => void;
   cycleCamera: () => void;
   toggleResumeOnLaunch: () => void;
+  toggleLockHistory: () => void;
   toggleNight: () => void;
   togglePerson: () => void;
   toggleAnimal: () => void;
@@ -1250,8 +1258,47 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   );
 
   // ── history ──────────────────────────────────────────────────────────
+  /**
+   * Cleared whenever the app leaves the screen, never persisted: the lock is
+   * there for the moment somebody else picks the phone up, and a session that
+   * survived that moment would be the lock unlocking itself.
+   */
+  const [historyUnlocked, setHistoryUnlocked] = useState(false);
+  const [identityAvailable] = useState(canConfirmIdentity);
+  const historyLocked = settings.lockHistory && !historyUnlocked;
+  const historyLockedRef = useLatest(historyLocked);
+
+  useEffect(() => {
+    if (!foreground) setHistoryUnlocked(false);
+  }, [foreground]);
+
+  /**
+   * Opens the history, asking the device who is holding it.
+   *
+   * Answers true without a prompt when there is nothing to open — the setting
+   * is off, or this session already confirmed — so every caller can await it
+   * unconditionally and none has to know the rule.
+   */
+  const unlockHistory = useCallback(async () => {
+    if (!historyLockedRef.current) return true;
+    const confirmed = await confirmIdentity(t('hist.locked.prompt'), t('hist.locked.prompt.sub'));
+    if (confirmed) setHistoryUnlocked(true);
+    return confirmed;
+  }, [historyLockedRef]);
+
   const togglePeriodOpen = useCallback(() => setPeriodOpen(v => !v), []);
-  const selectEvent = useCallback((id: number | null) => setSelected(id), []);
+  /**
+   * The lock lives here rather than on the history screen: the camera screen's
+   * "Dernière" counter opens the same sheet in one tap, and a lock the shortcut
+   * walked past would be decoration.
+   */
+  const selectEvent = useCallback((id: number | null) => {
+    if (id == null || !historyLockedRef.current) {
+      setSelected(id);
+      return;
+    }
+    unlockHistory().then(confirmed => { if (confirmed) setSelected(id); });
+  }, [historyLockedRef, unlockHistory]);
 
   const askDelete = useCallback(() => setConfirmDelete(true), []);
   const cancelDelete = useCallback(() => setConfirmDelete(false), []);
@@ -1298,6 +1345,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     () => patchSettings({ resumeOnLaunch: !settings.resumeOnLaunch }),
     [patchSettings, settings.resumeOnLaunch],
   );
+  const toggleLockHistory = useCallback(() => {
+    // Switching it on locks the history now, not at the next launch: the person
+    // setting it is in Réglages, not in the recordings, and a switch that says
+    // "locked" over an open history is a switch that lied for one session.
+    setHistoryUnlocked(false);
+    patchSettings({ lockHistory: !settings.lockHistory });
+  }, [patchSettings, settings.lockHistory]);
   const toggleNight = useCallback(() => patchSettings({ night: !settings.night }), [patchSettings, settings.night]);
   const togglePerson = useCallback(() => patchSettings({ person: !settings.person }), [patchSettings, settings.person]);
   const toggleAnimal = useCallback(() => patchSettings({ animal: !settings.animal }), [patchSettings, settings.animal]);
@@ -1454,10 +1508,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     monitoring, det, detToday, lastDetAt,
     recording: isRecording, recError, clipGap, autoTune, autoTuneLog: autoTuneLogRef, deviceLoad: deviceLoadRef, storage: store, cameraRef, foreground, reportCameraProblem, reportCameraError, cameraHealth: recovery.health, cameraActive, reportFrameStage,
     toggleMonitoring, reportDetections,
-    events, filter, setFilter, period, setPeriod, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent,
+    events, filter, setFilter, period, setPeriod, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent, historyLocked, unlockHistory, identityAvailable,
     confirmDelete, askDelete, cancelDelete, doDelete,
     confirmWipe, askWipe, cancelWipe, doWipe,
-    settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
+    settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, cyclePost, cycleMax, cycleQuality, setRetention,
     toggleAutoDel, toggleNotif, toggleNotifDet, openAlertSoundSettings, wipeAllVideos,
@@ -1466,9 +1520,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   }), [
     hydrated, tab, monitoring, det, detToday, lastDetAt,
     isRecording, recError, clipGap, autoTune, autoTuneLogRef, deviceLoadRef, store, cameraRef, foreground, reportCameraProblem, reportCameraError, recovery, cameraActive, reportFrameStage, toggleMonitoring, reportDetections,
-    events, filter, period, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent,
+    events, filter, period, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent, historyLocked, unlockHistory, identityAvailable,
     confirmDelete, askDelete, cancelDelete, doDelete, confirmWipe, askWipe, cancelWipe, doWipe,
-    settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
+    settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, cyclePost, cycleMax, cycleQuality, setRetention,
     toggleAutoDel, toggleNotif, toggleNotifDet, openAlertSoundSettings, wipeAllVideos,
