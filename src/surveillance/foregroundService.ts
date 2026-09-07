@@ -16,10 +16,19 @@ export const NOTIFICATION_TITLE = t('notif.title');
 export const NOTIFICATION_BODY =
   t('notif.monitoring');
 
-export function startForegroundService(): boolean {
+/**
+ * Starts the service, or — called again while it runs — rewrites what its
+ * notification says.
+ *
+ * `startForeground` with the same id updates the standing notification rather
+ * than posting a second one, which makes this the only surface the app has
+ * while the screen is off. That is what a camera interrupted mid-watch has to
+ * reach: the viewfinder's error chip is drawn where nobody is looking.
+ */
+export function startForegroundService(body: string = NOTIFICATION_BODY): boolean {
   if (!NativeSurveillanceService) return false;
   try {
-    NativeSurveillanceService.start(NOTIFICATION_TITLE, NOTIFICATION_BODY);
+    NativeSurveillanceService.start(NOTIFICATION_TITLE, body);
     return true;
   } catch {
     return false;

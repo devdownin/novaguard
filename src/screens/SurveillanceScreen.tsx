@@ -21,8 +21,11 @@ import { Viewfinder } from '../components/Viewfinder';
 export function SurveillanceScreen() {
   const {
     monitoring, toggleMonitoring, lastDetAt, detToday, storage: store,
-    events, selectEvent, setTab, setFilter, setPeriod,
+    events, selectEvent, setTab, setFilter, setPeriod, cameraHealth,
   } = useAppState();
+  // "Surveillance active" over a camera another app has taken is the one lie
+  // this screen can tell; the pill says which of the three states it is in.
+  const interrupted = monitoring && cameraHealth === 'interrupted';
   const landscape = useLandscape();
 
   // Each counter answers a question, and the answer was a dead end: "last
@@ -50,14 +53,25 @@ export function SurveillanceScreen() {
       style={[
         styles.statusPill,
         {
-          borderColor: monitoring ? color.accent700 : color.neutral800,
-          backgroundColor: monitoring ? color.accent900 : 'transparent',
+          borderColor: interrupted ? color.neutral700 : monitoring ? color.accent700 : color.neutral800,
+          backgroundColor: monitoring && !interrupted ? color.accent900 : 'transparent',
         },
       ]}
     >
-      <View style={[styles.statusDot, { backgroundColor: monitoring ? color.accent : color.neutral600 }]} />
-      <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={[styles.statusLabel, { color: monitoring ? color.accent200 : color.neutral500 }]}>
-        {t(monitoring ? 'surv.status.on' : 'surv.status.off')}
+      <View
+        style={[
+          styles.statusDot,
+          { backgroundColor: interrupted ? color.neutral400 : monitoring ? color.accent : color.neutral600 },
+        ]}
+      />
+      <Text
+        maxFontSizeMultiplier={MAX_FONT_SCALE}
+        style={[
+          styles.statusLabel,
+          { color: interrupted ? color.neutral300 : monitoring ? color.accent200 : color.neutral500 },
+        ]}
+      >
+        {t(interrupted ? 'surv.status.interrupted' : monitoring ? 'surv.status.on' : 'surv.status.off')}
       </Text>
     </View>
   );

@@ -47,6 +47,17 @@ CameraFeed (frame processor, worklet)
 Ces pièges ont tous déjà coûté un bug en production. Ils justifient des choix
 qui, sans ça, paraissent tordus.
 
+**La caméra ne nous appartient pas.** Un appel entrant, une autre application,
+une politique constructeur : CameraX rend l'erreur et cesse de livrer. Comme
+l'écran d'un téléphone de surveillance est éteint, l'interruption doit être dite
+sur la notification du service — la seule surface visible — retentée jusqu'à ce
+qu'elle cesse, et déclarée finie **sur une image reçue**, jamais sur un
+redémarrage : une session qui se monte et ne livre rien est la panne elle-même.
+`cameraHealth.ts` porte cette décision ; `onError` de `<Camera>` va à
+`reportCameraError`, distinct de `reportCameraProblem` qui porte aussi le modèle
+qui ne charge pas et les erreurs de frame processor, lesquelles ne tuent pas la
+session.
+
 **Le chemin chaud est le frame processor.** `reportDetections` est appelé
 jusqu'à 5 fois par seconde. Son identité alimente la liste de dépendances du
 worklet : la faire changer reconstruit le worklet. Tout réglage qu'elle lit
