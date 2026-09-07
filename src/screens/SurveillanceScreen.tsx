@@ -19,8 +19,24 @@ import { Viewfinder } from '../components/Viewfinder';
  * the whole height.
  */
 export function SurveillanceScreen() {
-  const { monitoring, toggleMonitoring, lastDetAt, detToday, storage: store } = useAppState();
+  const {
+    monitoring, toggleMonitoring, lastDetAt, detToday, storage: store,
+    events, selectEvent, setTab, setFilter, setPeriod,
+  } = useAppState();
   const landscape = useLandscape();
+
+  // Each counter answers a question, and the answer was a dead end: "last
+  // detection, 08:42" is read as "what was it?", and getting there meant the
+  // history tab, then finding the card, then opening it. Events are newest
+  // first, so the last detection is the first of them. Nothing leads anywhere
+  // it would land empty — no event, no press.
+  const openLast = events.length > 0 ? () => selectEvent(events[0].id) : undefined;
+  const openToday = detToday > 0 ? () => {
+    setFilter('Toutes');
+    setPeriod("Aujourd'hui");
+    setTab('hist');
+  } : undefined;
+  const openStorage = () => setTab('setup');
 
   const brand = (
     <View>
@@ -80,9 +96,23 @@ export function SurveillanceScreen() {
         // claimed the detection was at 14:32, with nothing to say which day.
         value={lastDetAt == null ? '—' : formatWhen(lastDetAt)}
         landscape={landscape}
+        onPress={openLast}
+        hint={t('a11y.stat.last')}
       />
-      <StatCell label={t('surv.stat.today')} value={detToday} landscape={landscape} />
-      <StatCell label={t('surv.stat.space')} value={formatBytes(store.free)} landscape={landscape} />
+      <StatCell
+        label={t('surv.stat.today')}
+        value={detToday}
+        landscape={landscape}
+        onPress={openToday}
+        hint={t('a11y.stat.today')}
+      />
+      <StatCell
+        label={t('surv.stat.space')}
+        value={formatBytes(store.free)}
+        landscape={landscape}
+        onPress={openStorage}
+        hint={t('a11y.stat.space')}
+      />
     </View>
   );
 
@@ -120,9 +150,20 @@ export function SurveillanceScreen() {
   );
 }
 
-function StatCell({ label, value, landscape }: { label: string; value: string | number; landscape: boolean }) {
-  return (
-    <View style={[styles.statCell, landscape && styles.statCellRow]}>
+/**
+ * A counter, and where it leads. Without `onPress` it is what it always was —
+ * a figure — which is also what it must stay when following it would land on
+ * an empty screen.
+ */
+function StatCell({ label, value, landscape, onPress, hint }: {
+  label: string;
+  value: string | number;
+  landscape: boolean;
+  onPress?: () => void;
+  hint?: string;
+}) {
+  const body = (
+    <>
       <Text style={styles.statLabel} maxFontSizeMultiplier={MAX_FONT_SCALE}>{label}</Text>
       <Text
         style={[styles.statValue, landscape && styles.statValueInline]}
@@ -130,7 +171,28 @@ function StatCell({ label, value, landscape }: { label: string; value: string | 
       >
         {value}
       </Text>
-    </View>
+    </>
+  );
+
+  if (!onPress) {
+    return <View style={[styles.statCell, landscape && styles.statCellRow]}>{body}</View>;
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      // The label and the figure stay the name — a reader hears "Dernière,
+      // aujourd'hui 08:42" and then what pressing it does.
+      accessibilityHint={hint}
+      style={({ pressed }) => [
+        styles.statCell,
+        landscape && styles.statCellRow,
+        pressed && styles.statCellPressed,
+      ]}
+    >
+      {body}
+    </Pressable>
   );
 }
 
@@ -223,6 +285,9 @@ const styles = StyleSheet.create({
     backgroundColor: color.surface,
     paddingVertical: 10,
     paddingHorizontal: 11,
+  },
+  statCellPressed: {
+    backgroundColor: color.neutral900,
   },
   statCellRow: {
     flex: 0,

@@ -52,7 +52,7 @@ export const en: Record<StringKey, string> = {
   'hist.empty.never.sub': 'Start monitoring from the Camera tab: every confirmed person or animal writes a video here.',
   'hist.event.person': 'Person detected',
   'hist.event.animal': 'Animal detected',
-  'hist.event.meta': '{dur} seconds · {conf} %',
+  'hist.event.noClip': 'No video',
 
   // ── event detail ─────────────────────────────────────────────────────
   'detail.play': 'Play the recording',
@@ -151,6 +151,11 @@ export const en: Record<StringKey, string> = {
   'a11y.dismiss': 'Dismiss',
   'a11y.period': 'Period: {value}',
   'a11y.event': '{title}, {when}',
+  'a11y.stat.last': 'Open the last detection',
+  'a11y.stat.today': "Show today's detections",
+  'a11y.stat.space': 'Open the recording settings',
+  'a11y.tab.watching': '{name}, monitoring on',
+  'a11y.tab.recording': '{name}, recording',
 
   'info.perms': 'Permissions',
   'info.data': 'Stored data',

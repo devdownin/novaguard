@@ -39,11 +39,24 @@ export function daysAgo(ts: number): number {
  */
 export function formatWhen(ts: number): string {
   const d = new Date(ts);
-  const time = pad(d.getHours()) + ':' + pad(d.getMinutes());
+  const time = formatTimeOfDay(ts);
   const diff = daysAgo(ts);
   if (diff === 0) return t('date.today', { time });
   if (diff === 1) return t('date.yesterday', { time });
   return t('date.other', { day: d.getDate(), month: MONTHS[d.getMonth()], time });
+}
+
+/**
+ * "08:42" — the clock alone.
+ *
+ * What a card in a list grouped by day is actually saying: the day is on the
+ * heading above it, and repeating it on every card in the group is words that
+ * carry nothing. The surveillance screen, which shows one instant with no
+ * heading over it, still needs `formatWhen`.
+ */
+export function formatTimeOfDay(ts: number): string {
+  const d = new Date(ts);
+  return pad(d.getHours()) + ':' + pad(d.getMinutes());
 }
 
 /**
