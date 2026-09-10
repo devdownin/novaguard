@@ -112,6 +112,15 @@ export interface Settings {
    * https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start
    */
   resumeOnLaunch: boolean;
+  /**
+   * Whether the recordings ask who is opening them.
+   *
+   * Off by default. The footage never leaves the device, which protects it from
+   * every other app and from the network — and not at all from whoever picks
+   * the phone up off the table it was left on to watch the door. Whether that
+   * is a threat is the owner's call, not this app's, so it is a switch.
+   */
+  lockHistory: boolean;
   night: boolean;
   person: boolean;
   animal: boolean;

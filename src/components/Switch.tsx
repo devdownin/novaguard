@@ -6,6 +6,12 @@ interface SwitchProps {
   value: boolean;
   onValueChange: () => void;
   accessibilityLabel?: string;
+  /**
+   * A setting this device cannot honour — the history lock on a phone with no
+   * screen lock. Dimmed and inert rather than absent: a row that disappears
+   * takes its explanation with it, and the explanation is the whole answer.
+   */
+  disabled?: boolean;
 }
 
 const TRACK_ON = color.accent800;
@@ -15,7 +21,7 @@ const BORDER_OFF = color.neutral700;
 const KNOB_ON = color.accent200;
 const KNOB_OFF = color.neutral600;
 
-export function Switch({ value, onValueChange, accessibilityLabel }: SwitchProps) {
+export function Switch({ value, onValueChange, accessibilityLabel, disabled = false }: SwitchProps) {
   const anim = useRef(new Animated.Value(value ? 1 : 0)).current;
 
   useEffect(() => {
@@ -33,11 +39,11 @@ export function Switch({ value, onValueChange, accessibilityLabel }: SwitchProps
 
   return (
     <Pressable
-      onPress={onValueChange}
+      onPress={disabled ? undefined : onValueChange}
       accessibilityRole="switch"
-      accessibilityState={{ checked: value }}
+      accessibilityState={{ checked: value, disabled }}
       accessibilityLabel={accessibilityLabel}
-      style={[styles.track, { borderColor, backgroundColor: trackColor }]}
+      style={[styles.track, disabled && styles.trackDisabled, { borderColor, backgroundColor: trackColor }]}
     >
       <Animated.View style={[styles.knob, { backgroundColor: knobColor, transform: [{ translateX }] }]} />
     </Pressable>
@@ -45,6 +51,7 @@ export function Switch({ value, onValueChange, accessibilityLabel }: SwitchProps
 }
 
 const styles = StyleSheet.create({
+  trackDisabled: { opacity: 0.4 },
   track: {
     width: 44,
     height: 26,

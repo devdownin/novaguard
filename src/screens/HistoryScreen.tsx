@@ -47,9 +47,27 @@ function EmptyHistory({ hasAnyEvent, onReset }: { hasAnyEvent: boolean; onReset:
   );
 }
 
+/**
+ * The recordings, behind the device's own lock.
+ *
+ * Deliberately says nothing about what it is hiding — not the count, not the
+ * last time anything was filmed. A panel that reported "12 videos today" would
+ * hand over half of what the lock exists to keep.
+ */
+function LockedHistory({ onUnlock }: { onUnlock: () => void }) {
+  return (
+    <View style={styles.emptyWrap}>
+      <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.emptyTitle}>{t('hist.locked')}</Text>
+      <Text style={styles.emptyBody}>{t('hist.locked.sub')}</Text>
+      <PrimaryOutlineButton label={t('hist.locked.action')} onPress={onUnlock} style={styles.emptyAction} />
+    </View>
+  );
+}
+
 export function HistoryScreen() {
   const {
     events, filter, setFilter, period, setPeriod, periodOpen, togglePeriodOpen, selectEvent,
+    historyLocked, unlockHistory,
   } = useAppState();
   const { shown } = useFilteredEvents();
   const landscape = useLandscape();
@@ -62,6 +80,19 @@ export function HistoryScreen() {
     setFilter('Toutes');
     setPeriod('Tout');
   }, [setFilter, setPeriod]);
+
+  const unlock = useCallback(() => { unlockHistory(); }, [unlockHistory]);
+
+  if (historyLocked) {
+    return (
+      <View style={styles.screen}>
+        <View style={styles.header}>
+          <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.title}>{t('hist.title')}</Text>
+        </View>
+        <LockedHistory onUnlock={unlock} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>

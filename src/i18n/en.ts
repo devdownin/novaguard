@@ -45,6 +45,11 @@ export const en: Record<StringKey, string> = {
 
   // ── history ──────────────────────────────────────────────────────────
   'hist.title': 'History',
+  'hist.locked': 'History locked',
+  'hist.locked.sub': 'Recordings only open once you have been confirmed.',
+  'hist.locked.action': 'Unlock',
+  'hist.locked.prompt': 'Open the history',
+  'hist.locked.prompt.sub': 'NovaGuard protects the recordings on this device',
   'hist.count.one': '{count} video',
   'hist.count.other': '{count} videos',
   'hist.empty': 'No event for this filter.',
@@ -82,6 +87,9 @@ export const en: Record<StringKey, string> = {
   'setup.camera': 'Camera used',
   'setup.resume': 'Resume when opened',
   'setup.resume.sub': 'Android forbids the camera from starting on its own after a reboot',
+  'setup.lockHistory': 'Lock the history',
+  'setup.lockHistory.sub': 'Fingerprint, face or device code before the videos open',
+  'setup.lockHistory.unavailable': 'No screen lock set up on this device',
   'setup.night': 'Night mode',
   'setup.night.sub': 'Available on this device',
 
