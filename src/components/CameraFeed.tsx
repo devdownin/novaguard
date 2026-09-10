@@ -372,7 +372,10 @@ export function CameraFeed({
       // stopping a recording: a preview output added or removed mid-clip is a
       // capture-session reconfiguration, and this project has already paid for
       // one of those between two clips.
-      preview={foreground}
+      //
+      // Keep preview active when monitoring or recording, so CameraX session / frame pipeline
+      // does not freeze or reconfigure when backgrounded.
+      preview={foreground || active}
       frameProcessor={active ? frameProcessor : undefined}
       pixelFormat="yuv"
       resizeMode="cover"
