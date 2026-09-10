@@ -40,6 +40,18 @@ techniquement incapable d'établir une connexion réseau. Il n'y a donc :
 - aucune publicité, aucun traceur, aucun SDK d'analyse ;
 - aucun partage avec des tiers, puisqu'il n'y a rien à partager.
 
+## Qui peut ouvrir l'historique
+
+Le répertoire privé met les vidéos hors de portée des autres applications et du
+réseau ; il ne les met pas hors de portée de la personne qui prend le téléphone
+en main. **Réglages ▸ Stockage ▸ Verrouiller l'historique** ajoute cette
+moitié-là : l'onglet Historique et l'ouverture d'une vidéo demandent alors la
+confirmation de l'appareil — empreinte, visage, ou le code de verrouillage.
+L'option est désactivée par défaut, la confirmation est demandée à Android (rien
+n'est stocké par l'application), et elle retombe dès que l'application quitte
+l'écran. Sur un téléphone sans verrouillage d'écran configuré, le réglage
+l'indique au lieu de laisser croire à une protection.
+
 ## La seule sortie possible, et c'est vous qui l'ouvrez
 
 Les vidéos sont écrites dans le répertoire privé de l'application, qu'aucune

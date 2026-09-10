@@ -70,6 +70,38 @@ export function foregroundServiceError(): string | null {
  * falls back to the cadence measurement it already had — never to an
  * exception on the frame path.
  */
+/**
+ * Whether the device can confirm who is holding it at all.
+ *
+ * False with no native side and false on a phone with no screen lock: both mean
+ * the history lock would be a switch that protects nothing, and the setting
+ * says so rather than pretending.
+ */
+export function canConfirmIdentity(): boolean {
+  if (!NativeSurveillanceService) return false;
+  try {
+    return NativeSurveillanceService.canConfirmIdentity();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Raises the system prompt and answers whether it confirmed.
+ *
+ * Every failure answers false — a cancelled prompt, a device that dropped its
+ * lock, a module that is not there. A history that stays shut can be opened
+ * again; one that opens because the check could not run cannot be closed again.
+ */
+export async function confirmIdentity(title: string, subtitle: string): Promise<boolean> {
+  if (!NativeSurveillanceService) return false;
+  try {
+    return await NativeSurveillanceService.confirmIdentity(title, subtitle);
+  } catch {
+    return false;
+  }
+}
+
 export function thermalStatus(): number {
   if (!NativeSurveillanceService) return -1;
   try {
