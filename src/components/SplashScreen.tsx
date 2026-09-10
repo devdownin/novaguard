@@ -59,15 +59,14 @@ function Pulse({ children, minOpacity = 0.35, size = 1.08, duration = 1400 }: {
 }
 
 function CornerBracket({ corner }: { corner: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const vertical: 'top' | 'bottom' = corner[0] === 't' ? 'top' : 'bottom';
-  const horizontal: 'left' | 'right' = corner[1] === 'l' ? 'left' : 'right';
+  const isTop = corner[0] === 't';
+  const isLeft = corner[1] === 'l';
   return (
     <View
       style={[
         styles.bracket,
-        { [vertical]: 0, [horizontal]: 0 },
-        vertical === 'top' ? { borderTopWidth: 2 } : { borderBottomWidth: 2 },
-        horizontal === 'left' ? { borderLeftWidth: 2 } : { borderRightWidth: 2 },
+        isTop ? styles.bracketTop : styles.bracketBottom,
+        isLeft ? styles.bracketLeft : styles.bracketRight,
       ]}
     />
   );
@@ -251,6 +250,10 @@ const styles = StyleSheet.create({
     height: 22,
     borderColor: color.accent500,
   },
+  bracketTop: { top: 0, borderTopWidth: 2 },
+  bracketBottom: { bottom: 0, borderBottomWidth: 2 },
+  bracketLeft: { left: 0, borderLeftWidth: 2 },
+  bracketRight: { right: 0, borderRightWidth: 2 },
   frameDotTop: {
     position: 'absolute',
     top: 0,

@@ -71,7 +71,7 @@ export function InfoSheet() {
         const granted = key ? perms[key] : true;
         return (
           <View key={row.label} style={styles.row} testID={key ? `perm-${key}` : undefined}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.textContainer}>
               <Text style={styles.label}>{row.label}</Text>
               <Text style={styles.note}>{row.note}</Text>
             </View>
@@ -87,7 +87,7 @@ export function InfoSheet() {
           </View>
         );
       })}
-      <PrimaryOutlineButton label={t('info.close')} onPress={closeInfo} style={{ width: '100%', marginTop: 16 }} />
+      <PrimaryOutlineButton label={t('info.close')} onPress={closeInfo} style={styles.closeButton} />
     </Sheet>
   );
 }
@@ -107,6 +107,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: color.divider,
   },
+  textContainer: { flex: 1 },
+  closeButton: { width: '100%', marginTop: 16 },
   label: { fontFamily: font.regular, fontSize: 13, color: color.text },
   note: { fontFamily: font.regular, fontSize: 11, color: color.neutral600, marginTop: 1 },
   value: { fontFamily: font.regular, fontSize: 12, color: color.accent300 },

@@ -61,7 +61,7 @@ export function TabBar() {
               ? t(recording ? 'a11y.tab.recording' : 'a11y.tab.watching', { name: t(labelKey) })
               : undefined}
           >
-            <View style={[styles.pill, { backgroundColor: active ? color.accent900 : 'transparent' }]}>
+            <View style={[styles.pill, active ? styles.pillActive : styles.pillInactive]}>
               <Icon size={22} color={tint} />
               {watching && (
                 <View style={[styles.liveDot, recording && styles.liveDotOn]} pointerEvents="none" />
@@ -121,6 +121,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  pillActive: { backgroundColor: color.accent900 },
+  pillInactive: { backgroundColor: 'transparent' },
   liveDot: {
     position: 'absolute',
     top: 4,

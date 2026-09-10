@@ -53,8 +53,10 @@ beforeEach(async () => {
   });
 });
 
-afterEach(() => {
-  jest.runOnlyPendingTimers();
+afterEach(async () => {
+  await ReactTestRenderer.act(async () => {
+    jest.runOnlyPendingTimers();
+  });
   jest.useRealTimers();
 });
 
