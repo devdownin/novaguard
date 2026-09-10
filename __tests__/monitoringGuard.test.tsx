@@ -39,8 +39,8 @@ beforeEach(async () => {
   permission.mockReturnValue({ hasPermission: false, requestPermission });
 });
 
-afterEach(() => {
-  jest.runOnlyPendingTimers();
+afterEach(async () => {
+  await ReactTestRenderer.act(async () => { jest.runOnlyPendingTimers(); });
   jest.useRealTimers();
 });
 

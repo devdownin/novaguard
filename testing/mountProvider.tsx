@@ -36,7 +36,8 @@ export async function mountProvider(extra?: React.ReactNode): Promise<{ state: A
       </AppStateProvider>,
     );
   });
-  // Hydration and the first storage measurement resolve on the next tick.
+  // Hydration and the first storage measurement resolve on the next ticks.
+  await ReactTestRenderer.act(async () => {});
   await ReactTestRenderer.act(async () => {});
 
   return handle;

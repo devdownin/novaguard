@@ -52,23 +52,20 @@ export function SurveillanceScreen() {
     <View
       style={[
         styles.statusPill,
-        {
-          borderColor: interrupted ? color.neutral700 : monitoring ? color.accent700 : color.neutral800,
-          backgroundColor: monitoring && !interrupted ? color.accent900 : 'transparent',
-        },
+        interrupted ? styles.pillInterrupted : monitoring ? styles.pillActive : styles.pillInactive,
       ]}
     >
       <View
         style={[
           styles.statusDot,
-          { backgroundColor: interrupted ? color.neutral400 : monitoring ? color.accent : color.neutral600 },
+          interrupted ? styles.dotInterrupted : monitoring ? styles.dotActive : styles.dotInactive,
         ]}
       />
       <Text
         maxFontSizeMultiplier={MAX_FONT_SCALE}
         style={[
           styles.statusLabel,
-          { color: interrupted ? color.neutral300 : monitoring ? color.accent200 : color.neutral500 },
+          interrupted ? styles.textInterrupted : monitoring ? styles.textActive : styles.textInactive,
         ]}
       >
         {t(interrupted ? 'surv.status.interrupted' : monitoring ? 'surv.status.on' : 'surv.status.off')}
@@ -81,20 +78,13 @@ export function SurveillanceScreen() {
       onPress={toggleMonitoring}
       accessibilityRole="button"
       accessibilityState={{ selected: monitoring }}
-      // A press has to register before the state changes. This is the button
-      // the whole app is for, and it was the only one in the file with no
-      // pressed state at all — `OutlineButton` has had one all along.
       style={({ pressed }) => [
         styles.cta,
-        {
-          backgroundColor: monitoring ? 'transparent' : color.accent900,
-          borderColor: monitoring ? color.neutral700 : color.accent,
-          opacity: pressed ? 0.72 : 1,
-          transform: [{ scale: pressed ? 0.985 : 1 }],
-        },
+        monitoring ? styles.ctaMonitoring : styles.ctaIdle,
+        pressed && styles.ctaPressed,
       ]}
     >
-      <Text style={[styles.ctaLabel, { color: monitoring ? color.neutral200 : color.accent200 }]}>
+      <Text style={[styles.ctaLabel, monitoring ? styles.ctaLabelMonitoring : styles.ctaLabelIdle]}>
         {t(monitoring ? 'surv.cta.stop' : 'surv.cta.start')}
       </Text>
     </Pressable>
@@ -263,8 +253,22 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
   },
+  pillInterrupted: { borderColor: color.neutral700, backgroundColor: 'transparent' },
+  pillActive: { borderColor: color.accent700, backgroundColor: color.accent900 },
+  pillInactive: { borderColor: color.neutral800, backgroundColor: 'transparent' },
   statusDot: { width: 7, height: 7, borderRadius: 3.5 },
+  dotInterrupted: { backgroundColor: color.neutral400 },
+  dotActive: { backgroundColor: color.accent },
+  dotInactive: { backgroundColor: color.neutral600 },
   statusLabel: { fontFamily: font.medium, fontSize: 11 },
+  textInterrupted: { color: color.neutral300 },
+  textActive: { color: color.accent200 },
+  textInactive: { color: color.neutral500 },
+  ctaMonitoring: { backgroundColor: 'transparent', borderColor: color.neutral700 },
+  ctaIdle: { backgroundColor: color.accent900, borderColor: color.accent },
+  ctaPressed: { opacity: 0.72, transform: [{ scale: 0.985 }] },
+  ctaLabelMonitoring: { color: color.neutral200 },
+  ctaLabelIdle: { color: color.accent200 },
   controls: {
     paddingHorizontal: 14,
     paddingTop: 14,
