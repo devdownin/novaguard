@@ -38,6 +38,17 @@ incapable of opening a network connection. There is therefore:
 - no advertising, no tracker, no analytics SDK;
 - no sharing with third parties, since there is nothing to share.
 
+## Who can open the history
+
+The private directory puts the videos out of reach of every other app and of the
+network; it does not put them out of reach of whoever picks the phone up.
+**Settings ▸ Storage ▸ Lock the history** adds that half: the History tab and
+opening a video then ask the device to confirm you — fingerprint, face, or the
+screen-lock code. The option is off by default, the confirmation is asked of
+Android (the app stores nothing of it), and it lapses as soon as the app leaves
+the screen. On a phone with no screen lock set up, the setting says so instead of
+suggesting a protection it cannot give.
+
 ## The only way out, and you are the one who opens it
 
 Videos are written to the app's private folder, which no other app can read. The

@@ -201,6 +201,12 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
+    // The history lock's prompt (see IdentityCheck.kt). Pinned rather than
+    // floating: this one draws a system dialog over the app, and a minor
+    // release that changes what it accepts would change who can open the
+    // recordings.
+    implementation("androidx.biometric:biometric:1.1.0")
+
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {

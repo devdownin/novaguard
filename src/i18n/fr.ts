@@ -47,6 +47,11 @@ export const fr = {
 
   // ── history ──────────────────────────────────────────────────────────
   'hist.title': 'Historique',
+  'hist.locked': 'Historique verrouillé',
+  'hist.locked.sub': "Les enregistrements ne s'ouvrent qu'après confirmation.",
+  'hist.locked.action': 'Déverrouiller',
+  'hist.locked.prompt': "Ouvrir l'historique",
+  'hist.locked.prompt.sub': 'NovaGuard protège les enregistrements de cet appareil',
   'hist.count.one': '{count} vidéo',
   'hist.count.other': '{count} vidéos',
   'hist.empty': 'Aucun événement pour ce filtre.',
@@ -84,6 +89,9 @@ export const fr = {
   'setup.camera': 'Caméra utilisée',
   'setup.resume': "Reprendre à l'ouverture",
   'setup.resume.sub': 'Android interdit à la caméra de démarrer seule après un redémarrage',
+  'setup.lockHistory': "Verrouiller l'historique",
+  'setup.lockHistory.sub': "Empreinte, visage ou code de l'appareil avant d'ouvrir les vidéos",
+  'setup.lockHistory.unavailable': "Aucun verrouillage d'écran configuré sur cet appareil",
   'setup.night': 'Mode nuit',
   'setup.night.sub': 'Disponible sur cet appareil',
 
