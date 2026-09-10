@@ -75,11 +75,11 @@ beforeEach(async () => {
   await AsyncStorage.clear();
 });
 
-afterEach(() => {
-  ReactTestRenderer.act(() => {
+afterEach(async () => {
+  await ReactTestRenderer.act(async () => {
     while (mounted.length) mounted.pop()!.unmount();
+    jest.runOnlyPendingTimers();
   });
-  jest.runOnlyPendingTimers();
   jest.useRealTimers();
 });
 

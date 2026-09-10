@@ -50,20 +50,20 @@ export function OnboardingModal() {
             <View>
               <Text style={styles.kicker}>{t('onb.welcome')}</Text>
               <Text style={styles.headline}>{t('onb.headline')}</Text>
-              <View style={{ gap: 14 }}>
+              <View style={styles.stepsContainer}>
                 {STEPS.map(step => (
                   <View key={step.n} style={styles.stepRow}>
                     <View style={styles.stepBadge}>
                       <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.stepBadgeText}>{step.n}</Text>
                     </View>
-                    <View style={{ flex: 1 }}>
+                    <View style={styles.textContainer}>
                       <Text style={styles.stepTitle}>{t(step.title)}</Text>
                       <Text style={styles.stepBody}>{t(step.body)}</Text>
                     </View>
                   </View>
                 ))}
               </View>
-              <SolidAccentButton label={t('onb.continue')} onPress={onbNext} style={{ width: '100%', marginTop: 22 }} />
+              <SolidAccentButton label={t('onb.continue')} onPress={onbNext} style={styles.continueButton} />
             </View>
           )}
 
@@ -72,7 +72,7 @@ export function OnboardingModal() {
               <Text style={styles.kicker}>{t('onb.perms')}</Text>
               <Text style={styles.headlineSm}>{t('onb.perms.headline')}</Text>
               <Text style={styles.subtext}>{t('onb.perms.sub')}</Text>
-              <View style={{ gap: 8 }}>
+              <View style={styles.permList}>
                 {permRows.map(row => {
                   const granted = perms[row.key];
                   const disabled = !row.enabled || granted;
@@ -81,14 +81,11 @@ export function OnboardingModal() {
                       key={row.key}
                       style={[
                         styles.permRow,
-                        {
-                          opacity: row.enabled ? 1 : 0.4,
-                          backgroundColor: granted ? color.accent900 : 'transparent',
-                          borderColor: granted ? color.accent700 : color.neutral800,
-                        },
+                        !row.enabled && styles.disabledRow,
+                        granted ? styles.grantedRow : styles.ungrantedRow,
                       ]}
                     >
-                      <View style={{ flex: 1 }}>
+                      <View style={styles.textContainer}>
                         <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.permLabel}>{row.label}</Text>
                         <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.permNote}>{row.note}</Text>
                       </View>
@@ -126,7 +123,7 @@ export function OnboardingModal() {
                 label={t(blocked ? 'onb.blocked' : 'onb.start')}
                 onPress={onbFinish}
                 disabled={blocked}
-                style={{ width: '100%', marginTop: 18 }}
+                style={styles.finishButton}
               />
             </View>
           )}
@@ -211,6 +208,14 @@ const styles = StyleSheet.create({
     color: color.neutral500,
     marginTop: 2,
   },
+  stepsContainer: { gap: 14 },
+  textContainer: { flex: 1 },
+  continueButton: { width: '100%', marginTop: 22 },
+  permList: { gap: 8 },
+  disabledRow: { opacity: 0.4 },
+  grantedRow: { backgroundColor: color.accent900, borderColor: color.accent700 },
+  ungrantedRow: { backgroundColor: 'transparent', borderColor: color.neutral800 },
+  finishButton: { width: '100%', marginTop: 18 },
   permRow: {
     flexDirection: 'row',
     alignItems: 'center',

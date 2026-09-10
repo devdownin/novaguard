@@ -45,13 +45,13 @@ function Mask({ box }: { box: DetectionBox }) {
   const bottom = box.y + box.height;
   return (
     <>
-      <View style={[styles.mask, { left: 0, top: 0, right: 0, height: `${box.y * 100}%` }]} />
-      <View style={[styles.mask, { left: 0, top: `${bottom * 100}%`, right: 0, bottom: 0 }]} />
-      <View style={[styles.mask, {
-        left: 0, top: `${box.y * 100}%`, width: `${box.x * 100}%`, height: `${box.height * 100}%`,
+      <View style={[styles.mask, styles.maskTop, { height: `${box.y * 100}%` }]} />
+      <View style={[styles.mask, styles.maskBottom, { top: `${bottom * 100}%` }]} />
+      <View style={[styles.mask, styles.maskLeft, {
+        top: `${box.y * 100}%`, width: `${box.x * 100}%`, height: `${box.height * 100}%`,
       }]} />
-      <View style={[styles.mask, {
-        left: `${right * 100}%`, top: `${box.y * 100}%`, right: 0, height: `${box.height * 100}%`,
+      <View style={[styles.mask, styles.maskRight, {
+        left: `${right * 100}%`, top: `${box.y * 100}%`, height: `${box.height * 100}%`,
       }]} />
     </>
   );
@@ -168,6 +168,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     backgroundColor: 'rgba(8,9,14,0.55)',
   },
+  maskTop: { left: 0, top: 0, right: 0 },
+  maskBottom: { left: 0, right: 0, bottom: 0 },
+  maskLeft: { left: 0 },
+  maskRight: { right: 0 },
   zoneOutline: {
     position: 'absolute',
     borderWidth: 1,

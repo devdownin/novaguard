@@ -70,8 +70,8 @@ beforeEach(async () => {
   microphonePermission.mockReturnValue({ hasPermission: false, requestPermission: jest.fn(async () => false) });
 });
 
-afterEach(() => {
-  jest.runOnlyPendingTimers();
+afterEach(async () => {
+  await ReactTestRenderer.act(async () => { jest.runOnlyPendingTimers(); });
   jest.useRealTimers();
 });
 
