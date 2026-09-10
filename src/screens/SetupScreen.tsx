@@ -153,7 +153,7 @@ export function SetupScreen() {
               {t(SENS_HINT[settings.sens])}
             </Text>
           </View>
-          <View style={[styles.subBlock, { paddingTop: 14, paddingBottom: 2 }]}>
+          <View style={[styles.subBlock, styles.thresholdBlock]}>
             <View style={styles.thresholdRow}>
               <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.subLabel}>{t('setup.threshold')}</Text>
               <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.thresholdValue}>{t('detail.percent', { value: settings.threshold })}</Text>
@@ -212,7 +212,7 @@ export function SetupScreen() {
         </CollapsibleSection>
 
         <CollapsibleSection title={t('setup.section.sto')} expanded={settings.exp.sto} onToggle={() => s.toggleSection('sto')}>
-          <View style={[styles.subBlock, { borderTopWidth: 1, borderTopColor: color.divider }]}>
+          <View style={[styles.subBlock, styles.subBlockDivided]}>
             <View style={styles.storageBarTrack}>
               <View style={[styles.storageBarFill, { width: `${usedPercent}%` }]} />
             </View>
@@ -272,7 +272,7 @@ export function SetupScreen() {
             <Switch value={settings.autoDel} onValueChange={s.toggleAutoDel} accessibilityLabel={t('setup.autoDel')} />
           </SettingRow>
 
-          <SecondaryOutlineButton label={t('setup.wipe')} onPress={s.wipeAllVideos} style={{ marginTop: 10 }} />
+          <SecondaryOutlineButton label={t('setup.wipe')} onPress={s.wipeAllVideos} style={styles.buttonMarginTop} />
         </CollapsibleSection>
 
         <CollapsibleSection title={t('setup.section.not')} expanded={settings.exp.not} onToggle={() => s.toggleSection('not')}>
@@ -285,7 +285,7 @@ export function SetupScreen() {
           <SecondaryOutlineButton
             label={t('setup.sound')}
             onPress={s.openAlertSoundSettings}
-            style={{ marginTop: 10 }}
+            style={styles.buttonMarginTop}
           />
           <Text style={styles.hint}>{t('setup.sound.hint')}</Text>
         </CollapsibleSection>
@@ -300,14 +300,14 @@ export function SetupScreen() {
           <Text style={styles.privacyTitle}>{t('setup.privacy')}</Text>
           <View style={styles.privacyBody}>
             <ShieldCheckIcon size={18} color={color.accent} />
-            <View style={{ flex: 1 }}>
+            <View style={styles.flex1}>
               <Text style={styles.privacyHeading}>{t('setup.privacy.heading')}</Text>
               <Text style={styles.privacyText}>{t('setup.privacy.body')}</Text>
             </View>
           </View>
           <View style={styles.privacyActions}>
-            <PrimaryOutlineButton label={t('setup.privacy.perms')} onPress={() => s.openInfo('perms')} style={{ flex: 1 }} />
-            <SecondaryOutlineButton label={t('setup.privacy.data')} onPress={() => s.openInfo('data')} style={{ flex: 1 }} />
+            <PrimaryOutlineButton label={t('setup.privacy.perms')} onPress={() => s.openInfo('perms')} style={styles.flex1} />
+            <SecondaryOutlineButton label={t('setup.privacy.data')} onPress={() => s.openInfo('data')} style={styles.flex1} />
           </View>
         </LinearGradient>
 
@@ -318,11 +318,11 @@ export function SetupScreen() {
           <SettingRow label={t('setup.license')} subtitle={t('setup.license.sub')}>
             <StaticValue label={APP_LICENSE} />
           </SettingRow>
-          <View style={[styles.subBlock, { flexDirection: 'row', gap: 7 }]}>
-            <PrimaryOutlineButton label={t('setup.source')} onPress={() => Linking.openURL(REPO_URL)} style={{ flex: 1 }} />
-            <SecondaryOutlineButton label={t('setup.report')} onPress={() => Linking.openURL(ISSUES_URL)} style={{ flex: 1 }} />
+          <View style={[styles.subBlock, styles.aboutButtonsRow]}>
+            <PrimaryOutlineButton label={t('setup.source')} onPress={() => Linking.openURL(REPO_URL)} style={styles.flex1} />
+            <SecondaryOutlineButton label={t('setup.report')} onPress={() => Linking.openURL(ISSUES_URL)} style={styles.flex1} />
           </View>
-          <SecondaryOutlineButton label={t('setup.thirdParty')} onPress={() => s.openInfo('licenses')} style={{ marginTop: 8, marginBottom: 6 }} />
+          <SecondaryOutlineButton label={t('setup.thirdParty')} onPress={() => s.openInfo('licenses')} style={styles.thirdPartyButton} />
         </CollapsibleSection>
 
         <Text style={styles.footer}>NovaGuard {APP_VERSION} · open source · détection sur appareil</Text>
@@ -357,6 +357,28 @@ const styles = StyleSheet.create({
   },
   subBlock: {
     paddingVertical: 12,
+  },
+  thresholdBlock: {
+    paddingTop: 14,
+    paddingBottom: 2,
+  },
+  subBlockDivided: {
+    borderTopWidth: 1,
+    borderTopColor: color.divider,
+  },
+  buttonMarginTop: {
+    marginTop: 10,
+  },
+  flex1: {
+    flex: 1,
+  },
+  aboutButtonsRow: {
+    flexDirection: 'row',
+    gap: 7,
+  },
+  thirdPartyButton: {
+    marginTop: 8,
+    marginBottom: 6,
   },
   subLabel: {
     fontFamily: font.regular,

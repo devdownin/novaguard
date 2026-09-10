@@ -161,8 +161,8 @@ beforeEach(async () => {
   reportFreeSpace(NEEDED_BYTES * 10);
 });
 
-afterEach(() => {
-  jest.runOnlyPendingTimers();
+afterEach(async () => {
+  await ReactTestRenderer.act(async () => { jest.runOnlyPendingTimers(); });
   jest.useRealTimers();
 });
 

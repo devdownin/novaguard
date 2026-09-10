@@ -21,7 +21,7 @@ const FILTER_OPTIONS: { label: string; value: HistoryFilter }[] = [
 ];
 
 function ItemSeparator() {
-  return <View style={{ height: 8 }} />;
+  return <View style={styles.itemSeparator} />;
 }
 
 /**
@@ -222,5 +222,8 @@ const styles = StyleSheet.create({
   emptyAction: {
     marginTop: 4,
     minWidth: 160,
+  },
+  itemSeparator: {
+    height: 8,
   },
 });

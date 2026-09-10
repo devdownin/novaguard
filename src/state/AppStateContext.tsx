@@ -375,7 +375,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
    * the file is about to give back, and the figure on screen then sat wrong
    * until the next 30 s sweep happened to correct it.
    */
-  const refreshVolume = useCallback(async () => setVolume(await volumeSpace()), []);
+  const refreshVolume = useCallback(async () => {
+    const space = await volumeSpace();
+    setVolume(prev => (prev.free === space.free && prev.total === space.total ? prev : space));
+  }, []);
   /**
    * Surveillance runs with the screen off — that is the whole point of the
    * foreground service — so nothing about detection or recording reads this.
@@ -1195,7 +1198,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const eventsRef = useLatest(events);
   const sweepDisk = useCallback(async () => {
     const space = await volumeSpace();
-    setVolume(space);
+    setVolume(prev => (prev.free === space.free && prev.total === space.total ? prev : space));
 
     if (!settingsRef.current.autoDel || space.free <= 0) return;
     const needed = bytesToReclaim(
