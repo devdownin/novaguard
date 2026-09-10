@@ -1,0 +1,14 @@
+<resources>
+    <!--
+      The default resources, and therefore English: Android falls back here for
+      every device whose language has no `values-<lang>` folder, which is the
+      same rule `src/i18n` follows on the JavaScript side. French lives in
+      `values-fr/`.
+    -->
+    <string name="app_name">NovaGuard</string>
+    <string name="surveillance_channel_name">Monitoring</string>
+    <string name="surveillance_channel_description">Ongoing notification shown while the camera is monitoring.</string>
+    <string name="detection_channel_name">Detections</string>
+    <string name="detection_channel_description">Alert when a person or an animal is detected.</string>
+    <string name="camera_permission_required">Camera permission is required for monitoring in the background</string>
+</resources>

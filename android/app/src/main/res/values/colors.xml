@@ -1,0 +1,6 @@
+<resources>
+    <!-- Nocturne color-bg (theme.ts), matches the app's in-app dark ground.
+         No double hyphen in this comment: XML forbids it, and aapt2 rejects
+         the whole resource merge over it. -->
+    <color name="ic_launcher_background">#161826</color>
+</resources>

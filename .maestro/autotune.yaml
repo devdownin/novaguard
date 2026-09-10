@@ -1,0 +1,37 @@
+# The self-tuning screen, from a cold launch.
+#
+# Every section of Réglages is collapsed by default, so the flow has to open
+# Détection before the row exists — a check that asserts the row without that
+# tap passes on an app where the section never opens.
+#
+# The screen's own numbers are not asserted: they come from analysed frames, and
+# a device that has not been monitoring has none. What is checked is that the
+# row leads somewhere and that the screen says which is true — the empty state
+# or a measurement — rather than a blank sheet.
+appId: com.novaguard
+---
+- launchApp
+- assertVisible: "NovaGuard"
+
+- tapOn: "Setup"
+- assertVisible: "Réglages"
+
+# The switch that turns the whole thing off, and the row that says what it has
+# done, both live with what they act on — not under "À propos", which is about
+# the build.
+- tapOn: "DÉTECTION"
+- assertVisible: "Auto-réglage"
+- assertVisible:
+    text: "Retire du calcul quand l’appareil n’analyse plus assez d’images.*"
+
+- assertVisible: "Paramètres dynamiques"
+- tapOn:
+    id: "autotune-open"
+- assertVisible: "Paramètres dynamiques"
+- assertVisible:
+    text: "Aucune mesure pour l’instant.*|Cadence analysée"
+
+# The backdrop is the only way out of the sheet, and it carries the label the
+# screen reader is given — which is a handle a coordinate is not.
+- tapOn: "Fermer"
+- assertVisible: "Réglages"

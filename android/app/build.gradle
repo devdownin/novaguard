@@ -1,0 +1,215 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+/**
+ * This is the configuration block to customize your React Native Android app.
+ * By default you don't need to apply any configuration, just uncomment the lines you need.
+ */
+react {
+    /* Folders */
+    //   The root of your project, i.e. where "package.json" lives. Default is '../..'
+    // root = file("../../")
+    //   The folder where the react-native NPM package is. Default is ../../node_modules/react-native
+    // reactNativeDir = file("../../node_modules/react-native")
+    //   The folder where the react-native Codegen package is. Default is ../../node_modules/@react-native/codegen
+    // codegenDir = file("../../node_modules/@react-native/codegen")
+    //   The cli.js file which is the React Native CLI entrypoint. Default is ../../node_modules/react-native/cli.js
+    // cliFile = file("../../node_modules/react-native/cli.js")
+
+    /* Variants */
+    //   The list of variants to that are debuggable. For those we're going to
+    //   skip the bundling of the JS bundle and the assets. By default is just 'debug'.
+    //   If you add flavors like lite, prod, etc. you'll have to list your debuggableVariants.
+    // debuggableVariants = ["liteDebug", "prodDebug"]
+
+    /* Bundling */
+    //   A list containing the node command and its flags. Default is just 'node'.
+    // nodeExecutableAndArgs = ["node"]
+    //
+    //   The command to run when bundling. By default is 'bundle'
+    // bundleCommand = "ram-bundle"
+    //
+    //   The path to the CLI configuration file. Default is empty.
+    // bundleConfig = file(../rn-cli.config.js)
+    //
+    //   The name of the generated asset file containing your JS bundle
+    // bundleAssetName = "MyApplication.android.bundle"
+    //
+    //   The entry file for bundle generation. Default is 'index.android.js' or 'index.js'
+    // entryFile = file("../js/MyApplication.android.js")
+    //
+    //   A list of extra flags to pass to the 'bundle' commands.
+    //   See https://github.com/react-native-community/cli/blob/main/docs/commands.md#bundle
+    // extraPackagerArgs = []
+
+    /* Hermes Commands */
+    //   The hermes compiler command to run. By default it is 'hermesc'
+    // hermesCommand = "$rootDir/my-custom-hermesc/bin/hermesc"
+    //
+    //   The list of flags to pass to the Hermes compiler. By default is "-O", "-output-source-map"
+    // hermesFlags = ["-O", "-output-source-map"]
+
+    /* Autolinking */
+    autolinkLibrariesWithApp()
+}
+
+/**
+ * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
+ *
+ * Left off deliberately. Every heavy dependency here reaches native code by
+ * name — VisionCamera's frame processors, LiteRT, ML Kit, the worklets runtime
+ * — so R8 without rules written and *verified on a device* trades a smaller
+ * download for a release that crashes where no unit test can see it. Turning it
+ * on is a change that has to be proved on hardware, not a flag to flip on the
+ * way to the Play Console.
+ */
+def enableProguardInReleaseBuilds = false
+
+/**
+ * Upload-key credentials, from outside this repository.
+ *
+ * Play refuses a debug-signed upload, and the debug keystore below is committed
+ * — every checkout of this project has the same private key, so anything it
+ * signs is signed by everyone. Real credentials come from
+ * `~/.gradle/gradle.properties`, from `android/keystore.properties` (git-ignored),
+ * or from the environment on CI; nothing here is ever committed.
+ *
+ * Absent, a release APK still builds and installs on a test device — that path
+ * predates the store and stays — but `bundleRelease` refuses to produce an AAB,
+ * since the only thing an AAB is for is being uploaded to Play. See the check
+ * at the bottom of this file.
+ */
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
+// A closure, not a `def uploadKey(…)` method: a method declared in a Gradle
+// build script becomes a member of the script class and cannot see the script's
+// own local variables, so it could not read `keystoreProperties` above —
+// "Could not get unknown property 'keystoreProperties'", at configuration time,
+// on every build. A closure captures the enclosing scope and can.
+def uploadKey = { String name ->
+    def value = keystoreProperties.getProperty(name)
+        ?: project.findProperty(name)
+        ?: System.getenv(name.toUpperCase().replace('.', '_'))
+    value?.toString()?.trim() ?: null
+}
+
+def uploadStoreFile = uploadKey('novaguard.uploadStoreFile')
+def uploadStorePassword = uploadKey('novaguard.uploadStorePassword')
+def uploadKeyAlias = uploadKey('novaguard.uploadKeyAlias')
+def uploadKeyPassword = uploadKey('novaguard.uploadKeyPassword')
+def hasUploadKey = uploadStoreFile != null
+
+/**
+ * The version, from the one place that already carried it.
+ *
+ * `versionName` is read from package.json rather than repeated here: two
+ * literals for one number is how a store listing ends up disagreeing with the
+ * changelog. `versionCode` is Play's own counter — it has to grow with every
+ * upload and has nothing to do with the marketing version — so it lives in
+ * `android/gradle.properties`, and CI can override it with
+ * `-PnovaguardVersionCode=`.
+ */
+def packageJson = new groovy.json.JsonSlurper().parseText(
+    file("../../package.json").getText("UTF-8"))
+
+/**
+ * The preferred build flavor of JavaScriptCore (JSC)
+ *
+ * For example, to use the international variant, you can use:
+ * `def jscFlavor = io.github.react-native-community:jsc-android-intl:2026004.+`
+ *
+ * The international variant includes ICU i18n library and necessary data
+ * allowing to use e.g. `Date.toLocaleString` and `String.localeCompare` that
+ * give correct results when using with locales other than en-US. Note that
+ * this variant is about 6MiB larger per architecture than default.
+ */
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+
+android {
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
+
+    namespace "com.novaguard"
+    defaultConfig {
+        applicationId "com.novaguard"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode ((project.findProperty('novaguardVersionCode') ?: '1') as int)
+        versionName packageJson.version
+    }
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        if (hasUploadKey) {
+            upload {
+                storeFile file(uploadStoreFile)
+                storePassword uploadStorePassword
+                keyAlias uploadKeyAlias
+                keyPassword uploadKeyPassword
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            // The upload key when one is configured, the committed debug key
+            // otherwise — which builds an APK someone can sideload onto a test
+            // device, and which `bundleRelease` refuses to hand to Play.
+            signingConfig hasUploadKey ? signingConfigs.upload : signingConfigs.debug
+            minifyEnabled enableProguardInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        }
+    }
+}
+
+/**
+ * An AAB exists to be uploaded to Play, and Play rejects the debug key.
+ *
+ * Failing here costs a second; the same mistake found in the Play Console costs
+ * a rejected upload and a version code that can never be reused. Only the
+ * bundle is guarded: `assembleRelease` still produces the sideloadable APK the
+ * CI artifact has always been.
+ */
+tasks.matching { it.name ==~ /bundle.*Release/ }.configureEach {
+    doFirst {
+        if (!hasUploadKey) {
+            throw new GradleException(
+                "No upload key configured, so this bundle would be signed with the " +
+                "committed debug keystore and rejected by Play.\n" +
+                "Set novaguard.uploadStoreFile / novaguard.uploadStorePassword / " +
+                "novaguard.uploadKeyAlias / novaguard.uploadKeyPassword in " +
+                "android/keystore.properties, in ~/.gradle/gradle.properties, as -P " +
+                "properties, or as NOVAGUARD_UPLOADSTOREFILE… environment variables.\n" +
+                "See docs/PLAY_STORE.md.")
+        }
+    }
+}
+
+dependencies {
+    // The version of react-native is set by the React Native Gradle Plugin
+    implementation("com.facebook.react:react-android")
+
+    // The history lock's prompt (see IdentityCheck.kt). Pinned rather than
+    // floating: this one draws a system dialog over the app, and a minor
+    // release that changes what it accepts would change who can open the
+    // recordings.
+    implementation("androidx.biometric:biometric:1.1.0")
+
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
+}

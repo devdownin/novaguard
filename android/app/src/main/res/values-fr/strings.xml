@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">NovaGuard</string>
+    <string name="surveillance_channel_name">Surveillance</string>
+    <string name="surveillance_channel_description">Notification permanente affichée pendant que la caméra surveille.</string>
+    <string name="detection_channel_name">Détections</string>
+    <string name="detection_channel_description">Alerte quand une personne ou un animal est détecté.</string>
+    <string name="camera_permission_required">Permission caméra requise pour la surveillance en arrière-plan</string>
+</resources>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the FileProvider is allowed to hand out.
+
+  Exactly the recordings directory, nothing above it: the provider grants a URI
+  per file, and a wider root here would be the difference between sharing one
+  clip and exposing the whole private storage of the app.
+
+  `files-path` is the app's own filesDir, which is what
+  @dr.pogodin/react-native-fs reports as DocumentDirectoryPath and where
+  videoStore writes.
+-->
+<paths>
+    <files-path name="recordings" path="recordings/" />
+</paths>

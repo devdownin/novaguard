@@ -1,0 +1,70 @@
+buildscript {
+    ext {
+        buildToolsVersion = "36.0.0"
+        // Android 16 floor: the app is built, shipped and tested against a
+        // single platform level, so every API used here is unconditionally
+        // available and no legacy-path branching is needed.
+        minSdkVersion = 36
+        compileSdkVersion = 36
+        targetSdkVersion = 36
+        ndkVersion = "27.1.12297006"
+        // Not requested by anything in this file — it is here so the block
+        // below can force it. Every native module leaves the CMake version
+        // unset and inherits AGP's default (3.22.1), which the image has no
+        // reason to carry alongside the one it does.
+        cmakeVersion = "3.30.5"
+        kotlinVersion = "2.1.20"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+    }
+}
+
+/**
+ * One toolchain for every module, not just ours.
+ *
+ * The versions above only bind `:app` and the libraries polite enough to read
+ * `rootProject.ext`. The others disagree, and each disagreement is a build
+ * failure rather than a slower build: the SDK in the build image carries
+ * exactly what is pinned here, so a module asking for anything else makes AGP
+ * try to download it into a directory it cannot write to —
+ *
+ *     Failed to install: ndk;27.0.12077973
+ *     The SDK directory is not writable (/opt/android-sdk)
+ *
+ * Three ways to disagree are in the tree right now, which is why this forces
+ * the values instead of chasing them one library at a time:
+ *   - react-native-worklets-core declares no `ndkVersion` at all, so AGP falls
+ *     back to its own default (27.0.12077973);
+ *   - react-native-vision-camera-face-detector hardcodes its own defaults —
+ *     NDK 27.3.13750724, platform 35, build-tools 35.0.0;
+ *   - no native module sets a CMake version, so every one of them inherits
+ *     AGP's default (3.22.1) rather than the 3.30.5 the image installs. That
+ *     one only shows up once the NDK is agreed on and Gradle gets as far as
+ *     `configureCMake…`, which is exactly how it was found.
+ *
+ * Registered from the root script, so these callbacks are queued before each
+ * subproject applies the Android plugin, and therefore run before AGP resolves
+ * any of it.
+ */
+subprojects { subproject ->
+    afterEvaluate {
+        def androidExtension = subproject.extensions.findByName("android")
+        if (androidExtension == null) return
+
+        androidExtension.compileSdk = rootProject.ext.compileSdkVersion
+        androidExtension.buildToolsVersion = rootProject.ext.buildToolsVersion
+        androidExtension.ndkVersion = rootProject.ext.ndkVersion
+        // Harmless on a module with no `externalNativeBuild.cmake.path`: the
+        // version is only read when there is something to configure.
+        androidExtension.externalNativeBuild.cmake.version = rootProject.ext.cmakeVersion
+    }
+}
+
+apply plugin: "com.facebook.react.rootproject"

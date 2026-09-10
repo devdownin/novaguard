@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Notification small icon.
+
+  Must be a plain white-on-transparent shape: Android draws it as a silhouette
+  and tints it. Handing setSmallIcon() the launcher icon — which is an
+  <adaptive-icon>, not a drawable it can flatten — is not supported and misbehaves.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,2 L4,5.5 v6.2 c0,4.6 3.4,8.9 8,10.3 4.6,-1.4 8,-5.7 8,-10.3 V5.5 L12,2 Z M12,4.2 l6,2.6 v4.9 c0,3.6 -2.6,7 -6,8.2 -3.4,-1.2 -6,-4.6 -6,-8.2 V6.8 l6,-2.6 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,9.2 m-2.4,0 a2.4,2.4 0 1,0 4.8,0 a2.4,2.4 0 1,0 -4.8,0" />
+</vector>

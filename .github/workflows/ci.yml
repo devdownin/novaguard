@@ -1,0 +1,291 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  # Lets an APK be built on demand from any branch in the Actions tab — this
+  # workflow only shows up in that UI's branch picker once it exists on the
+  # default branch, so a not-yet-merged branch needs a manual first push there.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Types, lint & tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm test -- --ci
+
+      # The jobs above never compile Android resources, and `build-apk` only
+      # runs after a merge — so an invalid resource file reaches `main` through
+      # a green PR and breaks every APK build from then on. That is not
+      # hypothetical: a `--` inside an XML comment in `values/colors.xml` failed
+      # `mergeReleaseResources` on every merge until it was found by hand.
+      # A well-formedness check costs a second and catches that whole class.
+      - name: Validate Android resource XML
+        run: |
+          sudo apt-get install -y --no-install-recommends libxml2-utils \
+            > /dev/null 2>&1 || true
+          find android/app/src/main/res -name '*.xml' -print0 \
+            | xargs -0 --no-run-if-empty xmllint --noout
+
+  # Whether this pull request can break the native build.
+  #
+  # `check` compiles no Android resource beyond asserting each XML is
+  # well-formed, and `toolchainPinning` only compares version strings between
+  # three files. Neither runs Gradle, so a manifest error, a native module
+  # demanding a different NDK, or a dependency whose autolinked code does not
+  # compile reached `main` untouched — the class of failure that once kept the
+  # APK broken across eleven merges.
+  #
+  # A separate job rather than `paths:`, which GitHub only honours at workflow
+  # level: putting the whole build behind a path filter would need either a
+  # second copy of it or a reusable-workflow refactor, and two copies of the
+  # release path drifting apart is the very thing this repository keeps one
+  # command to avoid.
+  changes:
+    name: Android-relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      android: ${{ steps.filter.outputs.android }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Both ends of the comparison have to be present for `...` to find
+          # their merge base.
+          fetch-depth: 0
+
+      - id: filter
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != 'pull_request' ]; then
+            # Every other trigger decides for itself below; this job exists so
+            # `build-apk` can depend on it unconditionally without being
+            # skipped along with it.
+            echo 'android=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # `src/specs` is JavaScript that codegen turns into native sources, so
+          # it belongs here as much as `android/` does. package-lock covers a
+          # dependency whose native code is autolinked into the build.
+          #
+          # The Dockerfile and the build scripts are deliberately absent:
+          # android-image.yml is already path-filtered on them and builds an APK
+          # with the image it produces, so listing them here would download
+          # several gigabytes of SDK twice for one pull request.
+          CHANGED=$(git diff --name-only "$BASE...$HEAD")
+          echo "$CHANGED"
+          if printf '%s\n' "$CHANGED" | grep -qE '^(android/|src/specs/|package\.json$|package-lock\.json$|\.github/workflows/ci\.yml$)'; then
+            echo 'Native build can be affected: building an APK.'
+            echo 'android=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'Nothing here reaches the native build; skipping the APK.'
+            echo 'android=false' >> "$GITHUB_OUTPUT"
+          fi
+
+  build-apk:
+    name: Build Android APK
+    needs: [check, changes]
+    runs-on: ubuntu-latest
+    # After every merge to main, on version tag pushes (e.g. v1.0.0), on demand
+    # (workflow_dispatch) for any branch — and on a pull request that touches
+    # anything the native build reads. An ordinary JavaScript-only pull request
+    # still pays nothing: a native build is far too slow to run on every push.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')))
+      || (github.event_name == 'pull_request' && needs.changes.outputs.android == 'true')
+    permissions:
+      contents: write
+      # Only to pull the toolchain image published by android-image.yml.
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # The toolchain no longer comes from `sdkmanager` resolving components on
+      # the runner: it comes from the image android-image.yml built, asserted
+      # component by component, and used to produce an APK before it was
+      # published. The release is built with a toolchain something already
+      # proved works, instead of whatever resolves on the day.
+      - name: Resolve the toolchain image
+        id: toolchain
+        env:
+          # Tagged by the Dockerfile's own content, so an image can never be
+          # stale relative to the Dockerfile in this same commit. Changing the
+          # Dockerfile changes the tag, which misses, which rebuilds.
+          TAG: ${{ hashFiles('Dockerfile') }}
+          IMAGE: ghcr.io/${{ github.repository }}/android-build
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          REF="${IMAGE}:${TAG}"
+          # Building locally when the pull misses is what keeps a missing or
+          # not-yet-published image from breaking a release. It costs the SDK
+          # download that this job exists to avoid, and nothing more.
+          if docker pull --quiet "$REF"; then
+            echo "Pulled $REF"
+          else
+            echo "No published image for this Dockerfile; building it here."
+            docker build -t "$REF" .
+          fi
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
+      # Gradle and npm caches live on the runner and are mounted in, so the
+      # container starts cold but the dependency downloads do not.
+      - name: Restore Gradle and npm caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            .ci-cache/gradle
+            .ci-cache/npm
+          key: apk-${{ runner.os }}-${{ hashFiles('package-lock.json', 'android/**/*.gradle', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: apk-${{ runner.os }}-
+
+      # arm64-v8a + x86_64 only (see android/gradle.properties). No signing
+      # secret needed and none wanted: this artifact is the one someone
+      # sideloads onto a test device, so the committed debug keystore is the
+      # right key for it. What goes to Play is the bundle built by `build-aab`
+      # below, with the upload key, from secrets this job never sees.
+      #
+      # scripts/build-apk.sh is the same script android-image.yml runs on a
+      # pull request, so this path is exercised before it is relied on.
+      - name: Build release APK
+        run: scripts/build-apk-in-docker.sh "${{ steps.toolchain.outputs.ref }}"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: novaguard-release-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/release/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # The artifact Google Play actually takes.
+  #
+  # Only on a version tag: an AAB is signed with the upload key and burns a
+  # version code the moment it is uploaded, so building one per merge would be
+  # noise at best and a spent version code at worst. The APK above keeps
+  # covering every other trigger.
+  #
+  # Same image, same container plumbing, same `npm ci` — only the Gradle task
+  # differs (see scripts/build-aab.sh). Without the four secrets the build
+  # fails loudly in android/app/build.gradle rather than quietly producing a
+  # debug-signed bundle Play would reject.
+  build-aab:
+    name: Build Play bundle
+    needs: [check]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the toolchain image
+        id: toolchain
+        env:
+          TAG: ${{ hashFiles('Dockerfile') }}
+          IMAGE: ghcr.io/${{ github.repository }}/android-build
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          REF="${IMAGE}:${TAG}"
+          if docker pull --quiet "$REF"; then
+            echo "Pulled $REF"
+          else
+            echo "No published image for this Dockerfile; building it here."
+            docker build -t "$REF" .
+          fi
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Gradle and npm caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            .ci-cache/gradle
+            .ci-cache/npm
+          key: apk-${{ runner.os }}-${{ hashFiles('package-lock.json', 'android/**/*.gradle', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: apk-${{ runner.os }}-
+
+      # Written outside the checkout and removed on any outcome: a keystore
+      # left in the workspace is a keystore an artifact upload can publish.
+      - name: Restore the upload keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64}" ]; then
+            echo "::error::PLAY_UPLOAD_KEYSTORE_BASE64 is not set — see docs/PLAY_STORE.md."
+            exit 1
+          fi
+          install -d -m 700 "${RUNNER_TEMP}/signing"
+          printf '%s' "${KEYSTORE_BASE64}" | base64 -d > "${RUNNER_TEMP}/signing/upload.jks"
+          chmod 600 "${RUNNER_TEMP}/signing/upload.jks"
+
+      # The version code is the run number, not a value in the repository: Play
+      # refuses one it has already seen, and a number that only a human
+      # remembers to bump is a number that gets forgotten exactly once.
+      - name: Build the App Bundle
+        env:
+          BUILD_SCRIPT: scripts/build-aab.sh
+          NOVAGUARD_UPLOADSTOREFILE: /signing/upload.jks
+          NOVAGUARD_UPLOADSTOREPASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          NOVAGUARD_UPLOADKEYALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          NOVAGUARD_UPLOADKEYPASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+          SIGNING_DIR: ${{ runner.temp }}/signing
+        run: scripts/build-apk-in-docker.sh "${{ steps.toolchain.outputs.ref }}" -PnovaguardVersionCode=${{ github.run_number }}
+
+      - name: Shred the keystore
+        if: always()
+        run: rm -rf "${RUNNER_TEMP}/signing"
+
+      # Not attached to the GitHub Release: a signed bundle is an upload
+      # credential's output, and it belongs in the Play Console, not on a public
+      # download page next to the APK.
+      - name: Upload the bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: novaguard-play-bundle
+          path: android/app/build/outputs/bundle/release/*.aab
+          retention-days: 7
+          if-no-files-found: error

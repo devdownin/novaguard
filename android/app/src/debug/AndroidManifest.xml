@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      Metro's dev server is the only thing NovaGuard ever talks to over the
+      network, and only in debug. Keeping INTERNET out of the release manifest
+      is what makes "traitement 100 % local" checkable from the APK itself.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+</manifest>

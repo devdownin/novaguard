@@ -1,0 +1,91 @@
+name: Android build image
+
+# Its own workflow so it can be path-filtered: building the image downloads
+# several gigabytes of Android SDK, which no ordinary pull request should pay
+# for. GitHub only supports `paths` at workflow level, hence the separate file
+# rather than a job inside ci.yml.
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - scripts/build-apk.sh
+      - scripts/build-apk-in-docker.sh
+      - .github/workflows/android-image.yml
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - scripts/build-apk.sh
+      - scripts/build-apk-in-docker.sh
+      - .github/workflows/android-image.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Publishing the image is what lets build-apk stop reinstalling the SDK.
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}/android-build
+
+jobs:
+  image:
+    name: Build the image and an APK with it
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Tagged by the Dockerfile's own content, so build-apk asking for the
+      # image its commit describes can only ever get that image — a tag like
+      # `latest` would let a release be built against a Dockerfile it was not
+      # written for.
+      - name: Derive the image tag from the Dockerfile
+        id: tag
+        run: echo "value=${{ hashFiles('Dockerfile') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build the image
+        run: docker build -t "${IMAGE}:${{ steps.tag.outputs.value }}" .
+
+      # A successful `docker build` only proves the commands exited zero. These
+      # assert the pinned components are actually on disk, so a silently
+      # partial `sdkmanager --install` fails here rather than in a release
+      # build weeks later.
+      - name: Assert the pinned toolchain is present
+        run: |
+          docker run --rm "${IMAGE}:${{ steps.tag.outputs.value }}" bash -euo pipefail -c '
+            java -version
+            node --version
+            test -d "$ANDROID_HOME/platforms/android-36"
+            test -d "$ANDROID_HOME/build-tools/36.0.0"
+            test -d "$ANDROID_HOME/ndk/27.1.12297006"
+            test -d "$ANDROID_HOME/cmake/3.30.5"
+          '
+
+      # The exact invocation build-apk uses, so publishing an image is gated on
+      # the release path itself having run — not on a proxy for it.
+      - name: Build a release APK the way a release does
+        run: scripts/build-apk-in-docker.sh "${IMAGE}:${{ steps.tag.outputs.value }}"
+
+      - name: Upload the APK it produced
+        uses: actions/upload-artifact@v4
+        with:
+          name: novaguard-release-apk-docker
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 7
+          if-no-files-found: error
+
+      # Only from main: a pull request must not be able to publish the image
+      # that later releases are built from.
+      - name: Publish the image
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "${IMAGE}:${{ steps.tag.outputs.value }}"

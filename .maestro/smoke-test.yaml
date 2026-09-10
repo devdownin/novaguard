@@ -1,0 +1,10 @@
+appId: com.novaguard
+---
+- launchApp
+- assertVisible: "NovaGuard"
+- tapOn: "Historique"
+- assertVisible: "Historique"
+- tapOn: "Setup"
+- assertVisible: "Réglages"
+- tapOn: "Surveillance"
+- assertVisible: "Surveillance"
