@@ -2,8 +2,10 @@ package com.novaguard.surveillance
 
 import android.os.BatteryManager
 import android.os.PowerManager
+import androidx.fragment.app.FragmentActivity
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.UiThreadUtil
 import java.util.concurrent.Executors
 
 /**
@@ -44,6 +46,25 @@ class SurveillanceServiceModule(reactContext: ReactApplicationContext) :
 
   override fun openDetectionChannelSettings() {
     DetectionNotifier.openChannelSettings(reactApplicationContext)
+  }
+
+  override fun canConfirmIdentity(): Boolean =
+    IdentityCheck.isAvailable(reactApplicationContext)
+
+  /**
+   * The prompt attaches a fragment to the activity, so it has to be raised on
+   * the main thread whatever thread asked for it.
+   *
+   * Resolves rather than rejects, always: a cancelled prompt is an answer, not
+   * an error, and the JS side has one thing to do with either — leave the
+   * history shut. `currentActivity` is null while the app sits behind the
+   * surveillance service; `IdentityCheck` answers false for that.
+   */
+  override fun confirmIdentity(title: String, subtitle: String, promise: Promise) {
+    val activity = reactApplicationContext.currentActivity as? FragmentActivity
+    UiThreadUtil.runOnUiThread {
+      IdentityCheck.confirm(activity, title, subtitle) { confirmed -> promise.resolve(confirmed) }
+    }
   }
 
   /**

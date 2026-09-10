@@ -66,6 +66,28 @@ export interface Spec extends TurboModule {
   isCharging(): boolean;
 
   /**
+   * Whether this device can confirm who is holding it — a fingerprint, a face,
+   * or failing those the screen lock itself.
+   *
+   * False on a phone with no lock set up at all, where the history lock would
+   * be a switch that protects nothing: the setting says so rather than
+   * pretending.
+   */
+  canConfirmIdentity(): boolean;
+
+  /**
+   * Asks the device to confirm the person holding it, resolving true when it
+   * did.
+   *
+   * Never rejects: a cancelled prompt, a fingerprint that does not match and a
+   * device that changed its mind about being able to ask are the same answer
+   * here — the history stays shut. The screen lock is accepted alongside
+   * biometrics, so a phone whose owner has a PIN and no fingerprint is not
+   * locked out of their own recordings.
+   */
+  confirmIdentity(title: string, subtitle: string): Promise<boolean>;
+
+  /**
    * Opens Android's own settings page for the detection channel. Since Android
    * 8 the platform — not the app — owns whether a channel makes sound or
    * vibrates, so this is the only honest place to send someone who wants to

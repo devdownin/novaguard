@@ -3,6 +3,7 @@ import { DetectionEvent, Settings } from './types';
 export const defaultSettings: Settings = {
   camera: 'Arrière (1×)',
   resumeOnLaunch: true,
+  lockHistory: false,
   night: true,
   person: true,
   animal: true,
