@@ -88,6 +88,8 @@ export const en: Record<StringKey, string> = {
   'setup.localStreamEnabled': 'Local Wi-Fi web server',
   'setup.localStreamEnabled.sub': 'Access live view from a browser on the same local network',
   'setup.localStreamPort': 'Local server port',
+  'setup.localStreamPin': 'PIN Protection',
+  'setup.localStreamPin.none': 'No PIN',
   'setup.localStreamUrl': 'Local stream URL',
 
   'setup.camera': 'Camera used',

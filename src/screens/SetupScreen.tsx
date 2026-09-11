@@ -301,6 +301,9 @@ export function SetupScreen() {
           <SettingRow label={t('setup.localStreamPort')}>
             <StaticValue label={String(settings.localStreamPort)} />
           </SettingRow>
+          <SettingRow label={t('setup.localStreamPin')}>
+            <StaticValue label={settings.localStreamPin || t('setup.localStreamPin.none')} />
+          </SettingRow>
           {s.localStreamStatus.url ? (
             <SettingRow label={t('setup.localStreamUrl')}>
               <StaticValue label={s.localStreamStatus.url} />

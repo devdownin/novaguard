@@ -5,14 +5,22 @@ export interface LocalServerStatus {
   port: number;
   ipAddress: string | null;
   url: string | null;
+  hasPin?: boolean;
+  activeClients?: number;
 }
 
-export async function startLocalStreamServer(port: number = 8080): Promise<LocalServerStatus> {
+export async function startLocalStreamServer(port: number = 8080, pin: string = ''): Promise<LocalServerStatus> {
   const module = NativeModules.LocalStreamServer;
   if (!module) {
-    return { running: false, port, ipAddress: null, url: null };
+    return { running: false, port, ipAddress: null, url: null, hasPin: false, activeClients: 0 };
   }
-  return module.startServer(port);
+  return module.startServer(port, pin);
+}
+
+export function pushLocalStreamFrameBase64(base64Jpeg: string): void {
+  const module = NativeModules.LocalStreamServer;
+  if (!module || !module.updateFrameBase64) return;
+  module.updateFrameBase64(base64Jpeg);
 }
 
 export async function stopLocalStreamServer(): Promise<boolean> {

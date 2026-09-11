@@ -341,6 +341,7 @@ export function CameraFeed({
 
         onFrameStage('report');
         onJsFrame(detections, faces, aspect);
+
       } catch (e) {
         // Plain property access, no `instanceof`: the worklet runtime is not
         // the one this value's prototype came from.

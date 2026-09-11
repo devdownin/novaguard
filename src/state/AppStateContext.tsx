@@ -35,7 +35,7 @@ import {
   stopForegroundService, thermalStatus,
 } from '../surveillance/foregroundService';
 import {
-  getLocalStreamServerStatus, LocalServerStatus, startLocalStreamServer, stopLocalStreamServer,
+  getLocalStreamServerStatus, LocalServerStatus, pushLocalStreamFrameBase64, startLocalStreamServer, stopLocalStreamServer,
 } from '../surveillance/localStreamServer';
 import { alertContent, shouldAlert } from '../surveillance/alerts';
 import { installFrameErrorGuard } from '../camera/frameErrorGuard';
@@ -1391,19 +1391,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     const next = !settings.localStreamEnabled;
     patchSettings({ localStreamEnabled: next });
     if (next) {
-      startLocalStreamServer(settings.localStreamPort).then(setLocalStreamStatus);
+      startLocalStreamServer(settings.localStreamPort, settings.localStreamPin).then(setLocalStreamStatus);
     } else {
       stopLocalStreamServer().then(() => {
-        setLocalStreamStatus({ running: false, port: settings.localStreamPort, ipAddress: null, url: null });
+        setLocalStreamStatus({ running: false, port: settings.localStreamPort, ipAddress: null, url: null, hasPin: false, activeClients: 0 });
       });
     }
-  }, [patchSettings, settings.localStreamEnabled, settings.localStreamPort]);
+  }, [patchSettings, settings.localStreamEnabled, settings.localStreamPin, settings.localStreamPort]);
 
   useEffect(() => {
     if (hydrated && settings.localStreamEnabled) {
-      startLocalStreamServer(settings.localStreamPort).then(setLocalStreamStatus);
+      startLocalStreamServer(settings.localStreamPort, settings.localStreamPin).then(setLocalStreamStatus);
     }
-  }, [hydrated, settings.localStreamEnabled, settings.localStreamPort]);
+  }, [hydrated, settings.localStreamEnabled, settings.localStreamPin, settings.localStreamPort]);
 
   /** The furthest stage this session has entered. */
   const frameStageRef = useRef<FrameStage | null>(null);

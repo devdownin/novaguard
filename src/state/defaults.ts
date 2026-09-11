@@ -40,6 +40,7 @@ export const defaultSettings: Settings = {
   notifDet: true,
   localStreamEnabled: false,
   localStreamPort: 8080,
+  localStreamPin: '',
   exp: { surv: true, det: false, rec: false, sto: false, not: false, stream: false, about: false },
 };
 

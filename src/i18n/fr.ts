@@ -90,6 +90,8 @@ export const fr = {
   'setup.localStreamEnabled': 'Serveur web Wi-Fi local',
   'setup.localStreamEnabled.sub': 'Accès au direct depuis un navigateur sur le même réseau local',
   'setup.localStreamPort': 'Port du serveur local',
+  'setup.localStreamPin': 'Protection PIN',
+  'setup.localStreamPin.none': 'Aucun PIN',
   'setup.localStreamUrl': 'URL de diffusion locale',
 
   'setup.camera': 'Caméra utilisée',

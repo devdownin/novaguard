@@ -175,6 +175,7 @@ export interface Settings {
   notifDet: boolean;
   localStreamEnabled: boolean;
   localStreamPort: number;
+  localStreamPin: string;
   exp: ExpandedSections;
 }
 
