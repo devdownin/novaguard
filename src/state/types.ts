@@ -80,6 +80,7 @@ export interface ExpandedSections {
   rec: boolean;
   sto: boolean;
   not: boolean;
+  stream: boolean;
   about: boolean;
 }
 
@@ -172,6 +173,8 @@ export interface Settings {
   autoDel: boolean;
   notif: boolean;
   notifDet: boolean;
+  localStreamEnabled: boolean;
+  localStreamPort: number;
   exp: ExpandedSections;
 }
 

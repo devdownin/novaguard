@@ -290,6 +290,24 @@ export function SetupScreen() {
           <Text style={styles.hint}>{t('setup.sound.hint')}</Text>
         </CollapsibleSection>
 
+        <CollapsibleSection title={t('setup.section.stream')} expanded={settings.exp.stream} onToggle={() => s.toggleSection('stream')}>
+          <SettingRow label={t('setup.localStreamEnabled')} subtitle={t('setup.localStreamEnabled.sub')}>
+            <Switch
+              value={settings.localStreamEnabled}
+              onValueChange={s.toggleLocalStream}
+              accessibilityLabel={t('setup.localStreamEnabled')}
+            />
+          </SettingRow>
+          <SettingRow label={t('setup.localStreamPort')}>
+            <StaticValue label={String(settings.localStreamPort)} />
+          </SettingRow>
+          {s.localStreamStatus.url ? (
+            <SettingRow label={t('setup.localStreamUrl')}>
+              <StaticValue label={s.localStreamStatus.url} />
+            </SettingRow>
+          ) : null}
+        </CollapsibleSection>
+
         <LinearGradient
           colors={[color.accent900, color.surface]}
           locations={[0, 0.7]}

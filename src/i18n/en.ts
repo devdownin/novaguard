@@ -82,7 +82,13 @@ export const en: Record<StringKey, string> = {
   'setup.section.rec': 'RECORDING',
   'setup.section.sto': 'STORAGE',
   'setup.section.not': 'NOTIFICATIONS',
+  'setup.section.stream': 'LOCAL STREAMING',
   'setup.section.about': 'ABOUT',
+
+  'setup.localStreamEnabled': 'Local Wi-Fi web server',
+  'setup.localStreamEnabled.sub': 'Access live view from a browser on the same local network',
+  'setup.localStreamPort': 'Local server port',
+  'setup.localStreamUrl': 'Local stream URL',
 
   'setup.camera': 'Camera used',
   'setup.resume': 'Resume when opened',

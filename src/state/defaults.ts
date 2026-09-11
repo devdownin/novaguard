@@ -38,7 +38,9 @@ export const defaultSettings: Settings = {
   autoDel: true,
   notif: true,
   notifDet: true,
-  exp: { surv: true, det: false, rec: false, sto: false, not: false, about: false },
+  localStreamEnabled: false,
+  localStreamPort: 8080,
+  exp: { surv: true, det: false, rec: false, sto: false, not: false, stream: false, about: false },
 };
 
 /**

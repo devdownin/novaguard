@@ -34,6 +34,9 @@ import {
   openDetectionChannelSettings, requestNotificationPermission, startForegroundService,
   stopForegroundService, thermalStatus,
 } from '../surveillance/foregroundService';
+import {
+  getLocalStreamServerStatus, LocalServerStatus, startLocalStreamServer, stopLocalStreamServer,
+} from '../surveillance/localStreamServer';
 import { alertContent, shouldAlert } from '../surveillance/alerts';
 import { installFrameErrorGuard } from '../camera/frameErrorGuard';
 import { FRAME_ERROR_PREFIX } from '../camera/frameErrors';
@@ -187,6 +190,8 @@ interface AppStateValue {
   toggleAutoDel: () => void;
   toggleNotif: () => void;
   toggleNotifDet: () => void;
+  toggleLocalStream: () => void;
+  localStreamStatus: LocalServerStatus;
   /** Sound and vibration live in Android's channel settings, not here. */
   openAlertSoundSettings: () => void;
   wipeAllVideos: () => void;
@@ -1378,6 +1383,28 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const toggleNotifDet = useCallback(() => patchSettings({ notifDet: !settings.notifDet }), [patchSettings, settings.notifDet]);
   const openAlertSoundSettings = useCallback(() => openDetectionChannelSettings(), []);
 
+  const [localStreamStatus, setLocalStreamStatus] = useState<LocalServerStatus>({
+    running: false, port: 8080, ipAddress: null, url: null,
+  });
+
+  const toggleLocalStream = useCallback(() => {
+    const next = !settings.localStreamEnabled;
+    patchSettings({ localStreamEnabled: next });
+    if (next) {
+      startLocalStreamServer(settings.localStreamPort).then(setLocalStreamStatus);
+    } else {
+      stopLocalStreamServer().then(() => {
+        setLocalStreamStatus({ running: false, port: settings.localStreamPort, ipAddress: null, url: null });
+      });
+    }
+  }, [patchSettings, settings.localStreamEnabled, settings.localStreamPort]);
+
+  useEffect(() => {
+    if (hydrated && settings.localStreamEnabled) {
+      startLocalStreamServer(settings.localStreamPort).then(setLocalStreamStatus);
+    }
+  }, [hydrated, settings.localStreamEnabled, settings.localStreamPort]);
+
   /** The furthest stage this session has entered. */
   const frameStageRef = useRef<FrameStage | null>(null);
   /**
@@ -1517,7 +1544,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, cyclePost, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo,
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
