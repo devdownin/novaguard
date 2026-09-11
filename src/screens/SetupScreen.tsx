@@ -246,7 +246,7 @@ export function SetupScreen() {
             />
           </SettingRow>
 
-          <View style={[styles.subBlock, { borderTopWidth: 1, borderTopColor: color.divider }]}>
+          <View style={[styles.subBlock, styles.subBlockDivided]}>
             <Text style={styles.subLabel}>{t('setup.retention')}</Text>
             <View style={styles.retentionWrap}>
               {RETENTION_OPTIONS.map(opt => {
