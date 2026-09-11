@@ -197,7 +197,7 @@ describe('the frame path in the background', () => {
 });
 
 describe('what the camera is told', () => {
-  it('stops streaming the preview, and only the preview', async () => {
+  it('keeps preview enabled when active even in background to prevent CameraX session freeze', async () => {
     function Probe() {
       return <CameraFeed style={null} active viewWidth={320} viewHeight={640} />;
     }
@@ -212,10 +212,8 @@ describe('what the camera is told', () => {
 
     goTo('background');
 
-    // `preview` alone. `isActive` staying true is what keeps the session, the
-    // analysis and the recording running with the screen off — turning it off
-    // here would stop surveillance instead of saving power.
-    expect(props().preview).toBe(false);
+    // `preview` stays true when `active` is true so CameraX does not freeze video/frame processors.
+    expect(props().preview).toBe(true);
     expect(props().isActive).toBe(true);
     expect(props().video).toBe(true);
   });
