@@ -9,7 +9,11 @@ import com.facebook.react.module.model.ReactModuleInfoProvider
 class SurveillanceServicePackage : BaseReactPackage() {
 
   override fun getModule(name: String, reactContext: ReactApplicationContext): NativeModule? =
-    if (name == SurveillanceServiceModule.NAME) SurveillanceServiceModule(reactContext) else null
+    when (name) {
+      SurveillanceServiceModule.NAME -> SurveillanceServiceModule(reactContext)
+      "LocalStreamServer" -> LocalStreamServerModule(reactContext)
+      else -> null
+    }
 
   override fun getReactModuleInfoProvider() = ReactModuleInfoProvider {
     mapOf(
@@ -20,6 +24,14 @@ class SurveillanceServicePackage : BaseReactPackage() {
         needsEagerInit = false,
         isCxxModule = false,
         isTurboModule = true,
+      ),
+      "LocalStreamServer" to ReactModuleInfo(
+        name = "LocalStreamServer",
+        className = "LocalStreamServerModule",
+        canOverrideExistingModule = false,
+        needsEagerInit = false,
+        isCxxModule = false,
+        isTurboModule = false,
       ),
     )
   }

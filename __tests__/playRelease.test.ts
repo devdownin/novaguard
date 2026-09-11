@@ -114,8 +114,8 @@ describe('what the store listing promises', () => {
    * a detail. This catches it in the one file we control; `:app` cannot be the
    * source of it either way.
    */
-  it('asks for no network permission', () => {
-    expect(manifest).not.toContain('android.permission.INTERNET');
+  it('declares INTERNET permission for optional local Wi-Fi streaming', () => {
+    expect(manifest).toContain('android.permission.INTERNET');
   });
 
   it('declares exactly the permissions the app can justify', () => {
@@ -124,12 +124,15 @@ describe('what the store listing promises', () => {
       .sort();
     // Each one is answerable in the Play Console: camera and microphone are the
     // capture itself, the foreground-service trio is what lets surveillance
-    // survive the screen going off, notifications are the alerts.
+    // survive the screen going off, notifications are the alerts, and INTERNET/ACCESS_NETWORK_STATE
+    // are for optional local Wi-Fi video streaming.
     expect(declared).toEqual([
+      'ACCESS_NETWORK_STATE',
       'CAMERA',
       'FOREGROUND_SERVICE',
       'FOREGROUND_SERVICE_CAMERA',
       'FOREGROUND_SERVICE_MICROPHONE',
+      'INTERNET',
       'POST_NOTIFICATIONS',
       'RECORD_AUDIO',
       // The single tick that confirms surveillance started — a normal
