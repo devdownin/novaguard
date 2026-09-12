@@ -11,6 +11,8 @@ export interface McpServerOptions {
   authenticator?: Authenticator;
   authorizer?: Authorizer;
   auditLogger?: AuditLogger;
+  maxThumbnailBytes?: number;
+  maxVideoBytes?: number;
 }
 
 export interface JsonRpcRequest {
@@ -36,12 +38,16 @@ export class NovaGuardMcpServer {
   public readonly authenticator: Authenticator;
   public readonly authorizer: Authorizer;
   public readonly auditLogger: AuditLogger;
+  private readonly maxThumbnailBytes: number;
+  private readonly maxVideoBytes: number;
 
   constructor(options: McpServerOptions = {}) {
     this.client = options.client || new NovaGuardReadApiClient();
     this.authenticator = options.authenticator || new Authenticator();
     this.authorizer = options.authorizer || new Authorizer();
     this.auditLogger = options.auditLogger || new AuditLogger();
+    this.maxThumbnailBytes = options.maxThumbnailBytes ?? 2 * 1024 * 1024;
+    this.maxVideoBytes = options.maxVideoBytes ?? 20 * 1024 * 1024;
   }
 
   public getCapabilities() {
@@ -77,27 +83,27 @@ export class NovaGuardMcpServer {
     try {
       securityContext = this.authenticator.authenticate(authHeader, remoteAddress);
 
-      if (!req.jsonrpc || req.jsonrpc !== '2.0') {
-        throw new McpError('NOVAGUARD_INVALID_ARGUMENT', 'Invalid JSON-RPC version', 400);
+      if (!req || req.jsonrpc !== '2.0' || typeof req.method !== 'string' || !req.method) {
+        throw new McpError('NOVAGUARD_INVALID_ARGUMENT', 'Invalid JSON-RPC request', 400);
       }
 
       let result: any;
 
       switch (req.method) {
-        case 'initialize': {
+        case 'initialize':
           result = this.getCapabilities();
           break;
-        }
-        case 'ping': {
+        case 'ping':
           result = {};
           break;
-        }
-        case 'tools/list': {
+        case 'tools/list':
           result = { tools: ALL_TOOLS };
           break;
-        }
         case 'tools/call': {
           const toolName = req.params?.name;
+          if (typeof toolName !== 'string' || !toolName) {
+            throw new McpError('NOVAGUARD_INVALID_ARGUMENT', 'Tool name is required', 400);
+          }
           const toolArgs = req.params?.arguments || {};
           operation = `tool:${toolName}`;
           if (toolArgs.eventId !== undefined && typeof toolArgs.eventId === 'number') {
@@ -110,53 +116,49 @@ export class NovaGuardMcpServer {
             this.authorizer,
             securityContext
           );
-
           result = {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(output, null, 2),
-              },
-            ],
+            content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
           };
           break;
         }
-        case 'resources/list': {
+        case 'resources/list':
           result = { resources: ALL_RESOURCE_TEMPLATES };
           break;
-        }
         case 'resources/read': {
           const uri = req.params?.uri;
+          if (typeof uri !== 'string') {
+            throw new McpError('NOVAGUARD_INVALID_ARGUMENT', 'Resource URI is required', 400);
+          }
           operation = `resource:${uri}`;
           const res = await readResource(uri, this.client, this.authorizer, securityContext);
 
           if (res.blob) {
             mediaBytes = res.blob.length;
+            const isThumbnail = uri.startsWith('novaguard://thumbnail/');
+            const maxBytes = isThumbnail ? this.maxThumbnailBytes : this.maxVideoBytes;
+            if (mediaBytes > maxBytes) {
+              throw new McpError(
+                'NOVAGUARD_MEDIA_TOO_LARGE',
+                `Media exceeds maximum size of ${maxBytes} bytes`,
+                413
+              );
+            }
             result = {
-              contents: [
-                {
-                  uri: res.uri,
-                  mimeType: res.mimeType,
-                  blob: res.blob.toString('base64'),
-                },
-              ],
+              contents: [{
+                uri: res.uri,
+                mimeType: res.mimeType,
+                blob: res.blob.toString('base64'),
+              }],
             };
           } else {
             result = {
-              contents: [
-                {
-                  uri: res.uri,
-                  mimeType: res.mimeType,
-                  text: res.text,
-                },
-              ],
+              contents: [{ uri: res.uri, mimeType: res.mimeType, text: res.text }],
             };
           }
           break;
         }
-        default: {
+        default:
           throw new McpError('NOVAGUARD_NOT_FOUND', `Method '${req.method}' not found`, 404);
-        }
       }
 
       this.auditLogger.log({
@@ -169,20 +171,11 @@ export class NovaGuardMcpServer {
         mediaBytes,
       });
 
-      return {
-        jsonrpc: '2.0',
-        id: req.id ?? null,
-        result,
-      };
+      return { jsonrpc: '2.0', id: req.id ?? null, result };
     } catch (err: any) {
-      if (err instanceof McpError) {
-        statusCode = err.status;
-      } else {
-        statusCode = 500;
-      }
-
-      const safeMessage = err.message || 'Internal server error';
-      const errorCode = err.code || 'NOVAGUARD_DEVICE_UNAVAILABLE';
+      statusCode = err instanceof McpError ? err.status : 500;
+      const errorCode = err instanceof McpError ? err.code : 'NOVAGUARD_DEVICE_UNAVAILABLE';
+      const safeMessage = err instanceof McpError ? err.message : 'Internal server error';
 
       this.auditLogger.log({
         timestamp: new Date().toISOString(),
@@ -200,9 +193,7 @@ export class NovaGuardMcpServer {
         error: {
           code: statusCode === 404 ? -32601 : statusCode === 400 ? -32602 : -32603,
           message: `${errorCode}: ${safeMessage}`,
-          data: {
-            mcpErrorCode: errorCode,
-          },
+          data: { mcpErrorCode: errorCode },
         },
       };
     }
