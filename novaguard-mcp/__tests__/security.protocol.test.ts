@@ -36,6 +36,6 @@ describe('NovaGuard MCP security', () => {
 
   it('does not treat a missing remote address as loopback', () => {
     const authenticator = new Authenticator();
-    expect(() => authenticator.authenticate(undefined, undefined)).toThrow('Client address is required');
+    expect(() => authenticator.authenticate(undefined, undefined)).toThrow('Authentication token is required for non-loopback connections');
   });
 });
