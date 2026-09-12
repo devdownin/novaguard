@@ -42,6 +42,39 @@ export function SetupScreen() {
   const landscape = useLandscape();
   const { settings, events, storage: store, clipGap, autoTune, deviceLoad } = s;
 
+  const [showToken, setShowToken] = React.useState(false);
+  const [copiedLabel, setCopiedLabel] = React.useState<string | null>(null);
+
+  const mcpServerUrl = s.localStreamStatus.ipAddress
+    ? `http://${s.localStreamStatus.ipAddress}:${settings.mcpPort}`
+    : `http://127.0.0.1:${settings.mcpPort}`;
+
+  const copyToClipboard = (text: string, label: string) => {
+    try {
+      const { Clipboard } = require('react-native');
+      Clipboard.setString(text);
+    } catch {
+      // Fallback if native Clipboard is unavailable in test renderer
+    }
+    setCopiedLabel(label);
+    setTimeout(() => setCopiedLabel(null), 2000);
+  };
+
+  const getMcpJsonConfig = () => {
+    return JSON.stringify(
+      {
+        mcpServers: {
+          novaguard: {
+            url: `${mcpServerUrl}/mcp`,
+            headers: settings.mcpToken ? { Authorization: `Bearer ${settings.mcpToken}` } : {},
+          },
+        },
+      },
+      null,
+      2
+    );
+  };
+
   // Share of the whole volume taken by NovaGuard's own clips. Kept visible at a
   // sliver once anything is stored, so the bar never reads as "nothing on disk".
   const usedPercent = store.total > 0
@@ -312,22 +345,45 @@ export function SetupScreen() {
         </CollapsibleSection>
 
         <CollapsibleSection title={t('setup.section.mcp')} expanded={settings.exp.mcp} onToggle={() => s.toggleSection('mcp')}>
-          <SettingRow label={t('setup.mcpEnabled')} subtitle={t('setup.mcpEnabled.sub')}>
+          <SettingRow
+            label={settings.mcpEnabled ? t('setup.mcpStatus.active', { url: mcpServerUrl }) : t('setup.mcpStatus.inactive')}
+            subtitle={t('setup.mcpEnabled.sub')}
+          >
             <Switch
               value={settings.mcpEnabled}
               onValueChange={s.toggleMcpServer}
               accessibilityLabel={t('setup.mcpEnabled')}
             />
           </SettingRow>
+
           <SettingRow label={t('setup.mcpMode')}>
             <StaticValue label={t('setup.mcpMode.readOnly')} />
           </SettingRow>
+
           <SettingRow label={t('setup.mcpPort')}>
             <StaticValue label={String(settings.mcpPort)} />
           </SettingRow>
+
           <SettingRow label={t('setup.mcpToken')}>
-            <StaticValue label={settings.mcpToken || t('setup.mcpToken.none')} />
+            <View style={styles.tokenRow}>
+              <StaticValue
+                label={
+                  settings.mcpToken
+                    ? showToken
+                      ? settings.mcpToken
+                      : `mcp_••••••••${settings.mcpToken.slice(-4)}`
+                    : t('setup.mcpToken.none')
+                }
+              />
+              {settings.mcpToken ? (
+                <ValueButton
+                  label={showToken ? t('setup.mcpToken.hide') : t('setup.mcpToken.show')}
+                  onPress={() => setShowToken(!showToken)}
+                />
+              ) : null}
+            </View>
           </SettingRow>
+
           <View style={[styles.subBlock, styles.aboutButtonsRow]}>
             <SecondaryOutlineButton
               label={t('setup.mcpToken.generate')}
@@ -342,6 +398,38 @@ export function SetupScreen() {
               />
             ) : null}
           </View>
+
+          <View style={[styles.subBlock, styles.aboutButtonsRow]}>
+            <PrimaryOutlineButton
+              label={copiedLabel === 'url' ? t('setup.mcpCopy.copied') : t('setup.mcpCopy.url')}
+              onPress={() => copyToClipboard(mcpServerUrl, 'url')}
+              style={styles.flex1}
+            />
+            {settings.mcpToken ? (
+              <SecondaryOutlineButton
+                label={copiedLabel === 'token' ? t('setup.mcpCopy.copied') : t('setup.mcpCopy.token')}
+                onPress={() => copyToClipboard(settings.mcpToken, 'token')}
+                style={styles.flex1}
+              />
+            ) : null}
+            <SecondaryOutlineButton
+              label={copiedLabel === 'config' ? t('setup.mcpCopy.copied') : t('setup.mcpCopy.config')}
+              onPress={() => copyToClipboard(getMcpJsonConfig(), 'config')}
+              style={styles.flex1}
+            />
+          </View>
+
+          <SettingRow label={t('setup.mcpLastActivity')}>
+            <StaticValue
+              label={
+                s.mcpLastActivity
+                  ? new Date(s.mcpLastActivity).toLocaleTimeString()
+                  : t('setup.mcpLastActivity.none')
+              }
+            />
+          </SettingRow>
+
+          <Text style={styles.hint}>{t('setup.mcpPrivacyNote')}</Text>
         </CollapsibleSection>
 
         <LinearGradient
@@ -422,6 +510,11 @@ const styles = StyleSheet.create({
   },
   buttonMarginTop: {
     marginTop: 10,
+  },
+  tokenRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   flex1: {
     flex: 1,

@@ -9,18 +9,25 @@ export interface SecurityContext {
 export interface AuthOptions {
   requireAuthForNonLoopback?: boolean;
   validTokens?: Map<string, SecurityContext>; // token -> context
+  expectedToken?: string;
   defaultLoopbackScopes?: string[];
 }
 
 export class Authenticator {
   private requireAuthForNonLoopback: boolean;
   private validTokens: Map<string, SecurityContext>;
+  private expectedToken?: string;
   private defaultLoopbackScopes: string[];
 
   constructor(options: AuthOptions = {}) {
     this.requireAuthForNonLoopback = options.requireAuthForNonLoopback ?? true;
     this.validTokens = options.validTokens || new Map();
+    this.expectedToken = options.expectedToken;
     this.defaultLoopbackScopes = options.defaultLoopbackScopes || ['novaguard:read'];
+  }
+
+  public setExpectedToken(token: string | undefined) {
+    this.expectedToken = token;
   }
 
   public registerToken(token: string, context: SecurityContext) {
@@ -48,6 +55,14 @@ export class Authenticator {
       const ctx = this.validTokens.get(token)!;
       return {
         ...ctx,
+        isLoopback,
+      };
+    }
+
+    if (token && this.expectedToken && token === this.expectedToken) {
+      return {
+        principal: 'mcp-bearer-user',
+        scopes: ['novaguard:read'],
         isLoopback,
       };
     }

@@ -195,6 +195,8 @@ interface AppStateValue {
   toggleMcpServer: () => void;
   generateMcpToken: () => void;
   clearMcpToken: () => void;
+  mcpLastActivity: number | null;
+  reportMcpActivity: () => void;
   /** Sound and vibration live in Android's channel settings, not here. */
   openAlertSoundSettings: () => void;
   wipeAllVideos: () => void;
@@ -1390,6 +1392,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     patchSettings({ mcpEnabled: !settings.mcpEnabled });
   }, [patchSettings, settings.mcpEnabled]);
 
+  const [mcpLastActivity, setMcpLastActivity] = useState<number | null>(null);
+  const reportMcpActivity = useCallback(() => {
+    setMcpLastActivity(Date.now());
+  }, []);
+
   const generateMcpToken = useCallback(() => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let token = 'mcp_';
@@ -1564,7 +1571,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, cyclePost, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpLastActivity, reportMcpActivity, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo,
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
@@ -1575,7 +1582,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, cyclePost, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpLastActivity, reportMcpActivity, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo, onb, perms, onbNext, onbFinish, grantPermission,
   ]);
 

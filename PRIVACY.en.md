@@ -23,6 +23,7 @@ produces stays on your phone.
 | Video thumbnails | On the device | The app's private folder, deleted with their video | Nothing |
 | Sound (if the microphone is allowed) | On the device | In the audio track of the videos | Nothing |
 | Settings and counters | On the device | The app's local storage | Nothing |
+| MCP Server (optional) | On the device (port 8081) | Not kept | Data and media explicitly requested by the user's AI assistant |
 
 People and animals are detected by a TensorFlow Lite model bundled inside the
 app (EfficientDet-Lite0). Face detection uses ML Kit, also bundled and run on
@@ -37,6 +38,10 @@ incapable of opening a network connection. There is therefore:
 - no telemetry, no usage statistics, no remote crash reporting;
 - no advertising, no tracker, no analytics SDK;
 - no sharing with third parties, since there is nothing to share.
+
+### MCP Server (Optional)
+
+If you choose to enable the MCP (*Model Context Protocol*) server in the settings, NovaGuard provides a token-secured, read-only consultation interface on the local network (port 8081 by default). When an external AI assistant queries the MCP server, surveillance metadata and explicitly requested videos are transmitted to the user's selected AI client. The MCP server is strictly read-only and cannot alter the surveillance state or mutate your data.
 
 ## Who can open the history
 

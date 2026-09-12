@@ -23,6 +23,7 @@ l'application produit reste sur votre téléphone.
 | Vignettes des vidéos | Sur l'appareil | Répertoire privé de l'application, supprimées avec leur vidéo | Rien |
 | Son (si le micro est autorisé) | Sur l'appareil | Dans la piste audio des vidéos | Rien |
 | Réglages et compteurs | Sur l'appareil | Stockage local de l'application | Rien |
+| Serveur MCP (optionnel) | Sur l'appareil (port 8081) | Non conservé | Données et médias explicitement demandés par l'assistant IA de l'utilisateur |
 
 La détection de personnes et d'animaux est faite par un modèle TensorFlow Lite
 embarqué dans l'application (EfficientDet-Lite0). La détection de visages
@@ -39,6 +40,10 @@ techniquement incapable d'établir une connexion réseau. Il n'y a donc :
   distant ;
 - aucune publicité, aucun traceur, aucun SDK d'analyse ;
 - aucun partage avec des tiers, puisqu'il n'y a rien à partager.
+
+### Serveur MCP (Optionnel)
+
+Si vous choisissez d'activer le serveur MCP (*Model Context Protocol*) dans les réglages, NovaGuard fournit une interface de consultation en lecture seule sécurisée par jeton d'accès sur le réseau local (port 8081 par défaut). Lorsqu'un assistant IA externe interroge le serveur MCP, les métadonnées de surveillance et les vidéos explicitement demandées sont transmises au client IA sélectionné par l'utilisateur. Le serveur MCP est strictement en lecture seule et ne peut pas modifier l'état de surveillance ni altérer vos données.
 
 ## Qui peut ouvrir l'historique
 
