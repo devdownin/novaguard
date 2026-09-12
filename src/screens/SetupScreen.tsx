@@ -328,6 +328,20 @@ export function SetupScreen() {
           <SettingRow label={t('setup.mcpToken')}>
             <StaticValue label={settings.mcpToken || t('setup.mcpToken.none')} />
           </SettingRow>
+          <View style={[styles.subBlock, styles.aboutButtonsRow]}>
+            <SecondaryOutlineButton
+              label={t('setup.mcpToken.generate')}
+              onPress={s.generateMcpToken}
+              style={styles.flex1}
+            />
+            {settings.mcpToken ? (
+              <SecondaryOutlineButton
+                label={t('setup.mcpToken.clear')}
+                onPress={s.clearMcpToken}
+                style={styles.flex1}
+              />
+            ) : null}
+          </View>
         </CollapsibleSection>
 
         <LinearGradient
