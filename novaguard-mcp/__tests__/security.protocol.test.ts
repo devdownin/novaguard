@@ -1,4 +1,5 @@
 import { NovaGuardMcpServer } from '../server';
+import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
 import { Sanitizer } from '../security/sanitizer';
 import { Authenticator } from '../security/authentication';
 
@@ -37,5 +38,15 @@ describe('NovaGuard MCP security', () => {
   it('does not treat a missing remote address as loopback', () => {
     const authenticator = new Authenticator();
     expect(() => authenticator.authenticate(undefined, undefined)).toThrow('Authentication token is required for non-loopback connections');
+  });
+
+  it('blocks non-loopback upstream endpoints from the MCP server', () => {
+    const client = new NovaGuardReadApiClient({ baseUrl: 'https://example.com', authToken: 'test-token-123456' });
+    expect(() => new NovaGuardMcpServer({ client })).toThrow('only permits loopback API endpoints');
+  });
+
+  it('allows the local NovaGuard API endpoint', () => {
+    const client = new NovaGuardReadApiClient({ baseUrl: 'http://127.0.0.1:8080' });
+    expect(() => new NovaGuardMcpServer({ client })).not.toThrow();
   });
 });
