@@ -38,6 +38,20 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
+it('generates and clears MCP token', async () => {
+  const handle = await mountProvider();
+  expect(handle.state.settings.mcpToken).toBe('');
+
+  await ReactTestRenderer.act(async () => { handle.state.generateMcpToken(); });
+  expect(handle.state.settings.mcpToken).toMatch(/^mcp_[A-Za-z0-9]{24}$/);
+
+  const written = await storedSettings();
+  expect(written.mcpToken).toBe(handle.state.settings.mcpToken);
+
+  await ReactTestRenderer.act(async () => { handle.state.clearMcpToken(); });
+  expect(handle.state.settings.mcpToken).toBe('');
+});
+
 it('persists every settings field, not just the one that changed', async () => {
   const { state } = await mountProvider();
 
