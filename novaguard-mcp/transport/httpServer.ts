@@ -37,21 +37,25 @@ export class McpHttpServer {
   private isAllowed(remoteAddress: string): boolean {
     const now = Date.now();
     const current = this.requestCounts.get(remoteAddress);
-
     if (!current || current.resetAt <= now) {
-      this.requestCounts.set(remoteAddress, {
-        count: 1,
-        resetAt: now + this.rateLimitWindowMs,
-      });
+      this.requestCounts.set(remoteAddress, { count: 1, resetAt: now + this.rateLimitWindowMs });
       return true;
     }
-
-    if (current.count >= this.maxRequestsPerWindow) {
-      return false;
-    }
-
+    if (current.count >= this.maxRequestsPerWindow) return false;
     current.count += 1;
     return true;
+  }
+
+  private isAllowedOrigin(origin: string | undefined): boolean {
+    if (!origin) return true;
+    return origin === `http://127.0.0.1:${this.port}` ||
+      origin === `http://localhost:${this.port}` ||
+      origin === `http://[::1]:${this.port}`;
+  }
+
+  private writeJson(res: http.ServerResponse, status: number, body: unknown, extraHeaders: Record<string, string> = {}) {
+    res.writeHead(status, { 'Content-Type': 'application/json', ...extraHeaders });
+    res.end(JSON.stringify(body));
   }
 
   public start(): Promise<void> {
@@ -61,43 +65,38 @@ export class McpHttpServer {
         const authHeader = req.headers.authorization;
 
         if (!remoteAddress) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Invalid client address' }));
+          this.writeJson(res, 400, { error: 'Invalid client address' });
+          return;
+        }
+
+        if (!this.isAllowedOrigin(req.headers.origin)) {
+          this.writeJson(res, 403, { error: 'Forbidden origin' });
           return;
         }
 
         if (!this.isAllowed(remoteAddress)) {
-          res.writeHead(429, {
-            'Content-Type': 'application/json',
-            'Retry-After': Math.ceil(this.rateLimitWindowMs / 1000),
+          this.writeJson(res, 429, { error: 'Too Many Requests' }, {
+            'Retry-After': String(Math.ceil(this.rateLimitWindowMs / 1000)),
           });
-          res.end(JSON.stringify({ error: 'Too Many Requests' }));
           return;
         }
 
         if (req.method === 'GET' && req.url === '/health') {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ status: 'ok' }));
+          this.writeJson(res, 200, { status: 'ok' });
           return;
         }
 
         if (req.method === 'GET' && req.url === '/status') {
-          try {
-            const response = await this.mcpServer.handleJsonRpcRequest(
-              { jsonrpc: '2.0', id: 0, method: 'tools/call', params: { name: 'novaguard.get_status', arguments: {} } },
-              authHeader,
-              remoteAddress
-            );
-            const httpStatus = response.error ? 401 : 200;
-            res.writeHead(httpStatus, {
-              'Content-Type': 'application/json',
-              'X-MCP-Version': '2026-07-28',
-            });
-            res.end(JSON.stringify(response));
-          } catch {
-            res.writeHead(503, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Service Unavailable' }));
-          }
+          const response = await this.mcpServer.handleJsonRpcRequest(
+            { jsonrpc: '2.0', id: 0, method: 'tools/call', params: { name: 'novaguard.get_status', arguments: {} } },
+            authHeader,
+            remoteAddress
+          );
+          const errorCode = response.error?.data?.mcpErrorCode;
+          const httpStatus = !response.error ? 200 :
+            errorCode === 'NOVAGUARD_AUTH_REQUIRED' ? 401 :
+            errorCode === 'NOVAGUARD_AUTH_FORBIDDEN' ? 403 : 500;
+          this.writeJson(res, httpStatus, response, { 'X-MCP-Version': '2026-07-28' });
           return;
         }
 
@@ -108,19 +107,16 @@ export class McpHttpServer {
 
           req.setTimeout(this.requestTimeoutMs, () => {
             rejected = true;
-            res.writeHead(408, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Request Timeout' }));
+            this.writeJson(res, 408, { error: 'Request Timeout' });
             req.destroy();
           });
 
           req.on('data', (chunk: Buffer | string) => {
             if (rejected) return;
-            const bytes = Buffer.byteLength(chunk);
-            bodyBytes += bytes;
+            bodyBytes += Buffer.byteLength(chunk);
             if (bodyBytes > this.maxBodyBytes) {
               rejected = true;
-              res.writeHead(413, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'Request Entity Too Large' }));
+              this.writeJson(res, 413, { error: 'Request Entity Too Large' });
               req.destroy();
               return;
             }
@@ -131,60 +127,38 @@ export class McpHttpServer {
             if (rejected) return;
             try {
               if (!req.headers['content-type']?.toLowerCase().includes('application/json')) {
-                res.writeHead(415, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Content-Type must be application/json' }));
+                this.writeJson(res, 415, { error: 'Content-Type must be application/json' });
                 return;
               }
 
               const jsonRpcReq = JSON.parse(body);
-              const response = await this.mcpServer.handleJsonRpcRequest(
-                jsonRpcReq,
-                authHeader,
-                remoteAddress
-              );
+              const response = await this.mcpServer.handleJsonRpcRequest(jsonRpcReq, authHeader, remoteAddress);
+              const errorCode = response.error?.data?.mcpErrorCode;
+              const httpStatus = !response.error ? 200 :
+                errorCode === 'NOVAGUARD_AUTH_REQUIRED' ? 401 :
+                errorCode === 'NOVAGUARD_AUTH_FORBIDDEN' ? 403 :
+                errorCode === 'NOVAGUARD_NOT_FOUND' ? 404 :
+                errorCode === 'NOVAGUARD_INVALID_ARGUMENT' ? 400 :
+                errorCode === 'NOVAGUARD_MEDIA_TOO_LARGE' ? 413 : 500;
 
-              const httpStatus = response.error
-                ? response.error.data?.mcpErrorCode === 'NOVAGUARD_AUTH_REQUIRED'
-                  ? 401
-                  : response.error.data?.mcpErrorCode === 'NOVAGUARD_AUTH_FORBIDDEN'
-                  ? 403
-                  : response.error.data?.mcpErrorCode === 'NOVAGUARD_NOT_FOUND'
-                  ? 404
-                  : response.error.data?.mcpErrorCode === 'NOVAGUARD_INVALID_ARGUMENT'
-                  ? 400
-                  : 500
-                : 200;
-
-              res.writeHead(httpStatus, {
-                'Content-Type': 'application/json',
-                'X-MCP-Version': '2026-07-28',
-              });
-              res.end(JSON.stringify(response));
+              this.writeJson(res, httpStatus, response, { 'X-MCP-Version': '2026-07-28' });
             } catch {
-              res.writeHead(400, { 'Content-Type': 'application/json' });
-              res.end(
-                JSON.stringify({
-                  jsonrpc: '2.0',
-                  id: null,
-                  error: {
-                    code: -32700,
-                    message: 'Parse error',
-                  },
-                })
-              );
+              this.writeJson(res, 400, {
+                jsonrpc: '2.0',
+                id: null,
+                error: { code: -32700, message: 'Parse error' },
+              });
             }
           });
           return;
         }
 
-        res.writeHead(405, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+        this.writeJson(res, 405, { error: 'Method Not Allowed' });
       });
 
       this.server.requestTimeout = this.requestTimeoutMs;
       this.server.headersTimeout = Math.max(this.requestTimeoutMs + 5_000, 35_000);
       this.server.keepAliveTimeout = 5_000;
-
       this.server.on('error', reject);
       this.server.listen(this.port, this.host, resolve);
     });
