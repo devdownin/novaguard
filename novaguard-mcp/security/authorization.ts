@@ -5,7 +5,7 @@ export class Authorizer {
   public authorize(context: SecurityContext, requiredScopes: string | string[]) {
     const scopesNeeded = Array.isArray(requiredScopes) ? requiredScopes : [requiredScopes];
 
-    // novaguard:read grants access to everything
+    // novaguard:read is kept as a backwards-compatible umbrella scope.
     if (context.scopes.includes('novaguard:read')) {
       return;
     }
