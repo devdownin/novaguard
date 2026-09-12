@@ -95,8 +95,6 @@ export const fr = {
   'setup.mcpMode.readOnly': 'Lecture seule strict',
   'setup.mcpToken': 'Jeton d’accès',
   'setup.mcpToken.none': 'Aucun jeton (boucle locale)',
-  'setup.mcpToken.generate': 'Générer un jeton',
-  'setup.mcpToken.clear': 'Effacer le jeton',
 
   'setup.localStreamEnabled': 'Serveur web Wi-Fi local',
   'setup.localStreamEnabled.sub': 'Accès au direct depuis un navigateur sur le même réseau local',

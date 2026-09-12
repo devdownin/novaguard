@@ -193,8 +193,6 @@ interface AppStateValue {
   toggleLocalStream: () => void;
   localStreamStatus: LocalServerStatus;
   toggleMcpServer: () => void;
-  generateMcpToken: () => void;
-  clearMcpToken: () => void;
   /** Sound and vibration live in Android's channel settings, not here. */
   openAlertSoundSettings: () => void;
   wipeAllVideos: () => void;
@@ -1390,19 +1388,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     patchSettings({ mcpEnabled: !settings.mcpEnabled });
   }, [patchSettings, settings.mcpEnabled]);
 
-  const generateMcpToken = useCallback(() => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let token = 'mcp_';
-    for (let i = 0; i < 24; i++) {
-      token += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    patchSettings({ mcpToken: token });
-  }, [patchSettings]);
-
-  const clearMcpToken = useCallback(() => {
-    patchSettings({ mcpToken: '' });
-  }, [patchSettings]);
-
   const [localStreamStatus, setLocalStreamStatus] = useState<LocalServerStatus>({
     running: false, port: 8080, ipAddress: null, url: null,
   });
@@ -1564,7 +1549,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, cyclePost, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo,
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
@@ -1575,7 +1560,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, cyclePost, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo, onb, perms, onbNext, onbFinish, grantPermission,
   ]);
 

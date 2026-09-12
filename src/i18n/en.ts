@@ -93,8 +93,6 @@ export const en: Record<StringKey, string> = {
   'setup.mcpMode.readOnly': 'Strict read-only',
   'setup.mcpToken': 'Access token',
   'setup.mcpToken.none': 'No token (loopback only)',
-  'setup.mcpToken.generate': 'Generate token',
-  'setup.mcpToken.clear': 'Clear token',
 
   'setup.localStreamEnabled': 'Local Wi-Fi web server',
   'setup.localStreamEnabled.sub': 'Access live view from a browser on the same local network',
