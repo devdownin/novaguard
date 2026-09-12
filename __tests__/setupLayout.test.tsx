@@ -35,7 +35,7 @@ async function boot(exp: Partial<ExpandedSections>): Promise<Tree> {
   await AsyncStorage.setItem('@novaguard:onboardingComplete', JSON.stringify(true));
   await AsyncStorage.setItem('@novaguard:settings', JSON.stringify({
     ...defaultSettings,
-    exp: { surv: false, det: false, rec: false, sto: false, not: false, about: false, ...exp },
+    exp: { surv: false, det: false, rec: false, sto: false, not: false, stream: false, mcp: false, about: false, ...exp },
   }));
 
   let renderer!: Tree;

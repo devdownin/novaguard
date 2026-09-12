@@ -81,6 +81,7 @@ export interface ExpandedSections {
   sto: boolean;
   not: boolean;
   stream: boolean;
+  mcp: boolean;
   about: boolean;
 }
 
@@ -176,6 +177,10 @@ export interface Settings {
   localStreamEnabled: boolean;
   localStreamPort: number;
   localStreamPin: string;
+  mcpEnabled: boolean;
+  mcpPort: number;
+  mcpToken: string;
+  mcpReadOnly: boolean;
   exp: ExpandedSections;
 }
 
