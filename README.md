@@ -16,7 +16,8 @@ Caméra de surveillance intelligente, locale et open source. NovaGuard transform
 - **Gestion du stockage** — rétention configurable (1 à 90 jours, ou toujours), suppression automatique des clips les plus anciens quand le volume passe sous 500 Mo libres, espace réellement mesuré sur l'appareil, et nettoyage au démarrage des fichiers qu'aucun évènement ne référence plus.
 - **Alertes** — notification à l'ouverture d'une détection, avec un délai minimum d'une minute entre deux. Elle réveille sur l'écran verrouillé sans y afficher ce qui a été vu. Le son et la vibration se règlent dans les paramètres Android du canal, où Android les a placés depuis la version 8.
 - **Historique** — événements enregistrés sous forme de cartes, filtrables par type et par période, avec détail complet (lecture de la vidéo, confiance, taille réelle, suppression) en panneau.
-- **Setup** — réglages de surveillance, détection, enregistrement, stockage et notifications regroupés par sections repliables ; la sensibilité et le seuil de confiance pilotent directement le pipeline de détection.
+- **Setup** — réglages de surveillance, détection, enregistrement, stockage, serveur MCP et notifications regroupés par sections repliables ; la sensibilité et le seuil de confiance pilotent directement le pipeline de détection.
+- **Serveur MCP (Model Context Protocol)** — interface en lecture seule stricte (port 8081 par défaut, spécification `2026-07-28`) permettant à des assistants IA (ex. *Claude*, *Cursor*) d'interroger l'historique des détections, les statistiques, le statut et d'accéder aux médias demandés (`novaguard://`). Le serveur MCP reste en dehors du chemin de détection temps réel, ne peut aucunement modifier l'état ni contrôler la caméra, et inclut une gestion de jeton d'accès et des boutons de copie rapide de la configuration JSON.
 - **Confidentialité par conception** — traitement 100 % local, détection et enregistrement compris. Les clips restent dans le stockage privé de l'application, les réglages et l'historique dans `AsyncStorage`, et l'APK de release ne déclare même pas la permission `INTERNET`.
 - **Premier lancement** — écran de démarrage animé (viseur, marque, trois piliers du produit) pendant l'hydratation de l'état persisté, avant l'onboarding.
 
@@ -104,6 +105,7 @@ assets/fonts/   police Inter embarquée
 assets/models/  modèle de détection TensorFlow Lite embarqué
 assets/splash/  illustration de l'écran de démarrage
 assets/store/   icône source et icône 512×512 pour les fiches store
+novaguard-mcp/  serveur MCP (Model Context Protocol) en lecture seule
 ```
 
 ## Feuille de route
