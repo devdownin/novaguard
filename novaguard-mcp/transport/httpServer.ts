@@ -14,7 +14,7 @@ export class McpHttpServer {
   private server: http.Server | null = null;
 
   constructor(options: HttpServerOptions = {}) {
-    this.port = options.port || 8081;
+    this.port = options.port || 8080;
     this.host = options.host || '127.0.0.1';
     this.mcpServer = options.server || new NovaGuardMcpServer();
   }
