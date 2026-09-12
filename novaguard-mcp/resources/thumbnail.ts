@@ -9,7 +9,7 @@ export async function readThumbnailResource(
   authorizer: Authorizer,
   context: SecurityContext
 ): Promise<{ mimeType: string; blob: Buffer; uri: string }> {
-  authorizer.authorize(context, ['novaguard:media:read', 'novaguard:read']);
+  authorizer.authorize(context, ['novaguard:media', 'novaguard:read']);
   const eventId = parseInt(eventIdStr, 10);
   const media = await client.getThumbnail(eventId);
 
