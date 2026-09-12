@@ -85,7 +85,16 @@ export const fr = {
   'setup.section.sto': 'STOCKAGE',
   'setup.section.not': 'NOTIFICATIONS',
   'setup.section.stream': 'DIFFUSION LOCALE',
+  'setup.section.mcp': 'SERVEUR MCP',
   'setup.section.about': 'À PROPOS',
+
+  'setup.mcpEnabled': 'Serveur MCP lecture seule',
+  'setup.mcpEnabled.sub': 'Interface Model Context Protocol (2026-07-28) pour assistants IA',
+  'setup.mcpPort': 'Port MCP',
+  'setup.mcpMode': 'Mode de fonctionnement',
+  'setup.mcpMode.readOnly': 'Lecture seule strict',
+  'setup.mcpToken': 'Jeton d’accès',
+  'setup.mcpToken.none': 'Aucun jeton (boucle locale)',
 
   'setup.localStreamEnabled': 'Serveur web Wi-Fi local',
   'setup.localStreamEnabled.sub': 'Accès au direct depuis un navigateur sur le même réseau local',
