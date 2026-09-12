@@ -311,6 +311,25 @@ export function SetupScreen() {
           ) : null}
         </CollapsibleSection>
 
+        <CollapsibleSection title={t('setup.section.mcp')} expanded={settings.exp.mcp} onToggle={() => s.toggleSection('mcp')}>
+          <SettingRow label={t('setup.mcpEnabled')} subtitle={t('setup.mcpEnabled.sub')}>
+            <Switch
+              value={settings.mcpEnabled}
+              onValueChange={s.toggleMcpServer}
+              accessibilityLabel={t('setup.mcpEnabled')}
+            />
+          </SettingRow>
+          <SettingRow label={t('setup.mcpMode')}>
+            <StaticValue label={t('setup.mcpMode.readOnly')} />
+          </SettingRow>
+          <SettingRow label={t('setup.mcpPort')}>
+            <StaticValue label={String(settings.mcpPort)} />
+          </SettingRow>
+          <SettingRow label={t('setup.mcpToken')}>
+            <StaticValue label={settings.mcpToken || t('setup.mcpToken.none')} />
+          </SettingRow>
+        </CollapsibleSection>
+
         <LinearGradient
           colors={[color.accent900, color.surface]}
           locations={[0, 0.7]}

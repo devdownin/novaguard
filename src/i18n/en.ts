@@ -83,7 +83,16 @@ export const en: Record<StringKey, string> = {
   'setup.section.sto': 'STORAGE',
   'setup.section.not': 'NOTIFICATIONS',
   'setup.section.stream': 'LOCAL STREAMING',
+  'setup.section.mcp': 'MCP SERVER',
   'setup.section.about': 'ABOUT',
+
+  'setup.mcpEnabled': 'Read-only MCP server',
+  'setup.mcpEnabled.sub': 'Model Context Protocol interface (2026-07-28) for AI assistants',
+  'setup.mcpPort': 'MCP Port',
+  'setup.mcpMode': 'Operating mode',
+  'setup.mcpMode.readOnly': 'Strict read-only',
+  'setup.mcpToken': 'Access token',
+  'setup.mcpToken.none': 'No token (loopback only)',
 
   'setup.localStreamEnabled': 'Local Wi-Fi web server',
   'setup.localStreamEnabled.sub': 'Access live view from a browser on the same local network',

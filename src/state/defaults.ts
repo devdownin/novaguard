@@ -41,7 +41,11 @@ export const defaultSettings: Settings = {
   localStreamEnabled: false,
   localStreamPort: 8080,
   localStreamPin: '',
-  exp: { surv: true, det: false, rec: false, sto: false, not: false, stream: false, about: false },
+  mcpEnabled: false,
+  mcpPort: 8080,
+  mcpToken: '',
+  mcpReadOnly: true,
+  exp: { surv: true, det: false, rec: false, sto: false, not: false, stream: false, mcp: false, about: false },
 };
 
 /**

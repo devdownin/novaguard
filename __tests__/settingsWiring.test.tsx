@@ -62,6 +62,7 @@ it('writes each control back to disk', async () => {
     state.toggleAutoDel();
     state.toggleNotif();
     state.toggleNotifDet();
+    state.toggleMcpServer();
     state.toggleResumeOnLaunch();
     state.togglePreciseDetection();
     state.saveZone({ x: 0.5, y: 0.3, width: 0.5, height: 0.7 });
@@ -83,6 +84,7 @@ it('writes each control back to disk', async () => {
     autoDel: !defaultSettings.autoDel,
     notif: !defaultSettings.notif,
     notifDet: !defaultSettings.notifDet,
+    mcpEnabled: !defaultSettings.mcpEnabled,
     resumeOnLaunch: !defaultSettings.resumeOnLaunch,
     preciseDetection: !defaultSettings.preciseDetection,
     zone: { x: 0.5, y: 0.3, width: 0.5, height: 0.7 },
