@@ -1,5 +1,15 @@
 import { McpError } from '../types';
 
+export const MCP_SCOPES = [
+  'novaguard:status',
+  'novaguard:events',
+  'novaguard:statistics',
+  'novaguard:configuration',
+  'novaguard:media',
+] as const;
+
+export type McpScope = (typeof MCP_SCOPES)[number];
+
 export interface SecurityContext {
   principal: string;
   scopes: string[];
@@ -8,7 +18,7 @@ export interface SecurityContext {
 
 export interface AuthOptions {
   requireAuthForNonLoopback?: boolean;
-  validTokens?: Map<string, SecurityContext>; // token -> context
+  validTokens?: Map<string, SecurityContext>;
   expectedToken?: string;
   defaultLoopbackScopes?: string[];
 }
@@ -23,7 +33,7 @@ export class Authenticator {
     this.requireAuthForNonLoopback = options.requireAuthForNonLoopback ?? true;
     this.validTokens = options.validTokens || new Map();
     this.expectedToken = options.expectedToken;
-    this.defaultLoopbackScopes = options.defaultLoopbackScopes || ['novaguard:read'];
+    this.defaultLoopbackScopes = options.defaultLoopbackScopes || [...MCP_SCOPES];
   }
 
   public setExpectedToken(token: string | undefined) {
@@ -31,15 +41,20 @@ export class Authenticator {
   }
 
   public registerToken(token: string, context: SecurityContext) {
-    this.validTokens.set(token, context);
+    if (!token || token.trim().length < 16) {
+      throw new McpError('NOVAGUARD_INVALID_ARGUMENT', 'Token must contain at least 16 characters', 400);
+    }
+    this.validTokens.set(token, {
+      ...context,
+      scopes: [...new Set(context.scopes)],
+    });
   }
 
   public authenticate(authHeader: string | undefined, remoteAddress?: string): SecurityContext {
     const isLoopback =
       remoteAddress === '127.0.0.1' ||
       remoteAddress === '::1' ||
-      remoteAddress === 'localhost' ||
-      !remoteAddress; // Default to loopback if omitted in local calls
+      remoteAddress === '::ffff:127.0.0.1';
 
     let token: string | undefined;
 
@@ -55,6 +70,7 @@ export class Authenticator {
       const ctx = this.validTokens.get(token)!;
       return {
         ...ctx,
+        scopes: [...new Set(ctx.scopes)],
         isLoopback,
       };
     }
@@ -62,7 +78,7 @@ export class Authenticator {
     if (token && this.expectedToken && token === this.expectedToken) {
       return {
         principal: 'mcp-bearer-user',
-        scopes: ['novaguard:read'],
+        scopes: [...MCP_SCOPES],
         isLoopback,
       };
     }
@@ -75,10 +91,9 @@ export class Authenticator {
       );
     }
 
-    // Loopback fallback or unauthenticated allowed loopback context
     return {
       principal: isLoopback ? 'loopback-user' : 'anonymous',
-      scopes: isLoopback ? this.defaultLoopbackScopes : [],
+      scopes: isLoopback ? [...this.defaultLoopbackScopes] : [],
       isLoopback,
     };
   }
