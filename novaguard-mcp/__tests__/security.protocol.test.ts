@@ -45,8 +45,51 @@ describe('NovaGuard MCP security', () => {
     expect(() => new NovaGuardMcpServer({ client })).toThrow('only permits loopback API endpoints');
   });
 
+  it('blocks private and metadata upstream endpoints from the MCP server', () => {
+    for (const baseUrl of [
+      'http://10.0.0.10:8080',
+      'http://192.168.1.10:8080',
+      'http://172.16.0.10:8080',
+      'http://169.254.169.254/latest/meta-data',
+    ]) {
+      const client = new NovaGuardReadApiClient({ baseUrl });
+      expect(() => new NovaGuardMcpServer({ client })).toThrow('only permits loopback API endpoints');
+    }
+  });
+
   it('allows the local NovaGuard API endpoint', () => {
     const client = new NovaGuardReadApiClient({ baseUrl: 'http://127.0.0.1:8080' });
     expect(() => new NovaGuardMcpServer({ client })).not.toThrow();
+  });
+
+  it('rejects oversized media before downloading the body when Content-Length is known', async () => {
+    const fetchFn = jest.fn(async () => new Response('not downloaded', {
+      status: 200,
+      headers: { 'content-type': 'video/mp4', 'content-length': String(21 * 1024 * 1024) },
+    }));
+    const client = new NovaGuardReadApiClient({
+      baseUrl: 'http://127.0.0.1:8080',
+      fetchFn,
+      maxMediaBytes: 20 * 1024 * 1024,
+    });
+
+    await expect(client.getVideo(1)).rejects.toMatchObject({ code: 'NOVAGUARD_MEDIA_TOO_LARGE' });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects revoked authentication tokens', () => {
+    const authenticator = new Authenticator();
+    const token = 'test-token-123456';
+    authenticator.registerToken(token, 'test-client', ['novaguard:status']);
+    authenticator.revokeToken(token);
+    expect(() => authenticator.authenticate('192.0.2.10', token)).toThrow('Invalid authentication token');
+  });
+
+  it('rejects insufficient scopes', () => {
+    const authenticator = new Authenticator();
+    const token = 'test-token-123456';
+    authenticator.registerToken(token, 'test-client', ['novaguard:status']);
+    const context = authenticator.authenticate('192.0.2.10', token);
+    expect(context.scopes).toEqual(['novaguard:status']);
   });
 });
