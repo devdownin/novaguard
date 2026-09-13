@@ -280,14 +280,36 @@ export class NovaGuardReadApiClient {
         throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE',`Upstream API returned status ${res.status}`,502);
       }
       const contentLength = res.headers.get('content-length');
-      if (contentLength && Number(contentLength) > this.maxMediaBytes) {
-        throw new McpError('NOVAGUARD_MEDIA_TOO_LARGE', `Media exceeds maximum size of ${this.maxMediaBytes} bytes`, 413);
+      if (contentLength) {
+        const parsedLength = Number(contentLength);
+        if (!Number.isFinite(parsedLength) || parsedLength < 0) {
+          throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Invalid upstream Content-Length', 502);
+        }
+        if (parsedLength > this.maxMediaBytes) {
+          throw new McpError('NOVAGUARD_MEDIA_TOO_LARGE', `Media exceeds maximum size of ${this.maxMediaBytes} bytes`, 413);
+        }
       }
-      const arrayBuf = await res.arrayBuffer();
-      if (arrayBuf.byteLength > this.maxMediaBytes) {
-        throw new McpError('NOVAGUARD_MEDIA_TOO_LARGE', `Media exceeds maximum size of ${this.maxMediaBytes} bytes`, 413);
+      if (!res.body) throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Upstream media response has no body', 502);
+
+      const reader = res.body.getReader();
+      const chunks: Buffer[] = [];
+      let totalBytes = 0;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!value) continue;
+          totalBytes += value.byteLength;
+          if (totalBytes > this.maxMediaBytes) {
+            await reader.cancel();
+            throw new McpError('NOVAGUARD_MEDIA_TOO_LARGE', `Media exceeds maximum size of ${this.maxMediaBytes} bytes`, 413);
+          }
+          chunks.push(Buffer.from(value));
+        }
+      } finally {
+        reader.releaseLock();
       }
-      return { mimeType:expectedMime, data:Buffer.from(arrayBuf) };
+      return { mimeType:expectedMime, data:Buffer.concat(chunks, totalBytes) };
     } catch (err:any) {
       if (err instanceof McpError) throw err;
       throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE','Failed to retrieve media',503);
