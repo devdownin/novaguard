@@ -1,3 +1,5 @@
+import dns from 'dns/promises';
+import net from 'net';
 import { NovaGuardReadApiClient } from './client/NovaGuardReadApiClient';
 import { Authenticator, SecurityContext } from './security/authentication';
 import { Authorizer } from './security/authorization';
@@ -10,6 +12,114 @@ export interface McpServerOptions { client?: NovaGuardReadApiClient; authenticat
 export interface JsonRpcRequest { jsonrpc: '2.0'; id?: string | number | null; method: string; params?: any; }
 export interface JsonRpcResponse { jsonrpc: '2.0'; id?: string | number | null; result?: any; error?: { code: number; message: string; data?: any }; }
 const MCP_PROTOCOL_VERSION = '2026-07-28';
+const MAX_REDIRECTS = 3;
+
+function ipv4ToNumber(ip: string): number {
+  return ip.split('.').reduce((value, part) => ((value * 256) + Number(part)) >>> 0, 0);
+}
+
+function ipv6ToBigInt(ip: string): bigint {
+  const normalized = ip.toLowerCase().split('%')[0];
+  const halves = normalized.split('::');
+  if (halves.length > 2) throw new Error('Invalid IPv6 address');
+  const left = halves[0] ? halves[0].split(':').filter(Boolean) : [];
+  const right = halves.length === 2 && halves[1] ? halves[1].split(':').filter(Boolean) : [];
+  const expand = (parts: string[]) => {
+    const out: number[] = [];
+    for (const part of parts) {
+      if (part.includes('.')) {
+        const n = ipv4ToNumber(part);
+        out.push((n >>> 16) & 0xffff, n & 0xffff);
+      } else {
+        const n = Number.parseInt(part, 16);
+        if (!Number.isFinite(n) || n < 0 || n > 0xffff) throw new Error('Invalid IPv6 address');
+        out.push(n);
+      }
+    }
+    return out;
+  };
+  const words = expand(left);
+  const rightWords = expand(right);
+  const missing = 8 - words.length - rightWords.length;
+  if (halves.length === 1 || missing < 0) {
+    if (missing !== 0) throw new Error('Invalid IPv6 address');
+  }
+  const all = [...words, ...Array(Math.max(0, missing)).fill(0), ...rightWords];
+  if (all.length !== 8) throw new Error('Invalid IPv6 address');
+  return all.reduce((value, word) => (value << 16n) | BigInt(word), 0n);
+}
+
+function isBlockedIp(ip: string): boolean {
+  const family = net.isIP(ip);
+  if (family === 4) {
+    const n = ipv4ToNumber(ip);
+    const a = n >>> 24;
+    const b = (n >>> 16) & 0xff;
+    return a === 0 || a === 10 || a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 192 && b === 0 && ((n >>> 8) & 0xff) === 0) ||
+      (a === 198 && b >= 18 && b <= 19) ||
+      (a === 198 && b === 51 && (n & 0xff) === 100) ||
+      (a === 203 && b === 0 && ((n >>> 8) & 0xff) === 113) ||
+      a >= 224;
+  }
+  if (family === 6) {
+    const n = ipv6ToBigInt(ip);
+    const top8 = Number(n >> 120n);
+    const top10 = Number(n >> 118n);
+    const top32 = Number(n >> 96n);
+    const mappedV4 = top32 === 0x0000ffff ? Number(n & 0xffffffffn) : null;
+    return n === 0n || n === 1n || top10 === 0b1111110000 || top10 === 0b1111111010 ||
+      top8 === 0xff || Number(n >> 96n) === 0x20010db8 ||
+      (mappedV4 !== null && isBlockedIp(`${mappedV4 >>> 24}.${(mappedV4 >>> 16) & 255}.${(mappedV4 >>> 8) & 255}.${mappedV4 & 255}`));
+  }
+  return true;
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname.endsWith('.localhost') || hostname === '127.0.0.1' || hostname === '::1' || hostname === '::ffff:127.0.0.1';
+}
+
+async function validateUpstreamUrl(rawUrl: string, expectedOrigin?: string): Promise<URL> {
+  let url: URL;
+  try { url = new URL(rawUrl); } catch { throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Invalid upstream URL', 503); }
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || (url.port && !['80', '443'].includes(url.port))) {
+    throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Blocked upstream URL', 503);
+  }
+  const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  const loopbackHost = isLoopbackHost(hostname);
+  if (hostname === 'metadata.google.internal' || hostname === 'metadata' || hostname.endsWith('.internal')) {
+    throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Blocked upstream hostname', 503);
+  }
+  if (net.isIP(hostname) && !loopbackHost && isBlockedIp(hostname)) {
+    throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Blocked upstream IP address', 503);
+  }
+  const records = await dns.lookup(hostname, { all: true, verbatim: true });
+  if (!records.length || (!loopbackHost && records.some(record => isBlockedIp(record.address)))) {
+    throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Blocked upstream DNS resolution', 503);
+  }
+  if (expectedOrigin && url.origin !== expectedOrigin) {
+    throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Cross-origin redirect blocked', 503);
+  }
+  return url;
+}
+
+async function secureFetch(fetchFn: typeof fetch, rawUrl: string, init: RequestInit): Promise<Response> {
+  let current = await validateUpstreamUrl(rawUrl);
+  for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+    const response = await fetchFn(current.toString(), { ...init, redirect: 'manual' });
+    if (![301, 302, 303, 307, 308].includes(response.status)) return response;
+    const location = response.headers.get('location');
+    if (!location || redirects === MAX_REDIRECTS) throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Upstream redirect rejected', 503);
+    const next = new URL(location, current);
+    if (next.origin !== current.origin) throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Cross-origin redirect blocked', 503);
+    current = await validateUpstreamUrl(next.toString(), current.origin);
+  }
+  throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Too many upstream redirects', 503);
+}
 
 export class NovaGuardMcpServer {
   public readonly client: NovaGuardReadApiClient;
@@ -27,6 +137,8 @@ export class NovaGuardMcpServer {
     this.auditLogger = options.auditLogger || new AuditLogger();
     this.maxThumbnailBytes = options.maxThumbnailBytes ?? 2 * 1024 * 1024;
     this.maxVideoBytes = options.maxVideoBytes ?? 20 * 1024 * 1024;
+    const clientFetch = (this.client as any).fetchFn as typeof fetch | undefined;
+    if (clientFetch) (this.client as any).fetchFn = (url: string, init: RequestInit) => secureFetch(clientFetch, url, init);
   }
 
   private validateClientEndpoint(client: NovaGuardReadApiClient): void {
