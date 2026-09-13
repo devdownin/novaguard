@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'crypto';
 import { McpError } from '../types';
 
 export const MCP_SCOPES = [
@@ -38,32 +39,56 @@ export interface SecurityContext {
 
 export interface AuthOptions {
   requireAuthForNonLoopback?: boolean;
-  validTokens?: Map<string, SecurityContext>;
   expectedToken?: string;
   expectedTokenExpiresAt?: number;
   defaultLoopbackScopes?: string[];
   tokenTtlMs?: number;
 }
 
+/** SHA-256 of a token, so nothing here holds the credential itself. */
+function digestOf(token: string): Buffer {
+  return createHash('sha256').update(token, 'utf8').digest();
+}
+
+/**
+ * Compares two digests without leaking how far they matched.
+ *
+ * `a === b` on the tokens returns as soon as two bytes differ, so the time it
+ * takes is a function of the shared prefix — a caller who can measure it
+ * recovers the token one byte at a time. Digests are the right thing to
+ * compare: always 32 bytes, so `timingSafeEqual` never throws on a length
+ * mismatch, and a length mismatch is itself something the plain comparison
+ * would have revealed immediately.
+ */
+function digestsMatch(a: Buffer, b: Buffer): boolean {
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export class Authenticator {
   private requireAuthForNonLoopback: boolean;
+  /**
+   * Registered tokens, keyed by the hex digest of the token.
+   *
+   * Keyed by digest rather than by the token so the process never holds a
+   * credential it could log, serialise into a heap dump, or echo back.
+   */
   private validTokens: Map<string, SecurityContext>;
-  private expectedToken?: string;
+  private expectedTokenDigest?: Buffer;
   private expectedTokenExpiresAt?: number;
   private defaultLoopbackScopes: string[];
   private tokenTtlMs: number;
 
   constructor(options: AuthOptions = {}) {
     this.requireAuthForNonLoopback = options.requireAuthForNonLoopback ?? true;
-    this.validTokens = options.validTokens || new Map();
-    this.expectedToken = options.expectedToken;
+    this.validTokens = new Map();
+    this.expectedTokenDigest = options.expectedToken ? digestOf(options.expectedToken) : undefined;
     this.expectedTokenExpiresAt = options.expectedTokenExpiresAt;
     this.defaultLoopbackScopes = options.defaultLoopbackScopes || [...MCP_SCOPES];
     this.tokenTtlMs = options.tokenTtlMs ?? 24 * 60 * 60 * 1000;
   }
 
   public setExpectedToken(token: string | undefined, expiresAt?: number) {
-    this.expectedToken = token;
+    this.expectedTokenDigest = token ? digestOf(token) : undefined;
     this.expectedTokenExpiresAt = expiresAt;
   }
 
@@ -75,7 +100,7 @@ export class Authenticator {
       throw new McpError('NOVAGUARD_INVALID_ARGUMENT', 'Token TTL must be a positive number', 400);
     }
     const expiresAt = Date.now() + ttlMs;
-    this.validTokens.set(token, {
+    this.validTokens.set(digestOf(token).toString('hex'), {
       ...context,
       scopes: [...new Set(context.scopes)],
       expiresAt,
@@ -83,7 +108,7 @@ export class Authenticator {
   }
 
   public revokeToken(token: string): boolean {
-    return this.validTokens.delete(token);
+    return this.validTokens.delete(digestOf(token).toString('hex'));
   }
 
   /**
@@ -105,10 +130,12 @@ export class Authenticator {
     }
 
     if (token) {
-      const ctx = this.validTokens.get(token);
+      const presented = digestOf(token);
+      const key = presented.toString('hex');
+      const ctx = this.validTokens.get(key);
       if (ctx) {
         if (ctx.expiresAt !== undefined && ctx.expiresAt <= Date.now()) {
-          this.validTokens.delete(token);
+          this.validTokens.delete(key);
         } else {
           return {
             ...ctx,
@@ -118,7 +145,7 @@ export class Authenticator {
         }
       }
 
-      if (this.expectedToken && token === this.expectedToken) {
+      if (this.expectedTokenDigest && digestsMatch(presented, this.expectedTokenDigest)) {
         if (!this.expectedTokenExpiresAt || this.expectedTokenExpiresAt > Date.now()) {
           return {
             principal: 'mcp-bearer-user',

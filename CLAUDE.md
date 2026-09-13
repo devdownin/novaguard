@@ -524,6 +524,26 @@ jamais lus, donc un filtre mal orthographié rendait l'historique non filtré av
 un 200. La validation dérive du schéma annoncé, jamais d'une table posée à côté :
 deux copies du contrat divergent au premier paramètre ajouté.
 
+**Un contrôle de sécurité qui marche et un qui protège ne se distinguent pas à
+l'usage.** Aucun des points qui suivent n'empêchait une requête d'aboutir, et
+c'est pourquoi aucun n'avait de test : un jeton comparé par `===` authentifie
+exactement les mêmes appelants qu'un jeton comparé à temps constant, et une
+table non bornée est correcte jusqu'à ce que le processus manque de mémoire.
+Quatre décisions à ne pas reperdre. Les jetons sont stockés **et** comparés par
+empreinte SHA-256 : `timingSafeEqual` sur deux tampons de même taille ne fuit ni
+par le préfixe commun ni par la longueur, et une table indexée par empreinte ne
+détient pas l'identifiant qu'un vidage mémoire rendrait. `Origin` n'est envoyé
+que par les navigateurs, donc son absence est acceptée et **`Host` est le
+contrôle qui couvre les autres** — les deux ensemble sont la défense contre le
+*DNS rebinding*, et un `401` porte `WWW-Authenticate` sans quoi un client
+n'apprend rien de ce qui le rendrait autorisé. Un nom d'hôte doit résoudre là où
+sa catégorie le dit — `localhost` était exempté du contrôle, donc le seul nom
+que la liste d'autorisation laisse passer était le seul que rien ne vérifiait —
+et la connexion est **épinglée** sur l'adresse validée, parce que résoudre à
+nouveau au moment de se connecter rouvre la fenêtre que la validation venait de
+fermer. Enfin un plafond de taille descend **avec** la requête : l'appliquer au
+retour, c'est rapporter huit mégaoctets pour en refuser deux.
+
 **Un clip sans événement est une vidéo perdue.** Le sort d'un enregistrement est
 exhaustif (`clipOutcome`) : rattaché, gardé comme événement sans fichier, ou
 supprimé. Il n'y a pas de quatrième issue, et il ne doit pas y en avoir.

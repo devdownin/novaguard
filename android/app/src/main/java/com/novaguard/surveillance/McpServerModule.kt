@@ -208,6 +208,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       var contentLength = 0
       var authHeader: String? = null
       var origin: String? = null
+      var host: String? = null
       var contentType = ""
       var headerCount = 0
       while (true) {
@@ -220,6 +221,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
           "content-length" -> contentLength = value.toIntOrNull() ?: 0
           "authorization" -> authHeader = value
           "origin" -> origin = value
+          "host" -> host = value
           "content-type" -> contentType = value.lowercase()
         }
       }
@@ -230,6 +232,13 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       // rebinding case the MCP transport guidance calls out.
       if (origin != null && !isAllowedOrigin(origin)) {
         return respond(output, 403, jsonError("Forbidden origin"))
+      }
+      // The other half of the same defence. `Origin` is a browser header, so
+      // an ordinary client sends none and the check above passes it through;
+      // `Host` is sent by everything, and a page whose hostname was pointed at
+      // this device carries a Host this server does not answer to.
+      if (!isAllowedHost(host)) {
+        return respond(output, 421, jsonError("Misdirected Request"))
       }
       if (!allowRequest(remote)) {
         return respond(output, 429, jsonError("Too Many Requests"), mapOf("Retry-After" to "60"))
@@ -275,9 +284,29 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   }
 
   private fun isAllowedOrigin(origin: String): Boolean =
-    origin == "http://127.0.0.1:$currentPort" ||
-      origin == "http://localhost:$currentPort" ||
-      origin == "http://[::1]:$currentPort"
+    expectedAuthorities().any { origin == "http://$it" }
+
+  private fun isAllowedHost(host: String?): Boolean {
+    if (host == null) return false
+    return expectedAuthorities().contains(host.lowercase())
+  }
+
+  /**
+   * The authorities this server answers to.
+   *
+   * The LAN address is included only when the socket is actually bound off
+   * loopback — without a token it is not, and accepting a Host it never
+   * listens on would give back exactly what the check is for.
+   */
+  private fun expectedAuthorities(): List<String> {
+    val authorities = mutableListOf(
+      "127.0.0.1:$currentPort",
+      "localhost:$currentPort",
+      "[::1]:$currentPort",
+    )
+    if (!boundToLoopbackOnly) localIpAddress()?.let { authorities.add("$it:$currentPort") }
+    return authorities
+  }
 
   private fun allowRequest(remote: String): Boolean {
     val now = System.currentTimeMillis()
@@ -553,7 +582,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     val reason = when (status) {
       200 -> "OK"; 202 -> "Accepted"; 400 -> "Bad Request"; 401 -> "Unauthorized"
       403 -> "Forbidden"; 404 -> "Not Found"; 405 -> "Method Not Allowed"
-      413 -> "Payload Too Large"; 415 -> "Unsupported Media Type"
+      413 -> "Payload Too Large"; 415 -> "Unsupported Media Type"; 421 -> "Misdirected Request"
       429 -> "Too Many Requests"; 431 -> "Request Header Fields Too Large"
       else -> "Internal Server Error"
     }

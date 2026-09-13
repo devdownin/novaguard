@@ -130,14 +130,58 @@ async function validateUpstreamUrl(rawUrl: string, expectedOrigin?: string): Pro
   if (net.isIP(hostname) && !loopbackHost && isBlockedIp(hostname)) {
     throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Blocked upstream IP address', 503);
   }
-  const records = await dns.lookup(hostname, { all: true, verbatim: true });
-  if (!records.length || (!loopbackHost && records.some(record => isBlockedIp(record.address)))) {
-    throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Blocked upstream DNS resolution', 503);
-  }
   if (expectedOrigin && url.origin !== expectedOrigin) {
     throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Cross-origin redirect blocked', 503);
   }
+  if (net.isIP(hostname)) return url;
+
+  const records = await dns.lookup(hostname, { all: true, verbatim: true });
+  if (!records.length) {
+    throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Blocked upstream DNS resolution', 503);
+  }
+  // A loopback *name* used to skip this check entirely, so `localhost` pointed
+  // at a LAN address by a hosts file or a resolver would have been fetched —
+  // the one hostname the endpoint allowlist lets through was the one nothing
+  // verified. Every name now has to resolve where its category says it does.
+  const acceptable = loopbackHost
+    ? records.every(record => isLoopbackAddress(record.address))
+    : records.every(record => !isBlockedIp(record.address));
+  if (!acceptable) {
+    throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Blocked upstream DNS resolution', 503);
+  }
+
+  // Pin the connection to the address that was just checked. Resolving again
+  // at connect time is a second lookup that can answer differently — the
+  // rebinding window this validation would otherwise leave open. Only done for
+  // a loopback name, where rewriting the authority is safe: elsewhere the
+  // hostname is load-bearing for TLS and virtual hosting.
+  if (loopbackHost) {
+    const pinned = new URL(url.toString());
+    pinned.hostname = records[0].family === 6 ? `[${records[0].address}]` : records[0].address;
+    return pinned;
+  }
   return url;
+}
+
+function isLoopbackAddress(ip: string): boolean {
+  if (net.isIP(ip) === 4) return ip.startsWith('127.');
+  return ip === '::1' || ip === '::ffff:127.0.0.1' || ip.startsWith('::ffff:127.');
+}
+
+/**
+ * Wraps a fetch so every request, and every redirect it follows, is vetted.
+ *
+ * The client only ever passes a URL string. A `Request` object would carry its
+ * own url, method and headers past these checks, so it is refused rather than
+ * quietly stringified into `[object Request]`.
+ */
+function guardedFetch(fetchFn: typeof fetch): typeof fetch {
+  return ((input: RequestInfo | URL, init: RequestInit = {}) => {
+    if (typeof input !== 'string' && !(input instanceof URL)) {
+      return Promise.reject(new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Unsupported upstream request form', 503));
+    }
+    return secureFetch(fetchFn, input.toString(), init);
+  }) as typeof fetch;
 }
 
 async function secureFetch(fetchFn: typeof fetch, rawUrl: string, init: RequestInit): Promise<Response> {
@@ -170,12 +214,11 @@ export class NovaGuardMcpServer {
     this.auditLogger = options.auditLogger || new AuditLogger();
     this.maxThumbnailBytes = options.maxThumbnailBytes ?? 2 * 1024 * 1024;
     this.maxVideoBytes = options.maxVideoBytes ?? 20 * 1024 * 1024;
-    const clientFetch = (this.client as any).fetchFn as typeof fetch | undefined;
-    if (clientFetch) (this.client as any).fetchFn = (url: string, init: RequestInit) => secureFetch(clientFetch, url, init);
+    this.client.guardRequests(guardedFetch);
   }
 
   private validateClientEndpoint(client: NovaGuardReadApiClient): void {
-    const baseUrl = (client as any).baseUrl as string | undefined;
+    const baseUrl = client.endpoint;
     if (!baseUrl) return;
     let parsed: URL;
     try { parsed = new URL(baseUrl); } catch { throw new Error('Invalid NovaGuard API baseUrl'); }
@@ -275,10 +318,13 @@ export class NovaGuardMcpServer {
           const uri = req.params?.uri;
           if (typeof uri !== 'string' || uri.length === 0 || uri.length > 512) throw new McpError('NOVAGUARD_INVALID_ARGUMENT', 'Resource URI is required', 400);
           operation = `resource:${uri}`;
-          const res = await readResource(uri, this.client, this.authorizer, securityContext);
+          // The ceiling goes down with the request instead of being applied to
+          // what came back: a 20 MB thumbnail used to be fetched in full and
+          // then refused for being over 2 MB.
+          const maxBytes = uri.startsWith('novaguard://thumbnail/') ? this.maxThumbnailBytes : this.maxVideoBytes;
+          const res = await readResource(uri, this.client, this.authorizer, securityContext, maxBytes);
           if (res.blob) {
             mediaBytes = res.blob.length;
-            const maxBytes = uri.startsWith('novaguard://thumbnail/') ? this.maxThumbnailBytes : this.maxVideoBytes;
             if (mediaBytes > maxBytes) throw new McpError('NOVAGUARD_MEDIA_TOO_LARGE', 'Media exceeds configured maximum size', 413);
             result = { contents: [{ uri: res.uri, mimeType: res.mimeType, blob: res.blob.toString('base64') }] };
           } else result = { contents: [{ uri: res.uri, mimeType: res.mimeType, text: res.text }] };

@@ -67,6 +67,7 @@ export class NovaGuardReadApiClient {
   private authToken?: string;
   private fetchFn: typeof fetch;
   private mockDataSource?: NovaGuardMockDataSource;
+  private guarded = false;
   private readonly requestTimeoutMs: number;
   private readonly maxMediaBytes: number;
 
@@ -80,6 +81,26 @@ export class NovaGuardReadApiClient {
   }
 
   public setMockDataSource(ds: NovaGuardMockDataSource) { this.mockDataSource = ds; }
+
+  /** The configured upstream, for a caller that has to vet it before use. */
+  public get endpoint(): string | undefined { return this.baseUrl; }
+
+  /**
+   * Wraps every outgoing request in a guard, once.
+   *
+   * The server used to reach in and reassign the private `fetchFn`. Two
+   * servers sharing one client stacked two guards, so a request paid for the
+   * upstream checks twice and redirects were handled by both — and the whole
+   * thing broke silently the day the field was renamed or made truly private.
+   * Refusing a second wrap makes the idempotence explicit instead of leaving
+   * it to whoever calls this.
+   */
+  public guardRequests(wrap: (fetchFn: typeof fetch) => typeof fetch): boolean {
+    if (this.guarded) return false;
+    this.fetchFn = wrap(this.fetchFn);
+    this.guarded = true;
+    return true;
+  }
 
   private mapRawEventToDto(event: RawEvent): DetectionEventDto {
     return {
@@ -217,22 +238,22 @@ export class NovaGuardReadApiClient {
     return this.httpRequest<CameraInfoDto>('/api/v1/camera');
   }
 
-  public async getThumbnail(eventId: number): Promise<{ mimeType:string; data:Buffer } | null> {
+  public async getThumbnail(eventId: number, maxBytes?: number): Promise<{ mimeType:string; data:Buffer } | null> {
     if (this.mockDataSource) {
       const found = this.mockDataSource.events.find(e=>e.id===eventId);
       if (!found || !found.thumbPath) throw new McpError('NOVAGUARD_MEDIA_UNAVAILABLE', `Thumbnail for event ${eventId} unavailable`, 404);
       return { mimeType:'image/jpeg', data:found.thumbnailBuffer || Buffer.from('mock-thumbnail-bytes') };
     }
-    return this.httpBinaryRequest(`/api/v1/events/${eventId}/thumbnail`, 'image/jpeg');
+    return this.httpBinaryRequest(`/api/v1/events/${eventId}/thumbnail`, 'image/jpeg', maxBytes);
   }
 
-  public async getVideo(eventId: number): Promise<{ mimeType:string; data:Buffer } | null> {
+  public async getVideo(eventId: number, maxBytes?: number): Promise<{ mimeType:string; data:Buffer } | null> {
     if (this.mockDataSource) {
       const found = this.mockDataSource.events.find(e=>e.id===eventId);
       if (!found || !found.path || found.bytes===0) throw new McpError('NOVAGUARD_MEDIA_UNAVAILABLE', `Video for event ${eventId} unavailable`, 404);
       return { mimeType:'video/mp4', data:found.videoBuffer || Buffer.from('mock-video-bytes') };
     }
-    return this.httpBinaryRequest(`/api/v1/events/${eventId}/video`, 'video/mp4');
+    return this.httpBinaryRequest(`/api/v1/events/${eventId}/video`, 'video/mp4', maxBytes);
   }
 
   private async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
@@ -267,8 +288,18 @@ export class NovaGuardReadApiClient {
     }
   }
 
-  private async httpBinaryRequest(path: string, expectedMime: string): Promise<{mimeType:string;data:Buffer}> {
+  /**
+   * `maxBytes` is the caller's ceiling, not just this client's.
+   *
+   * The server rejects a thumbnail over 2 MB and a clip over 20 MB, and used
+   * to do it *after* the whole body had been read into memory under the
+   * client's own 20 MB cap — so an oversized thumbnail was downloaded in full
+   * and then thrown away, ten times larger than anything that could have been
+   * returned. Handing the real ceiling down means the stream aborts at it.
+   */
+  private async httpBinaryRequest(path: string, expectedMime: string, maxBytes?: number): Promise<{mimeType:string;data:Buffer}> {
     if (!this.baseUrl) throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE','No baseUrl configured for NovaGuard read API',503);
+    const limit = Math.min(this.maxMediaBytes, maxBytes ?? this.maxMediaBytes);
     const headers: Record<string,string> = {};
     if (this.authToken) headers.Authorization = `Bearer ${this.authToken}`;
     try {
@@ -285,8 +316,8 @@ export class NovaGuardReadApiClient {
         if (!Number.isFinite(parsedLength) || parsedLength < 0) {
           throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Invalid upstream Content-Length', 502);
         }
-        if (parsedLength > this.maxMediaBytes) {
-          throw new McpError('NOVAGUARD_MEDIA_TOO_LARGE', `Media exceeds maximum size of ${this.maxMediaBytes} bytes`, 413);
+        if (parsedLength > limit) {
+          throw new McpError('NOVAGUARD_MEDIA_TOO_LARGE', `Media exceeds maximum size of ${limit} bytes`, 413);
         }
       }
       if (!res.body) throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Upstream media response has no body', 502);
@@ -300,9 +331,9 @@ export class NovaGuardReadApiClient {
           if (done) break;
           if (!value) continue;
           totalBytes += value.byteLength;
-          if (totalBytes > this.maxMediaBytes) {
+          if (totalBytes > limit) {
             await reader.cancel();
-            throw new McpError('NOVAGUARD_MEDIA_TOO_LARGE', `Media exceeds maximum size of ${this.maxMediaBytes} bytes`, 413);
+            throw new McpError('NOVAGUARD_MEDIA_TOO_LARGE', `Media exceeds maximum size of ${limit} bytes`, 413);
           }
           chunks.push(Buffer.from(value));
         }

@@ -88,7 +88,8 @@ export async function readResource(
   uri: string,
   client: NovaGuardReadApiClient,
   authorizer: Authorizer,
-  context: SecurityContext
+  context: SecurityContext,
+  maxMediaBytes?: number
 ): Promise<{ mimeType: string; text?: string; blob?: Buffer; uri: string }> {
   const { resourceType, param } = Sanitizer.validateResourceUri(uri);
 
@@ -102,10 +103,10 @@ export async function readResource(
       return { ...res, uri };
     }
     case 'video': {
-      return readVideoResource(param!, client, authorizer, context);
+      return readVideoResource(param!, client, authorizer, context, maxMediaBytes);
     }
     case 'thumbnail': {
-      return readThumbnailResource(param!, client, authorizer, context);
+      return readThumbnailResource(param!, client, authorizer, context, maxMediaBytes);
     }
     case 'timeline': {
       const res = await readTimelineResource(param!, client, authorizer, context);
