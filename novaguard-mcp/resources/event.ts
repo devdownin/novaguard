@@ -1,10 +1,10 @@
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 
 export async function readEventResource(
   eventIdStr: string,
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext
 ): Promise<{ mimeType: string; text: string }> {

@@ -8,7 +8,7 @@
  */
 
 import { NovaGuardMcpServer } from '../server';
-import { NovaGuardReadApiClient, NovaGuardMockDataSource } from '../client/NovaGuardReadApiClient';
+import { InMemoryNovaGuardApi, NovaGuardMockDataSource } from '../testing/inMemoryApi';
 import { McpHttpServer } from '../transport/httpServer';
 import { ALL_TOOLS } from '../tools';
 import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../protocol';
@@ -33,7 +33,7 @@ const mockData: NovaGuardMockDataSource = {
 };
 
 function makeServer() {
-  return new NovaGuardMcpServer({ client: new NovaGuardReadApiClient({ mockDataSource: { ...mockData } }) });
+  return new NovaGuardMcpServer({ client: new InMemoryNovaGuardApi({ ...mockData }) });
 }
 
 const call = async (server: NovaGuardMcpServer, req: any) =>

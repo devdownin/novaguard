@@ -1,4 +1,4 @@
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { StatusDto } from '../types';
@@ -14,7 +14,7 @@ export const getStatusToolDefinition = {
 };
 
 export async function handleGetStatus(
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext,
   _args: Record<string, any>

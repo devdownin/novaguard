@@ -1,5 +1,6 @@
 import { NovaGuardMcpServer } from '../server';
-import { NovaGuardReadApiClient, NovaGuardMockDataSource } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
+import { InMemoryNovaGuardApi, NovaGuardMockDataSource } from '../testing/inMemoryApi';
 import { Authenticator } from '../security/authentication';
 
 // Every request in this suite stands for a caller on the device. A transport
@@ -28,7 +29,7 @@ async function send(
 
 describe('NovaGuard MCP - Contract Tests', () => {
   let server: NovaGuardMcpServer;
-  let client: NovaGuardReadApiClient;
+  let client: NovaGuardReadApi;
   let mockData: NovaGuardMockDataSource;
 
   beforeEach(() => {
@@ -85,7 +86,7 @@ describe('NovaGuard MCP - Contract Tests', () => {
       ],
     };
 
-    client = new NovaGuardReadApiClient({ mockDataSource: mockData });
+    client = new InMemoryNovaGuardApi(mockData);
     server = new NovaGuardMcpServer({ client });
   });
 

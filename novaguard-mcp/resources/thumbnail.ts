@@ -1,11 +1,11 @@
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { McpError } from '../types';
 
 export async function readThumbnailResource(
   eventIdStr: string,
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext,
   maxBytes?: number

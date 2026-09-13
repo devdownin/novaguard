@@ -4,7 +4,7 @@ import { readThumbnailResource } from './thumbnail';
 import { readTimelineResource } from './timeline';
 import { readStatisticsResource } from './statistics';
 import { readStatusResource } from './status';
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { Sanitizer } from '../security/sanitizer';
@@ -86,7 +86,7 @@ export const ALL_RESOURCE_TEMPLATES = [
 
 export async function readResource(
   uri: string,
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext,
   maxMediaBytes?: number

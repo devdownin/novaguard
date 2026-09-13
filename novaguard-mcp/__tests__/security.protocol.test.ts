@@ -1,5 +1,6 @@
 import { NovaGuardMcpServer } from '../server';
 import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { InMemoryNovaGuardApi } from '../testing/inMemoryApi';
 import { Sanitizer } from '../security/sanitizer';
 import { Authenticator } from '../security/authentication';
 import { LATEST_PROTOCOL_VERSION } from '../protocol';
@@ -129,12 +130,10 @@ describe('NovaGuard MCP security', () => {
     // everyone, loopback included, and the HTTP transport's /status route
     // could only ever return 500.
     const server = new NovaGuardMcpServer({
-      client: new NovaGuardReadApiClient({
-        mockDataSource: {
-          surveillanceActive: true, camera: 'Arrière (1×)', lastDetectionAt: null,
-          detectionsToday: 0, storage: { free: 1_000, total: 2_000 },
-          settings: {} as any, events: [],
-        },
+      client: new InMemoryNovaGuardApi({
+        surveillanceActive: true, camera: 'Arrière (1×)', lastDetectionAt: null,
+        detectionsToday: 0, storage: { free: 1_000, total: 2_000 },
+        settings: {} as any, events: [],
       }),
     });
 

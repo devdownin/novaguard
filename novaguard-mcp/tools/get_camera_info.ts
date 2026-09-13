@@ -1,4 +1,4 @@
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { CameraInfoDto } from '../types';
@@ -14,7 +14,7 @@ export const getCameraInfoToolDefinition = {
 };
 
 export async function handleGetCameraInfo(
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext,
   _args: Record<string, any>

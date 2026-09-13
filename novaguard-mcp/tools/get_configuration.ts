@@ -1,4 +1,4 @@
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { Sanitizer } from '../security/sanitizer';
@@ -15,7 +15,7 @@ export const getConfigurationToolDefinition = {
 };
 
 export async function handleGetConfiguration(
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext,
   _args: Record<string, any>

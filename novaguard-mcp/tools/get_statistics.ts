@@ -1,4 +1,4 @@
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { StatisticsParams, StatisticsResultDto } from '../types';
@@ -19,7 +19,7 @@ export const getStatisticsToolDefinition = {
 };
 
 export async function handleGetStatistics(
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext,
   args: StatisticsParams

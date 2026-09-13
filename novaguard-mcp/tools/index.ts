@@ -6,7 +6,7 @@ import { getStatisticsToolDefinition, handleGetStatistics } from './get_statisti
 import { getStorageToolDefinition, handleGetStorage } from './get_storage';
 import { getConfigurationToolDefinition, handleGetConfiguration } from './get_configuration';
 import { getCameraInfoToolDefinition, handleGetCameraInfo } from './get_camera_info';
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { validateArguments, ToolInputSchema } from './validateArguments';
@@ -95,7 +95,7 @@ export function assertNotForbidden(name: string): void {
 export async function executeToolCall(
   name: string,
   args: Record<string, any> = {},
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext
 ): Promise<any> {

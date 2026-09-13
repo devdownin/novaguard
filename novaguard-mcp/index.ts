@@ -1,4 +1,7 @@
 export * from './types';
+export * from './api';
+export * from './protocol';
+export * from './calendar';
 export * from './client/NovaGuardReadApiClient';
 export * from './security/authentication';
 export * from './security/authorization';

@@ -52,6 +52,30 @@ it('generates and clears MCP token', async () => {
   expect(handle.state.settings.mcpToken).toBe('');
 });
 
+it('forgets a setting this version no longer has', async () => {
+  // Hydration merged the stored object over the defaults, which covers a field
+  // added since — but kept every field *removed* since, so it stayed in state
+  // and was written back on the next save, outliving the code that read it.
+  // `mcpReadOnly` was one: dead in the type and still on disk. Without this, a
+  // setting can only ever be ignored, never deleted.
+  await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({
+    ...defaultSettings,
+    night: !defaultSettings.night,
+    mcpReadOnly: true,
+    somethingRemovedLongAgo: 'x',
+  }));
+
+  const handle = await mountProvider();
+
+  // What the older version did set is still honoured.
+  expect(handle.state.settings.night).toBe(!defaultSettings.night);
+  expect(handle.state.settings).not.toHaveProperty('mcpReadOnly');
+
+  await ReactTestRenderer.act(async () => { handle.state.toggleNight(); });
+  const written = await storedSettings();
+  expect(Object.keys(written).sort()).toEqual(Object.keys(defaultSettings).sort());
+});
+
 it('persists every settings field, not just the one that changed', async () => {
   const { state } = await mountProvider();
 

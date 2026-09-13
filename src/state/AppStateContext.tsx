@@ -325,6 +325,26 @@ const QUALITY_OPTIONS: Quality[] = ['720p', '1080p', '4K'];
 export const RESUME_ARM_MS = 8000;
 
 /**
+ * Reconciles what is on disk with what this version knows about.
+ *
+ * Both directions matter, and only one of them used to. A settings object
+ * written by an older version is **missing** every field added since, so the
+ * defaults have to sit underneath — that part was always here. But it also
+ * **carries** every field since removed, and a plain spread kept those: they
+ * stayed in state, were written back on the next save, and outlived the code
+ * that read them. Keeping only keys the defaults name settles both, and is
+ * what lets a setting actually be deleted rather than merely ignored.
+ */
+export function mergeStoredSettings(stored: Partial<Settings>): Settings {
+  const merged = { ...defaultSettings };
+  for (const key of Object.keys(defaultSettings) as (keyof Settings)[]) {
+    const value = stored[key];
+    if (value !== undefined) (merged as Record<string, unknown>)[key] = value;
+  }
+  return merged;
+}
+
+/**
  * How often the native MCP server's own counters are read back.
  *
  * Two seconds is a Setup screen refreshing a "last request" line, not a
@@ -468,10 +488,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       ]);
       if (cancelled) return;
       autoTuneSeedsRef.current = seeds;
-      // Merged over the defaults rather than used as-is: a settings object
-      // written by an older version is missing every field added since, and
-      // spreading it whole would leave those undefined.
-      const restored = s ? { ...defaultSettings, ...s } : defaultSettings;
+      const restored = s ? mergeStoredSettings(s) : defaultSettings;
       setSettings(restored);
       const ev = storedEvents.value;
       if (ev) {

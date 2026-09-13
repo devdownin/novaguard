@@ -556,9 +556,31 @@ toute la bibliothèque. Ce qui peut détruire quelque chose lit à travers
 clé qu'il n'a pas su lire.
 
 **Les frontières de jour se calculent en jours calendaires**, via
-`startOfDayBefore`. Soustraire 86 400 000 ms décale d'une heure aux changements
-d'heure, et c'est la rétention — donc une suppression — qui en dépend.
-`jest.config.js` fixe `TZ=Europe/Paris` pour que ces tests puissent échouer.
+`startOfDayBefore` — et `novaguard-mcp/calendar.ts` pour les ressources MCP,
+qui les calculaient en UTC pour la timeline et en local pour les statistiques,
+donc pas le même jour d'une ressource à l'autre ni vis-à-vis du serveur natif.
+Soustraire 86 400 000 ms ne décale pas d'une heure mais peut changer de jour :
+au 31 mars 2025, le 30 ne dure que 23 h, donc le retrait naïf atterrit sur le 29.
+C'est la rétention — donc une suppression — qui en dépend. `jest.config.js` fixe
+`TZ=Europe/Paris` pour que ces tests puissent échouer ; sous UTC, minuit local et
+minuit UTC sont le même instant et tout passe.
+
+**Ce que les défauts ne nomment pas ne survit pas à l'hydratation.** La fusion
+pose l'objet stocké **par-dessus** `defaultSettings`, ce qui couvre un champ
+ajouté depuis. Elle gardait aussi tout champ *retiré* depuis : il restait dans
+l'état, était réécrit à la sauvegarde suivante et survivait au code qui le
+lisait, si bien qu'un réglage ne pouvait qu'être ignoré, jamais supprimé.
+`mergeStoredSettings` ne retient que les clés des défauts.
+
+**Une fixture n'a rien à faire dans une classe de production.** Le client MCP
+Node portait le chemin HTTP et une branche répondant depuis un jeu de données
+factice, testée en tête de chaque méthode : un objet livrable avec un
+interrupteur qui lui fait servir des évènements de surveillance inventés, et une
+suite qui ne prenait que cette branche — donc le chemin qui tourne réellement
+n'était presque pas exercé. `NovaGuardReadApi` est le contrat, le client n'est
+que le transport, `InMemoryNovaGuardApi` vit sous `testing/`, et les bornes de
+requête sont partagées (`queryGuards.ts`) : une fixture plus permissive que
+l'appareil est un test qui ne prouve rien.
 
 **Un réglage se vérifie de bout en bout.** Ce dépôt a déjà livré une section
 NOTIFICATIONS entièrement inerte. Un réglage doit être exposé, persisté *et*

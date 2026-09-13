@@ -1,4 +1,4 @@
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { SearchEventsParams, SearchEventsResultDto } from '../types';
@@ -23,7 +23,7 @@ export const searchEventsToolDefinition = {
 };
 
 export async function handleSearchEvents(
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext,
   args: SearchEventsParams

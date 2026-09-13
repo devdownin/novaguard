@@ -1,5 +1,5 @@
 import { NovaGuardMcpServer } from '../server';
-import { NovaGuardReadApiClient, NovaGuardMockDataSource } from '../client/NovaGuardReadApiClient';
+import { InMemoryNovaGuardApi, NovaGuardMockDataSource } from '../testing/inMemoryApi';
 
 // Every request in this suite stands for a caller on the device. A transport
 // has to name its peer — `authenticate` refuses to read a missing address as
@@ -68,7 +68,7 @@ describe('NovaGuard MCP - Security Tests', () => {
     };
 
     server = new NovaGuardMcpServer({
-      client: new NovaGuardReadApiClient({ mockDataSource: mockData }),
+      client: new InMemoryNovaGuardApi(mockData),
     });
   });
 

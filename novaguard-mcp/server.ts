@@ -1,5 +1,6 @@
 import dns from 'dns/promises';
 import net from 'net';
+import { NovaGuardReadApi } from './api';
 import { NovaGuardReadApiClient } from './client/NovaGuardReadApiClient';
 import { Authenticator, SecurityContext } from './security/authentication';
 import { Authorizer } from './security/authorization';
@@ -9,7 +10,7 @@ import { ALL_RESOURCES, ALL_RESOURCE_TEMPLATES, readResource } from './resources
 import { LATEST_PROTOCOL_VERSION, negotiateProtocolVersion } from './protocol';
 import { McpError, McpErrorCode } from './types';
 
-export interface McpServerOptions { client?: NovaGuardReadApiClient; authenticator?: Authenticator; authorizer?: Authorizer; auditLogger?: AuditLogger; maxThumbnailBytes?: number; maxVideoBytes?: number; }
+export interface McpServerOptions { client?: NovaGuardReadApi; authenticator?: Authenticator; authorizer?: Authorizer; auditLogger?: AuditLogger; maxThumbnailBytes?: number; maxVideoBytes?: number; }
 export interface JsonRpcRequest { jsonrpc: '2.0'; id?: string | number | null; method: string; params?: any; }
 export interface JsonRpcResponse { jsonrpc: '2.0'; id?: string | number | null; result?: any; error?: { code: number; message: string; data?: any }; }
 const MAX_REDIRECTS = 3;
@@ -199,7 +200,7 @@ async function secureFetch(fetchFn: typeof fetch, rawUrl: string, init: RequestI
 }
 
 export class NovaGuardMcpServer {
-  public readonly client: NovaGuardReadApiClient;
+  public readonly client: NovaGuardReadApi;
   public readonly authenticator: Authenticator;
   public readonly authorizer: Authorizer;
   public readonly auditLogger: AuditLogger;
@@ -214,10 +215,12 @@ export class NovaGuardMcpServer {
     this.auditLogger = options.auditLogger || new AuditLogger();
     this.maxThumbnailBytes = options.maxThumbnailBytes ?? 2 * 1024 * 1024;
     this.maxVideoBytes = options.maxVideoBytes ?? 20 * 1024 * 1024;
-    this.client.guardRequests(guardedFetch);
+    // Absent on an implementation with no network reach: nothing leaves the
+    // process, so there is nothing to wrap.
+    this.client.guardRequests?.(guardedFetch);
   }
 
-  private validateClientEndpoint(client: NovaGuardReadApiClient): void {
+  private validateClientEndpoint(client: NovaGuardReadApi): void {
     const baseUrl = client.endpoint;
     if (!baseUrl) return;
     let parsed: URL;

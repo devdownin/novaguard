@@ -1,4 +1,4 @@
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { DetectionEventDto, McpError } from '../types';
@@ -17,7 +17,7 @@ export const getEventToolDefinition = {
 };
 
 export async function handleGetEvent(
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext,
   args: { eventId: number }

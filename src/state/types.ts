@@ -180,7 +180,6 @@ export interface Settings {
   mcpEnabled: boolean;
   mcpPort: number;
   mcpToken: string;
-  mcpReadOnly: boolean;
   exp: ExpandedSections;
 }
 
