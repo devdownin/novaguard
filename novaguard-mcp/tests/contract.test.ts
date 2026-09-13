@@ -2,6 +2,11 @@ import { NovaGuardMcpServer } from '../server';
 import { NovaGuardReadApiClient, NovaGuardMockDataSource } from '../client/NovaGuardReadApiClient';
 import { Authenticator } from '../security/authentication';
 
+// Every request in this suite stands for a caller on the device. A transport
+// has to name its peer — `authenticate` refuses to read a missing address as
+// local — so these tests name it, exactly as the stdio and HTTP runners do.
+const LOOPBACK = '127.0.0.1';
+
 describe('NovaGuard MCP - Contract Tests', () => {
   let server: NovaGuardMcpServer;
   let client: NovaGuardReadApiClient;
@@ -70,7 +75,16 @@ describe('NovaGuard MCP - Contract Tests', () => {
       jsonrpc: '2.0',
       id: 1,
       method: 'initialize',
-    });
+      // `initialize` params are required by the protocol, and the server
+      // enforces it. The test used to omit them and assert on `res.result`,
+      // so it could only pass against a server that accepted a handshake no
+      // conforming client sends.
+      params: {
+        protocolVersion: '2026-07-28',
+        capabilities: {},
+        clientInfo: { name: 'contract-test', version: '1.0.0' },
+      },
+    }, undefined, LOOPBACK);
 
     expect(res.result.protocolVersion).toBe('2026-07-28');
     expect(res.result.capabilities.tools).toEqual({ listChanged: false });
@@ -83,7 +97,7 @@ describe('NovaGuard MCP - Contract Tests', () => {
       id: 2,
       method: 'tools/call',
       params: { name: 'novaguard.get_status' },
-    });
+    }, undefined, LOOPBACK);
 
     const data = JSON.parse(res.result.content[0].text);
     expect(data.surveillanceActive).toBe(true);
@@ -105,7 +119,7 @@ describe('NovaGuard MCP - Contract Tests', () => {
           limit: 10,
         },
       },
-    });
+    }, undefined, LOOPBACK);
 
     const data = JSON.parse(res.result.content[0].text);
     expect(data.events.length).toBe(1);
@@ -127,7 +141,7 @@ describe('NovaGuard MCP - Contract Tests', () => {
         name: 'novaguard.search_events',
         arguments: { from, to },
       },
-    });
+    }, undefined, LOOPBACK);
 
     expect(res.error).toBeDefined();
     expect(res.error?.message).toContain('NOVAGUARD_RANGE_TOO_LARGE');
@@ -142,7 +156,7 @@ describe('NovaGuard MCP - Contract Tests', () => {
         name: 'novaguard.get_event',
         arguments: { eventId: 1043 },
       },
-    });
+    }, undefined, LOOPBACK);
 
     const data = JSON.parse(res.result.content[0].text);
     expect(data.id).toBe(1043);
@@ -160,7 +174,7 @@ describe('NovaGuard MCP - Contract Tests', () => {
         name: 'novaguard.get_event',
         arguments: { eventId: 9999 },
       },
-    });
+    }, undefined, LOOPBACK);
 
     expect(res.error).toBeDefined();
     expect(res.error?.message).toContain('NOVAGUARD_NOT_FOUND');
@@ -172,7 +186,7 @@ describe('NovaGuard MCP - Contract Tests', () => {
       id: 7,
       method: 'resources/read',
       params: { uri: 'novaguard://video/1042' },
-    });
+    }, undefined, LOOPBACK);
 
     expect(res.result.contents[0].mimeType).toBe('video/mp4');
     expect(res.result.contents[0].blob).toBe(Buffer.from('video-1042').toString('base64'));
@@ -184,7 +198,7 @@ describe('NovaGuard MCP - Contract Tests', () => {
       id: 8,
       method: 'resources/read',
       params: { uri: 'novaguard://video/1043' },
-    });
+    }, undefined, LOOPBACK);
 
     expect(res.error).toBeDefined();
     expect(res.error?.message).toContain('NOVAGUARD_MEDIA_UNAVAILABLE');
@@ -206,7 +220,7 @@ describe('NovaGuard MCP - Contract Tests', () => {
 
   test('authorization failure when media read scope is missing', async () => {
     const authenticator = new Authenticator();
-    authenticator.registerToken('limited-token', {
+    authenticator.registerToken('limited-token-abcdef', {
       principal: 'limited-user',
       scopes: ['novaguard:events:read'], // missing novaguard:media:read
       isLoopback: false,
@@ -216,7 +230,7 @@ describe('NovaGuard MCP - Contract Tests', () => {
 
     const res = await authServer.handleJsonRpcRequest(
       { jsonrpc: '2.0', id: 10, method: 'resources/read', params: { uri: 'novaguard://video/1042' } },
-      'Bearer limited-token',
+      'Bearer limited-token-abcdef',
       '192.168.1.50'
     );
 

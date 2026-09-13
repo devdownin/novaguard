@@ -1,6 +1,13 @@
 import { McpError } from '../types';
 
 export const MCP_SCOPES = [
+  // The umbrella scope `mcp.md` §13 calls the preferred one. It belongs in this
+  // list because `defaultLoopbackScopes` and the bearer-token path both grant
+  // `MCP_SCOPES` wholesale, while `get_status`, `get_storage` and
+  // `novaguard://status` require the umbrella and nothing else. Leaving it out
+  // made those three unreachable for every principal, loopback included: no
+  // scope set a caller could hold satisfied them.
+  'novaguard:read',
   'novaguard:status',
   'novaguard:events',
   'novaguard:statistics',
@@ -9,6 +16,18 @@ export const MCP_SCOPES = [
 ] as const;
 
 export type McpScope = (typeof MCP_SCOPES)[number];
+
+/**
+ * The peer address a stdio transport reports.
+ *
+ * Stdio has no socket and therefore no peer to read an address from, but it is
+ * local by construction: the pipe's other end is a process this device already
+ * started. `authenticate` refuses to infer that from an absent address — a
+ * transport that cannot name its peer proves nothing — so the stdio runner
+ * states it. Without this every stdio call, `tools/list` included, failed with
+ * NOVAGUARD_AUTH_REQUIRED.
+ */
+export const STDIO_PEER_ADDRESS = '127.0.0.1';
 
 export interface SecurityContext {
   principal: string;
@@ -67,6 +86,11 @@ export class Authenticator {
     return this.validTokens.delete(token);
   }
 
+  /**
+   * A missing `remoteAddress` is deliberately NOT loopback: a transport that
+   * cannot name its peer has not proven the peer is local. Transports that are
+   * local by construction say so — see STDIO_PEER_ADDRESS.
+   */
   public authenticate(authHeader: string | undefined, remoteAddress?: string): SecurityContext {
     const isLoopback =
       remoteAddress === '127.0.0.1' ||

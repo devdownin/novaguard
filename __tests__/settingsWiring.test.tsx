@@ -43,7 +43,7 @@ it('generates and clears MCP token', async () => {
   expect(handle.state.settings.mcpToken).toBe('');
 
   await ReactTestRenderer.act(async () => { handle.state.generateMcpToken(); });
-  expect(handle.state.settings.mcpToken).toMatch(/^mcp_[A-Za-z0-9]{24}$/);
+  expect(handle.state.settings.mcpToken).toMatch(/^mcp_[A-Za-z0-9]{32}$/);
 
   const written = await storedSettings();
   expect(written.mcpToken).toBe(handle.state.settings.mcpToken);

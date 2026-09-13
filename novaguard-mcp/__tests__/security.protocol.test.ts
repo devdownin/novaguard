@@ -77,19 +77,51 @@ describe('NovaGuard MCP security', () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
+  // Both tests below called registerToken(token, principal, scopes) and
+  // authenticate(address, token) — neither signature exists, so they could
+  // never pass and they were the two `tsc` errors on this tree. Rewritten
+  // against the real API, keeping what they were plainly meant to assert.
+
   it('rejects revoked authentication tokens', () => {
     const authenticator = new Authenticator();
     const token = 'test-token-123456';
-    authenticator.registerToken(token, 'test-client', ['novaguard:status']);
+    authenticator.registerToken(token, { principal: 'test-client', scopes: ['novaguard:status'], isLoopback: false });
     authenticator.revokeToken(token);
-    expect(() => authenticator.authenticate('192.0.2.10', token)).toThrow('Invalid authentication token');
+    expect(() => authenticator.authenticate(`Bearer ${token}`, '192.0.2.10')).toThrow('Authentication token is required for non-loopback connections');
   });
 
-  it('rejects insufficient scopes', () => {
+  it('grants a registered token exactly the scopes it was given', () => {
     const authenticator = new Authenticator();
     const token = 'test-token-123456';
-    authenticator.registerToken(token, 'test-client', ['novaguard:status']);
-    const context = authenticator.authenticate('192.0.2.10', token);
+    authenticator.registerToken(token, { principal: 'test-client', scopes: ['novaguard:status'], isLoopback: false });
+    const context = authenticator.authenticate(`Bearer ${token}`, '192.0.2.10');
     expect(context.scopes).toEqual(['novaguard:status']);
+    expect(context.principal).toBe('test-client');
+  });
+
+  it('grants the umbrella scope on loopback so status is reachable', async () => {
+    // Regression: `get_status`, `get_storage` and `novaguard://status` require
+    // `novaguard:read`, which no principal could hold — the scope was missing
+    // from MCP_SCOPES, so the three of them answered AUTH_FORBIDDEN to
+    // everyone, loopback included, and the HTTP transport's /status route
+    // could only ever return 500.
+    const server = new NovaGuardMcpServer({
+      client: new NovaGuardReadApiClient({
+        mockDataSource: {
+          surveillanceActive: true, camera: 'Arrière (1×)', lastDetectionAt: null,
+          detectionsToday: 0, storage: { free: 1_000, total: 2_000 },
+          settings: {} as any, events: [],
+        },
+      }),
+    });
+
+    for (const req of [
+      { jsonrpc: '2.0' as const, id: 1, method: 'tools/call', params: { name: 'novaguard.get_status', arguments: {} } },
+      { jsonrpc: '2.0' as const, id: 2, method: 'tools/call', params: { name: 'novaguard.get_storage', arguments: {} } },
+      { jsonrpc: '2.0' as const, id: 3, method: 'resources/read', params: { uri: 'novaguard://status' } },
+    ]) {
+      const res = await server.handleJsonRpcRequest(req, undefined, '127.0.0.1');
+      expect(res.error).toBeUndefined();
+    }
   });
 });

@@ -481,6 +481,32 @@ glisse — c'est le retour. Une seule vibration existe dans l'application, sur
 démarrage/arrêt de la surveillance, et elle coûte `VIBRATE` au manifeste :
 `src/utils/haptics.ts` est toute la justification de cette ligne.
 
+**Le serveur MCP qui tourne est celui en Kotlin.** `novaguard-mcp/` est du Node —
+`http`, `dns`, `net`, `Buffer` — donc il ne peut pas s'exécuter dans Hermes et ne
+pouvait pas être ce que l'interrupteur de Setup allumait ; il ne l'allumait rien,
+et la section a vécu inerte comme NOTIFICATIONS avant elle. Le serveur de
+l'appareil est `android/…/surveillance/McpServerModule.kt`, et il répond depuis un
+**instantané** que `AppStateContext` pousse quand l'historique ou les réglages
+changent — jamais depuis le chemin d'image : une requête ne doit pas coûter une
+image à l'analyse, ni l'analyse bloquer une requête. Les chemins de fichiers
+traversent le pont parce qu'il faut ouvrir le clip, et ne repartent jamais :
+`McpEvent.toJson` construit son objet champ par champ, la configuration est
+**reconstruite** à partir d'une liste de clés plutôt que filtrée — un décapage ne
+retire que les clés auxquelles on a déjà pensé, et `localStreamPin` vit dans le
+même objet. Deux règles de déploiement portent le reste : **sans jeton, la socket
+reste sur loopback** (c'est le jeton qui achète le Wi-Fi), et un média est refusé
+s'il ne se canonicalise pas sous `filesDir`. Côté protocole, trois choses ne
+doivent pas être reperdues, parce qu'elles décident si un client se connecte : la
+version se **négocie** (l'imposer rejette tout client qui ne connaît pas déjà la
+chaîne privée du serveur), une notification JSON-RPC ne reçoit **pas** de réponse
+— `notifications/initialized` est la première trame après la poignée de main —, et
+`resources/list` rend des ressources concrètes quand `resources/templates/list`
+rend les gabarits. Enfin les outils sont nommés `novaguard_*` : le point de
+`mcp.md` est hors du motif que l'API Claude accepte, donc un catalogue pointé est
+un catalogue qu'aucun client ne charge ; la forme pointée reste acceptée à
+l'appel. Le Kotlin n'est compilé par aucun garde-fou de PR ordinaire — `check` ne
+lance pas Gradle — donc il se vérifie en construisant un APK.
+
 **Un clip sans événement est une vidéo perdue.** Le sort d'un enregistrement est
 exhaustif (`clipOutcome`) : rattaché, gardé comme événement sans fichier, ou
 supprimé. Il n'y a pas de quatrième issue, et il ne doit pas y en avoir.

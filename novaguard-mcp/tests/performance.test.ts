@@ -1,6 +1,11 @@
 import { NovaGuardMcpServer } from '../server';
 import { NovaGuardReadApiClient, RawEvent, NovaGuardMockDataSource } from '../client/NovaGuardReadApiClient';
 
+// Every request in this suite stands for a caller on the device. A transport
+// has to name its peer — `authenticate` refuses to read a missing address as
+// local — so these tests name it, exactly as the stdio and HTTP runners do.
+const LOOPBACK = '127.0.0.1';
+
 describe('NovaGuard MCP - Performance Tests', () => {
   let server: NovaGuardMcpServer;
 
@@ -72,7 +77,7 @@ describe('NovaGuard MCP - Performance Tests', () => {
           offset: 100,
         },
       },
-    });
+    }, undefined, LOOPBACK);
 
     const duration = Date.now() - startTime;
     expect(res.error).toBeUndefined();
@@ -102,7 +107,7 @@ describe('NovaGuard MCP - Performance Tests', () => {
           groupBy: 'kind',
         },
       },
-    });
+    }, undefined, LOOPBACK);
 
     const duration = Date.now() - startTime;
     expect(res.error).toBeUndefined();

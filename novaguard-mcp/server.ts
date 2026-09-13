@@ -86,11 +86,19 @@ function isLoopbackHost(hostname: string): boolean {
 async function validateUpstreamUrl(rawUrl: string, expectedOrigin?: string): Promise<URL> {
   let url: URL;
   try { url = new URL(rawUrl); } catch { throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Invalid upstream URL', 503); }
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || (url.port && !['80', '443'].includes(url.port))) {
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
     throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Blocked upstream URL', 503);
   }
   const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   const loopbackHost = isLoopbackHost(hostname);
+  // A loopback peer may listen anywhere: NovaGuard's own read API is a port
+  // above 1024 on the device, never 80. Restricting every host to 80/443
+  // blocked the only endpoint `validateClientEndpoint` accepts, so no request
+  // could leave at all. Off-device hosts keep the restriction, where it does
+  // what it was for — refusing a redirect to some other service's port.
+  if (!loopbackHost && url.port && !['80', '443'].includes(url.port)) {
+    throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Blocked upstream port', 503);
+  }
   if (hostname === 'metadata.google.internal' || hostname === 'metadata' || hostname.endsWith('.internal')) {
     throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Blocked upstream hostname', 503);
   }
