@@ -62,7 +62,7 @@ function isBlockedIp(ip: string): boolean {
       (a === 192 && b === 168) ||
       (a === 192 && b === 0 && ((n >>> 8) & 0xff) === 0) ||
       (a === 198 && b >= 18 && b <= 19) ||
-      (a === 198 && b === 51 && ((n >>> 0) & 0xff) === 100) ||
+      (a === 198 && b === 51 && (n & 0xff) === 100) ||
       (a === 203 && b === 0 && ((n >>> 8) & 0xff) === 113) ||
       a >= 224;
   }
@@ -72,30 +72,33 @@ function isBlockedIp(ip: string): boolean {
     const top10 = Number(n >> 118n);
     const top32 = Number(n >> 96n);
     const mappedV4 = top32 === 0x0000ffff ? Number(n & 0xffffffffn) : null;
-    return n === 0n || n === 1n || top10 === 0b1111110000 ||
-      (top8 >= 0xfe && top8 <= 0xfe && Number(n >> 118n) === 0b1111111010) ||
-      top8 === 0xff ||
-      (Number(n >> 96n) === 0x20010db8) ||
+    return n === 0n || n === 1n || top10 === 0b1111110000 || top10 === 0b1111111010 ||
+      top8 === 0xff || Number(n >> 96n) === 0x20010db8 ||
       (mappedV4 !== null && isBlockedIp(`${mappedV4 >>> 24}.${(mappedV4 >>> 16) & 255}.${(mappedV4 >>> 8) & 255}.${mappedV4 & 255}`));
   }
   return true;
 }
 
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname.endsWith('.localhost') || hostname === '127.0.0.1' || hostname === '::1' || hostname === '::ffff:127.0.0.1';
+}
+
 async function validateUpstreamUrl(rawUrl: string, expectedOrigin?: string): Promise<URL> {
   let url: URL;
   try { url = new URL(rawUrl); } catch { throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Invalid upstream URL', 503); }
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.port && !['80', '443'].includes(url.port)) {
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || (url.port && !['80', '443'].includes(url.port))) {
     throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Blocked upstream URL', 503);
   }
   const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
-  if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname === 'metadata.google.internal') {
+  const loopbackHost = isLoopbackHost(hostname);
+  if (hostname === 'metadata.google.internal' || hostname === 'metadata' || hostname.endsWith('.internal')) {
     throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Blocked upstream hostname', 503);
   }
-  if (net.isIP(hostname) && isBlockedIp(hostname)) {
+  if (net.isIP(hostname) && !loopbackHost && isBlockedIp(hostname)) {
     throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Blocked upstream IP address', 503);
   }
   const records = await dns.lookup(hostname, { all: true, verbatim: true });
-  if (!records.length || records.some(record => isBlockedIp(record.address))) {
+  if (!records.length || (!loopbackHost && records.some(record => isBlockedIp(record.address)))) {
     throw new McpError('NOVAGUARD_DEVICE_UNAVAILABLE', 'Blocked upstream DNS resolution', 503);
   }
   if (expectedOrigin && url.origin !== expectedOrigin) {
