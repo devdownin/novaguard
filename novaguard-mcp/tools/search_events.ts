@@ -1,10 +1,10 @@
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { SearchEventsParams, SearchEventsResultDto } from '../types';
 
 export const searchEventsToolDefinition = {
-  name: 'novaguard.search_events',
+  name: 'novaguard_search_events',
   description: 'Primary surveillance-history query with pagination and time filters.',
   inputSchema: {
     type: 'object',
@@ -23,7 +23,7 @@ export const searchEventsToolDefinition = {
 };
 
 export async function handleSearchEvents(
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext,
   args: SearchEventsParams

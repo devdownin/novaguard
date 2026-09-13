@@ -1,10 +1,10 @@
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { StorageDetailDto } from '../types';
 
 export const getStorageToolDefinition = {
-  name: 'novaguard.get_storage',
+  name: 'novaguard_get_storage',
   description: 'Returns measured storage information including used, free, total bytes and count of events and videos.',
   inputSchema: {
     type: 'object',
@@ -14,7 +14,7 @@ export const getStorageToolDefinition = {
 };
 
 export async function handleGetStorage(
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext,
   _args: Record<string, any>

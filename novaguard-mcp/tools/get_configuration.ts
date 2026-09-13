@@ -1,11 +1,11 @@
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { Sanitizer } from '../security/sanitizer';
 import { ConfigurationDto } from '../types';
 
 export const getConfigurationToolDefinition = {
-  name: 'novaguard.get_configuration',
+  name: 'novaguard_get_configuration',
   description: 'Returns safe diagnostic configuration parameters (camera, detection settings, recording quality, retention, and notification state).',
   inputSchema: {
     type: 'object',
@@ -15,7 +15,7 @@ export const getConfigurationToolDefinition = {
 };
 
 export async function handleGetConfiguration(
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext,
   _args: Record<string, any>

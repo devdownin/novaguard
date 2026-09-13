@@ -1,10 +1,10 @@
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { StatusDto } from '../types';
 
 export const getStatusToolDefinition = {
-  name: 'novaguard.get_status',
+  name: 'novaguard_get_status',
   description: 'Returns high-level surveillance status (active state, camera, last detection time, today detection count, and storage summary).',
   inputSchema: {
     type: 'object',
@@ -14,7 +14,7 @@ export const getStatusToolDefinition = {
 };
 
 export async function handleGetStatus(
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext,
   _args: Record<string, any>

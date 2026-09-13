@@ -37,6 +37,10 @@ import {
 import {
   LocalServerStatus, startLocalStreamServer, stopLocalStreamServer,
 } from '../surveillance/localStreamServer';
+import {
+  McpServerStatus, MCP_SERVER_STOPPED, generateMcpToken as mintMcpToken,
+  getMcpServerStatus, pushMcpSnapshot, startMcpServer, stopMcpServer,
+} from '../surveillance/mcpServer';
 import { alertContent, shouldAlert } from '../surveillance/alerts';
 import { installFrameErrorGuard } from '../camera/frameErrorGuard';
 import { FRAME_ERROR_PREFIX } from '../camera/frameErrors';
@@ -195,8 +199,8 @@ interface AppStateValue {
   toggleMcpServer: () => void;
   generateMcpToken: () => void;
   clearMcpToken: () => void;
-  mcpLastActivity: number | null;
-  reportMcpActivity: () => void;
+  /** Live state of the native MCP server, or MCP_SERVER_STOPPED when it is off. */
+  mcpStatus: McpServerStatus;
   /** Sound and vibration live in Android's channel settings, not here. */
   openAlertSoundSettings: () => void;
   wipeAllVideos: () => void;
@@ -319,6 +323,35 @@ const QUALITY_OPTIONS: Quality[] = ['720p', '1080p', '4K'];
  * point: `resumeOnLaunch` replaying a crash is what made this app unopenable.
  */
 export const RESUME_ARM_MS = 8000;
+
+/**
+ * Reconciles what is on disk with what this version knows about.
+ *
+ * Both directions matter, and only one of them used to. A settings object
+ * written by an older version is **missing** every field added since, so the
+ * defaults have to sit underneath — that part was always here. But it also
+ * **carries** every field since removed, and a plain spread kept those: they
+ * stayed in state, were written back on the next save, and outlived the code
+ * that read them. Keeping only keys the defaults name settles both, and is
+ * what lets a setting actually be deleted rather than merely ignored.
+ */
+export function mergeStoredSettings(stored: Partial<Settings>): Settings {
+  const merged = { ...defaultSettings };
+  for (const key of Object.keys(defaultSettings) as (keyof Settings)[]) {
+    const value = stored[key];
+    if (value !== undefined) (merged as Record<string, unknown>)[key] = value;
+  }
+  return merged;
+}
+
+/**
+ * How often the native MCP server's own counters are read back.
+ *
+ * Two seconds is a Setup screen refreshing a "last request" line, not a
+ * measurement: nothing depends on the value being current, and the interval
+ * only runs while the server is enabled.
+ */
+const MCP_STATUS_POLL_MS = 2_000;
 
 /**
  * How often free space is re-measured, and auto-delete gets a chance to run.
@@ -455,10 +488,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       ]);
       if (cancelled) return;
       autoTuneSeedsRef.current = seeds;
-      // Merged over the defaults rather than used as-is: a settings object
-      // written by an older version is missing every field added since, and
-      // spreading it whole would leave those undefined.
-      const restored = s ? { ...defaultSettings, ...s } : defaultSettings;
+      const restored = s ? mergeStoredSettings(s) : defaultSettings;
       setSettings(restored);
       const ev = storedEvents.value;
       if (ev) {
@@ -1388,22 +1418,64 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const toggleNotifDet = useCallback(() => patchSettings({ notifDet: !settings.notifDet }), [patchSettings, settings.notifDet]);
   const openAlertSoundSettings = useCallback(() => openDetectionChannelSettings(), []);
 
+  const [mcpStatus, setMcpStatus] = useState<McpServerStatus>(MCP_SERVER_STOPPED);
+
   const toggleMcpServer = useCallback(() => {
     patchSettings({ mcpEnabled: !settings.mcpEnabled });
   }, [patchSettings, settings.mcpEnabled]);
 
-  const [mcpLastActivity, setMcpLastActivity] = useState<number | null>(null);
-  const reportMcpActivity = useCallback(() => {
-    setMcpLastActivity(Date.now());
-  }, []);
+  /**
+   * Starts and stops the native server with the setting.
+   *
+   * This effect is the whole of what `mcpEnabled` means. Without it the switch
+   * wrote a value nobody read: the section announced a URL, offered a token
+   * and copied a client configuration, and no socket existed at either end of
+   * it — the inert-section failure this repository has shipped once already.
+   */
+  useEffect(() => {
+    if (!hydrated) return;
+    if (settings.mcpEnabled) {
+      startMcpServer(settings.mcpPort, settings.mcpToken).then(setMcpStatus).catch(() => {
+        setMcpStatus({ ...MCP_SERVER_STOPPED, port: settings.mcpPort });
+      });
+    } else {
+      stopMcpServer().then(() => setMcpStatus({ ...MCP_SERVER_STOPPED, port: settings.mcpPort }));
+    }
+  }, [hydrated, settings.mcpEnabled, settings.mcpPort, settings.mcpToken]);
+
+  /**
+   * Hands the server what it answers from.
+   *
+   * On the history and the settings, never on a frame: the detection path
+   * pushes nothing here, so a request cannot cost the analysis a frame and the
+   * analysis cannot cost a request a lock.
+   */
+  useEffect(() => {
+    if (!hydrated || !settings.mcpEnabled) return;
+    pushMcpSnapshot({
+      surveillanceActive: monitoring,
+      settings,
+      storage: store,
+      events,
+      detectionsToday: detToday,
+    });
+  }, [hydrated, settings, monitoring, store, events, detToday]);
+
+  /**
+   * The last time a client actually asked something.
+   *
+   * Polled rather than pushed: the count lives in the native server, which has
+   * no reason to cross the bridge on every request — and a bridge event per
+   * request is a way for a busy client to drive re-renders of the whole tree.
+   */
+  useEffect(() => {
+    if (!hydrated || !settings.mcpEnabled) return;
+    const iv = setInterval(() => { getMcpServerStatus().then(setMcpStatus).catch(() => {}); }, MCP_STATUS_POLL_MS);
+    return () => clearInterval(iv);
+  }, [hydrated, settings.mcpEnabled]);
 
   const generateMcpToken = useCallback(() => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let token = 'mcp_';
-    for (let i = 0; i < 24; i++) {
-      token += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    patchSettings({ mcpToken: token });
+    mintMcpToken().then(mcpToken => patchSettings({ mcpToken }));
   }, [patchSettings]);
 
   const clearMcpToken = useCallback(() => {
@@ -1571,7 +1643,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, cyclePost, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpLastActivity, reportMcpActivity, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo,
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
@@ -1582,7 +1654,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, cyclePost, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpLastActivity, reportMcpActivity, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo, onb, perms, onbNext, onbFinish, grantPermission,
   ]);
 

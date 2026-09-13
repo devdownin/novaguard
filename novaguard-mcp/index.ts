@@ -1,4 +1,7 @@
 export * from './types';
+export * from './api';
+export * from './protocol';
+export * from './calendar';
 export * from './client/NovaGuardReadApiClient';
 export * from './security/authentication';
 export * from './security/authorization';
@@ -12,6 +15,7 @@ export * from './transport/httpServer';
 // Stdio runner for standard MCP stdio integration when executed directly
 if (require.main === module) {
   const { NovaGuardMcpServer } = require('./server');
+  const { STDIO_PEER_ADDRESS } = require('./security/authentication');
   const readline = require('readline');
 
   const server = new NovaGuardMcpServer();
@@ -25,7 +29,9 @@ if (require.main === module) {
     if (!line.trim()) return;
     try {
       const jsonReq = JSON.parse(line);
-      const res = await server.handleJsonRpcRequest(jsonReq);
+      const res = await server.handleJsonRpcRequest(jsonReq, undefined, STDIO_PEER_ADDRESS);
+      // `null` is a notification: it carries no id and must never be answered.
+      if (!res) return;
       process.stdout.write(JSON.stringify(res) + '\n');
     } catch (err: any) {
       const errRes = {

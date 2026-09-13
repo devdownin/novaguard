@@ -1,10 +1,10 @@
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { StatisticsParams, StatisticsResultDto } from '../types';
 
 export const getStatisticsToolDefinition = {
-  name: 'novaguard.get_statistics',
+  name: 'novaguard_get_statistics',
   description: 'Returns aggregate surveillance statistics for a time period without loading raw media.',
   inputSchema: {
     type: 'object',
@@ -19,7 +19,7 @@ export const getStatisticsToolDefinition = {
 };
 
 export async function handleGetStatistics(
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext,
   args: StatisticsParams

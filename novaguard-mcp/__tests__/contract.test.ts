@@ -1,10 +1,35 @@
 import { NovaGuardMcpServer } from '../server';
-import { NovaGuardReadApiClient, NovaGuardMockDataSource } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
+import { InMemoryNovaGuardApi, NovaGuardMockDataSource } from '../testing/inMemoryApi';
 import { Authenticator } from '../security/authentication';
+
+// Every request in this suite stands for a caller on the device. A transport
+// has to name its peer — `authenticate` refuses to read a missing address as
+// local — so these tests name it, exactly as the stdio and HTTP runners do.
+const LOOPBACK = '127.0.0.1';
+
+/**
+ * Sends a request and asserts a response came back.
+ *
+ * `handleJsonRpcRequest` answers `null` to a notification, which is the point
+ * of it. Every request in this suite carries an id, so a `null` here is the
+ * server having mistaken one for the other.
+ */
+async function send(
+  target: NovaGuardMcpServer,
+  req: any,
+  auth?: string,
+  remote: string | undefined = LOOPBACK,
+) {
+  const res = await target.handleJsonRpcRequest(req, auth, remote);
+  if (!res) throw new Error(`No response for ${req?.method} — treated as a notification?`);
+  return res;
+}
+
 
 describe('NovaGuard MCP - Contract Tests', () => {
   let server: NovaGuardMcpServer;
-  let client: NovaGuardReadApiClient;
+  let client: NovaGuardReadApi;
   let mockData: NovaGuardMockDataSource;
 
   beforeEach(() => {
@@ -61,16 +86,25 @@ describe('NovaGuard MCP - Contract Tests', () => {
       ],
     };
 
-    client = new NovaGuardReadApiClient({ mockDataSource: mockData });
+    client = new InMemoryNovaGuardApi(mockData);
     server = new NovaGuardMcpServer({ client });
   });
 
   test('initialize returns protocol 2026-07-28 and capabilities', async () => {
-    const res = await server.handleJsonRpcRequest({
+    const res = await send(server, {
       jsonrpc: '2.0',
       id: 1,
       method: 'initialize',
-    });
+      // `initialize` params are required by the protocol, and the server
+      // enforces it. The test used to omit them and assert on `res.result`,
+      // so it could only pass against a server that accepted a handshake no
+      // conforming client sends.
+      params: {
+        protocolVersion: '2026-07-28',
+        capabilities: {},
+        clientInfo: { name: 'contract-test', version: '1.0.0' },
+      },
+    }, undefined, LOOPBACK);
 
     expect(res.result.protocolVersion).toBe('2026-07-28');
     expect(res.result.capabilities.tools).toEqual({ listChanged: false });
@@ -78,12 +112,12 @@ describe('NovaGuard MCP - Contract Tests', () => {
   });
 
   test('novaguard.get_status returns status without sensitive data', async () => {
-    const res = await server.handleJsonRpcRequest({
+    const res = await send(server, {
       jsonrpc: '2.0',
       id: 2,
       method: 'tools/call',
       params: { name: 'novaguard.get_status' },
-    });
+    }, undefined, LOOPBACK);
 
     const data = JSON.parse(res.result.content[0].text);
     expect(data.surveillanceActive).toBe(true);
@@ -94,7 +128,7 @@ describe('NovaGuard MCP - Contract Tests', () => {
   });
 
   test('novaguard.search_events filters and paginates correctly', async () => {
-    const res = await server.handleJsonRpcRequest({
+    const res = await send(server, {
       jsonrpc: '2.0',
       id: 3,
       method: 'tools/call',
@@ -105,7 +139,7 @@ describe('NovaGuard MCP - Contract Tests', () => {
           limit: 10,
         },
       },
-    });
+    }, undefined, LOOPBACK);
 
     const data = JSON.parse(res.result.content[0].text);
     expect(data.events.length).toBe(1);
@@ -115,11 +149,11 @@ describe('NovaGuard MCP - Contract Tests', () => {
     expect(data.events[0].path).toBeUndefined(); // Internal path hidden!
   });
 
-  test('novaguard.search_events rejects range greater than 90 days', async () => {
+  test('novaguard.search_events reports a range greater than 90 days to the caller', async () => {
     const from = new Date(Date.now() - 95 * 24 * 60 * 60 * 1000).toISOString();
     const to = new Date().toISOString();
 
-    const res = await server.handleJsonRpcRequest({
+    const res = await send(server, {
       jsonrpc: '2.0',
       id: 4,
       method: 'tools/call',
@@ -127,14 +161,19 @@ describe('NovaGuard MCP - Contract Tests', () => {
         name: 'novaguard.search_events',
         arguments: { from, to },
       },
-    });
+    }, undefined, LOOPBACK);
 
-    expect(res.error).toBeDefined();
-    expect(res.error?.message).toContain('NOVAGUARD_RANGE_TOO_LARGE');
+    // A tool that ran and could not answer comes back as a result carrying
+    // `isError`, not as a JSON-RPC error: the model that asked has to be able
+    // to read why and narrow its range. A transport-level failure never
+    // reaches it.
+    expect(res.error).toBeUndefined();
+    expect(res.result.isError).toBe(true);
+    expect(res.result.content[0].text).toContain('NOVAGUARD_RANGE_TOO_LARGE');
   });
 
   test('novaguard.get_event handles event without video', async () => {
-    const res = await server.handleJsonRpcRequest({
+    const res = await send(server, {
       jsonrpc: '2.0',
       id: 5,
       method: 'tools/call',
@@ -142,7 +181,7 @@ describe('NovaGuard MCP - Contract Tests', () => {
         name: 'novaguard.get_event',
         arguments: { eventId: 1043 },
       },
-    });
+    }, undefined, LOOPBACK);
 
     const data = JSON.parse(res.result.content[0].text);
     expect(data.id).toBe(1043);
@@ -151,8 +190,8 @@ describe('NovaGuard MCP - Contract Tests', () => {
     expect(data.thumbnailResourceUri).toBeNull();
   });
 
-  test('novaguard.get_event returns 404 for non-existent event', async () => {
-    const res = await server.handleJsonRpcRequest({
+  test('novaguard.get_event reports a non-existent event to the caller', async () => {
+    const res = await send(server, {
       jsonrpc: '2.0',
       id: 6,
       method: 'tools/call',
@@ -160,31 +199,34 @@ describe('NovaGuard MCP - Contract Tests', () => {
         name: 'novaguard.get_event',
         arguments: { eventId: 9999 },
       },
-    });
+    }, undefined, LOOPBACK);
 
-    expect(res.error).toBeDefined();
-    expect(res.error?.message).toContain('NOVAGUARD_NOT_FOUND');
+    // Previously a JSON-RPC -32601, which tells a client the *method* does not
+    // exist — sending it after a server bug rather than at its own event id.
+    expect(res.error).toBeUndefined();
+    expect(res.result.isError).toBe(true);
+    expect(res.result.content[0].text).toContain('NOVAGUARD_NOT_FOUND');
   });
 
   test('resources/read for video returns video content', async () => {
-    const res = await server.handleJsonRpcRequest({
+    const res = await send(server, {
       jsonrpc: '2.0',
       id: 7,
       method: 'resources/read',
       params: { uri: 'novaguard://video/1042' },
-    });
+    }, undefined, LOOPBACK);
 
     expect(res.result.contents[0].mimeType).toBe('video/mp4');
     expect(res.result.contents[0].blob).toBe(Buffer.from('video-1042').toString('base64'));
   });
 
   test('resources/read for video deleted by retention returns NOVAGUARD_MEDIA_UNAVAILABLE', async () => {
-    const res = await server.handleJsonRpcRequest({
+    const res = await send(server, {
       jsonrpc: '2.0',
       id: 8,
       method: 'resources/read',
       params: { uri: 'novaguard://video/1043' },
-    });
+    }, undefined, LOOPBACK);
 
     expect(res.error).toBeDefined();
     expect(res.error?.message).toContain('NOVAGUARD_MEDIA_UNAVAILABLE');
@@ -194,7 +236,7 @@ describe('NovaGuard MCP - Contract Tests', () => {
     const customAuth = new Authenticator({ requireAuthForNonLoopback: true });
     const authServer = new NovaGuardMcpServer({ authenticator: customAuth, client });
 
-    const res = await authServer.handleJsonRpcRequest(
+    const res = await send(authServer, 
       { jsonrpc: '2.0', id: 9, method: 'tools/list' },
       undefined,
       '192.168.1.50' // Non-loopback IP
@@ -206,7 +248,7 @@ describe('NovaGuard MCP - Contract Tests', () => {
 
   test('authorization failure when media read scope is missing', async () => {
     const authenticator = new Authenticator();
-    authenticator.registerToken('limited-token', {
+    authenticator.registerToken('limited-token-abcdef', {
       principal: 'limited-user',
       scopes: ['novaguard:events:read'], // missing novaguard:media:read
       isLoopback: false,
@@ -214,9 +256,9 @@ describe('NovaGuard MCP - Contract Tests', () => {
 
     const authServer = new NovaGuardMcpServer({ authenticator, client });
 
-    const res = await authServer.handleJsonRpcRequest(
+    const res = await send(authServer, 
       { jsonrpc: '2.0', id: 10, method: 'resources/read', params: { uri: 'novaguard://video/1042' } },
-      'Bearer limited-token',
+      'Bearer limited-token-abcdef',
       '192.168.1.50'
     );
 

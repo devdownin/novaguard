@@ -1,17 +1,18 @@
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { McpError } from '../types';
 
 export async function readThumbnailResource(
   eventIdStr: string,
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
-  context: SecurityContext
+  context: SecurityContext,
+  maxBytes?: number
 ): Promise<{ mimeType: string; blob: Buffer; uri: string }> {
   authorizer.authorize(context, ['novaguard:media', 'novaguard:read']);
   const eventId = parseInt(eventIdStr, 10);
-  const media = await client.getThumbnail(eventId);
+  const media = await client.getThumbnail(eventId, maxBytes);
 
   if (!media) {
     throw new McpError('NOVAGUARD_MEDIA_UNAVAILABLE', `Thumbnail resource for event ${eventIdStr} unavailable`, 404);

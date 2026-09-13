@@ -45,9 +45,10 @@ export function SetupScreen() {
   const [showToken, setShowToken] = React.useState(false);
   const [copiedLabel, setCopiedLabel] = React.useState<string | null>(null);
 
-  const mcpServerUrl = s.localStreamStatus.ipAddress
-    ? `http://${s.localStreamStatus.ipAddress}:${settings.mcpPort}`
-    : `http://127.0.0.1:${settings.mcpPort}`;
+  // The server's own address, not the streaming server's. Without a token it
+  // binds to loopback only, so it reports 127.0.0.1 and the row must say that
+  // rather than advertise a LAN address nothing is listening on.
+  const mcpServerUrl = s.mcpStatus.url ?? `http://127.0.0.1:${settings.mcpPort}/mcp`;
 
   const copyToClipboard = (text: string, label: string) => {
     try {
@@ -65,7 +66,7 @@ export function SetupScreen() {
       {
         mcpServers: {
           novaguard: {
-            url: `${mcpServerUrl}/mcp`,
+            url: mcpServerUrl,
             headers: settings.mcpToken ? { Authorization: `Bearer ${settings.mcpToken}` } : {},
           },
         },
@@ -422,8 +423,8 @@ export function SetupScreen() {
           <SettingRow label={t('setup.mcpLastActivity')}>
             <StaticValue
               label={
-                s.mcpLastActivity
-                  ? new Date(s.mcpLastActivity).toLocaleTimeString()
+                s.mcpStatus.lastActivityAt
+                  ? new Date(s.mcpStatus.lastActivityAt).toLocaleTimeString()
                   : t('setup.mcpLastActivity.none')
               }
             />

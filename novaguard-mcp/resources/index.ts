@@ -4,18 +4,54 @@ import { readThumbnailResource } from './thumbnail';
 import { readTimelineResource } from './timeline';
 import { readStatisticsResource } from './statistics';
 import { readStatusResource } from './status';
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { Sanitizer } from '../security/sanitizer';
 
-export const ALL_RESOURCE_TEMPLATES = [
+/**
+ * Resources that exist right now, for `resources/list`.
+ *
+ * The list used to return the templates below, whose entries carry
+ * `uriTemplate` and no `uri`. A conforming client reads `resources/list` for
+ * things it can fetch, finds nothing fetchable, and shows an empty resource
+ * list — the templates belong to `resources/templates/list`, which was not
+ * implemented at all.
+ *
+ * Only the fixed entries are here. The per-event resources are templated, and
+ * enumerating them would mean an authorised upstream query inside a listing
+ * that clients call eagerly at connection time; `novaguard_search_events` is
+ * how a client finds which event ids exist, and the template says how to name
+ * one once it has.
+ */
+export const ALL_RESOURCES = [
   {
-    uriTemplate: 'novaguard://status',
+    uri: 'novaguard://status',
     name: 'Status',
     description: 'High-level NovaGuard surveillance status',
     mimeType: 'application/json',
   },
+  {
+    uri: 'novaguard://statistics/today',
+    name: 'Statistics — today',
+    description: 'Aggregate statistics for today',
+    mimeType: 'application/json',
+  },
+  {
+    uri: 'novaguard://statistics/7d',
+    name: 'Statistics — last 7 days',
+    description: 'Aggregate statistics for the last 7 days',
+    mimeType: 'application/json',
+  },
+  {
+    uri: 'novaguard://statistics/30d',
+    name: 'Statistics — last 30 days',
+    description: 'Aggregate statistics for the last 30 days',
+    mimeType: 'application/json',
+  },
+];
+
+export const ALL_RESOURCE_TEMPLATES = [
   {
     uriTemplate: 'novaguard://event/{eventId}',
     name: 'Event Metadata',
@@ -50,9 +86,10 @@ export const ALL_RESOURCE_TEMPLATES = [
 
 export async function readResource(
   uri: string,
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
-  context: SecurityContext
+  context: SecurityContext,
+  maxMediaBytes?: number
 ): Promise<{ mimeType: string; text?: string; blob?: Buffer; uri: string }> {
   const { resourceType, param } = Sanitizer.validateResourceUri(uri);
 
@@ -66,10 +103,10 @@ export async function readResource(
       return { ...res, uri };
     }
     case 'video': {
-      return readVideoResource(param!, client, authorizer, context);
+      return readVideoResource(param!, client, authorizer, context, maxMediaBytes);
     }
     case 'thumbnail': {
-      return readThumbnailResource(param!, client, authorizer, context);
+      return readThumbnailResource(param!, client, authorizer, context, maxMediaBytes);
     }
     case 'timeline': {
       const res = await readTimelineResource(param!, client, authorizer, context);

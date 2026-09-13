@@ -1,10 +1,10 @@
-import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
+import { NovaGuardReadApi } from '../api';
 import { Authorizer } from '../security/authorization';
 import { SecurityContext } from '../security/authentication';
 import { DetectionEventDto, LatestEventsParams } from '../types';
 
 export const getLatestEventsToolDefinition = {
-  name: 'novaguard.get_latest_events',
+  name: 'novaguard_get_latest_events',
   description: 'Convenience query returning the most recent surveillance events.',
   inputSchema: {
     type: 'object',
@@ -17,7 +17,7 @@ export const getLatestEventsToolDefinition = {
 };
 
 export async function handleGetLatestEvents(
-  client: NovaGuardReadApiClient,
+  client: NovaGuardReadApi,
   authorizer: Authorizer,
   context: SecurityContext,
   args: LatestEventsParams

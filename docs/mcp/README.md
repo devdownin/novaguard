@@ -1,5 +1,11 @@
 # MCP × Kafka
 
+> Ce dossier ne documente **pas** le serveur MCP de NovaGuard. Sa spécification
+> est [`mcp.md`](../../mcp.md) à la racine ; l'implémentation qui tourne sur
+> l'appareil est `android/app/src/main/java/com/novaguard/surveillance/McpServerModule.kt`,
+> et `novaguard-mcp/` est la passerelle Node. Ce qui suit est une étude
+> sans rapport, sur les serveurs MCP pour Kafka.
+
 | Document | Contenu |
 |---|---|
 | [`ANALYSE-COMPARATIVE-MCP-KAFKA.md`](ANALYSE-COMPARATIVE-MCP-KAFKA.md) | Recensement des 13 serveurs MCP Kafka publics, comparaison des capacités et de la surface protocolaire, et ce que Kafka SQL Explorer apporte qu'aucun n'expose |

@@ -1,5 +1,6 @@
 import * as http from 'http';
 import { NovaGuardMcpServer } from '../server';
+import { LATEST_PROTOCOL_VERSION } from '../protocol';
 
 export interface HttpServerOptions {
   port?: number;
@@ -12,6 +13,12 @@ export interface HttpServerOptions {
   maxRequestsPerWindow?: number;
   rateLimitWindowMs?: number;
 }
+
+/**
+ * Ceiling on the rate-limit table. Reached only by a caller varying its source
+ * address, which is the case the cap exists for.
+ */
+const MAX_RATE_LIMIT_ENTRIES = 1_024;
 
 export class McpHttpServer {
   public readonly port: number;
@@ -34,8 +41,20 @@ export class McpHttpServer {
     this.mcpServer = options.server || new NovaGuardMcpServer();
   }
 
+  /**
+   * Rate limit, with the window table kept bounded.
+   *
+   * One entry per peer that ever connected, purged only on `stop()`, is a slow
+   * leak on a server meant to run for weeks — and a fast one for anything that
+   * can vary its source address. Expired windows are swept whenever the table
+   * grows past its cap, and if a sweep frees nothing the oldest entries go:
+   * forgetting a window is a caller getting a fresh allowance, which is the
+   * safe direction to fail when the alternative is unbounded memory.
+   */
   private isAllowed(remoteAddress: string): boolean {
     const now = Date.now();
+    if (this.requestCounts.size >= MAX_RATE_LIMIT_ENTRIES) this.evictRateLimitEntries(now);
+
     const current = this.requestCounts.get(remoteAddress);
     if (!current || current.resetAt <= now) {
       this.requestCounts.set(remoteAddress, { count: 1, resetAt: now + this.rateLimitWindowMs });
@@ -46,11 +65,61 @@ export class McpHttpServer {
     return true;
   }
 
+  private evictRateLimitEntries(now: number): void {
+    for (const [address, window] of this.requestCounts) {
+      if (window.resetAt <= now) this.requestCounts.delete(address);
+    }
+    // Map iterates in insertion order, so this drops the least recently
+    // created windows first.
+    for (const address of this.requestCounts.keys()) {
+      if (this.requestCounts.size <= MAX_RATE_LIMIT_ENTRIES / 2) break;
+      this.requestCounts.delete(address);
+    }
+  }
+
+  /**
+   * Refuses a request a browser made on some other site's behalf.
+   *
+   * `Origin` is only sent by browsers, so an absent one is an ordinary MCP
+   * client and is allowed — which is why `Host` is checked too. Together they
+   * are the DNS-rebinding defence the transport guidance asks for: a page on
+   * `evil.example` whose name has been pointed at this device reaches the
+   * socket, but arrives carrying either a foreign `Origin` or a `Host` that is
+   * not one this server answers to.
+   */
   private isAllowedOrigin(origin: string | undefined): boolean {
     if (!origin) return true;
-    return origin === `http://127.0.0.1:${this.port}` ||
-      origin === `http://localhost:${this.port}` ||
-      origin === `http://[::1]:${this.port}`;
+    return this.expectedAuthorities().some(authority => origin === `http://${authority}`);
+  }
+
+  private isAllowedHost(host: string | undefined): boolean {
+    // HTTP/1.1 requires a Host; refusing a request without one costs nothing
+    // and removes the "header absent" branch from the check below.
+    if (!host) return false;
+    return this.expectedAuthorities().includes(host.toLowerCase());
+  }
+
+  private expectedAuthorities(): string[] {
+    return [
+      `127.0.0.1:${this.port}`,
+      `localhost:${this.port}`,
+      `[::1]:${this.port}`,
+      `${this.host}:${this.port}`,
+    ];
+  }
+
+  /**
+   * A 401 has to say how to authenticate.
+   *
+   * Without `WWW-Authenticate` a client is told it is unauthorised and nothing
+   * about what would fix it: the MCP authorization spec builds its whole
+   * discovery flow on this header, so omitting it leaves a conforming client
+   * with a dead end rather than a scheme to satisfy.
+   */
+  private responseHeaders(status: number): Record<string, string> {
+    const headers: Record<string, string> = { 'MCP-Protocol-Version': LATEST_PROTOCOL_VERSION };
+    if (status === 401) headers['WWW-Authenticate'] = 'Bearer realm="NovaGuard MCP"';
+    return headers;
   }
 
   private writeJson(res: http.ServerResponse, status: number, body: unknown, extraHeaders: Record<string, string> = {}) {
@@ -74,6 +143,11 @@ export class McpHttpServer {
           return;
         }
 
+        if (!this.isAllowedHost(req.headers.host)) {
+          this.writeJson(res, 421, { error: 'Misdirected Request' });
+          return;
+        }
+
         if (!this.isAllowed(remoteAddress)) {
           this.writeJson(res, 429, { error: 'Too Many Requests' }, {
             'Retry-After': String(Math.ceil(this.rateLimitWindowMs / 1000)),
@@ -92,11 +166,11 @@ export class McpHttpServer {
             authHeader,
             remoteAddress
           );
-          const errorCode = response.error?.data?.mcpErrorCode;
-          const httpStatus = !response.error ? 200 :
+          const errorCode = response?.error?.data?.mcpErrorCode;
+          const httpStatus = !response?.error ? 200 :
             errorCode === 'NOVAGUARD_AUTH_REQUIRED' ? 401 :
             errorCode === 'NOVAGUARD_AUTH_FORBIDDEN' ? 403 : 500;
-          this.writeJson(res, httpStatus, response, { 'X-MCP-Version': '2026-07-28' });
+          this.writeJson(res, httpStatus, response, this.responseHeaders(httpStatus));
           return;
         }
 
@@ -133,6 +207,14 @@ export class McpHttpServer {
 
               const jsonRpcReq = JSON.parse(body);
               const response = await this.mcpServer.handleJsonRpcRequest(jsonRpcReq, authHeader, remoteAddress);
+              // A notification is acknowledged with no body. Answering one
+              // desynchronises a conforming client, and `202 Accepted` is what
+              // the Streamable HTTP transport specifies for it.
+              if (!response) {
+                res.writeHead(202, { 'MCP-Protocol-Version': LATEST_PROTOCOL_VERSION });
+                res.end();
+                return;
+              }
               const errorCode = response.error?.data?.mcpErrorCode;
               const httpStatus = !response.error ? 200 :
                 errorCode === 'NOVAGUARD_AUTH_REQUIRED' ? 401 :
@@ -141,7 +223,7 @@ export class McpHttpServer {
                 errorCode === 'NOVAGUARD_INVALID_ARGUMENT' ? 400 :
                 errorCode === 'NOVAGUARD_MEDIA_TOO_LARGE' ? 413 : 500;
 
-              this.writeJson(res, httpStatus, response, { 'X-MCP-Version': '2026-07-28' });
+              this.writeJson(res, httpStatus, response, this.responseHeaders(httpStatus));
             } catch {
               this.writeJson(res, 400, {
                 jsonrpc: '2.0',

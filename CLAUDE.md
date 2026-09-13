@@ -481,6 +481,69 @@ glisse — c'est le retour. Une seule vibration existe dans l'application, sur
 démarrage/arrêt de la surveillance, et elle coûte `VIBRATE` au manifeste :
 `src/utils/haptics.ts` est toute la justification de cette ligne.
 
+**Le serveur MCP qui tourne est celui en Kotlin.** `novaguard-mcp/` est du Node —
+`http`, `dns`, `net`, `Buffer` — donc il ne peut pas s'exécuter dans Hermes et ne
+pouvait pas être ce que l'interrupteur de Setup allumait ; il ne l'allumait rien,
+et la section a vécu inerte comme NOTIFICATIONS avant elle. Le serveur de
+l'appareil est `android/…/surveillance/McpServerModule.kt`, et il répond depuis un
+**instantané** que `AppStateContext` pousse quand l'historique ou les réglages
+changent — jamais depuis le chemin d'image : une requête ne doit pas coûter une
+image à l'analyse, ni l'analyse bloquer une requête. Les chemins de fichiers
+traversent le pont parce qu'il faut ouvrir le clip, et ne repartent jamais :
+`McpEvent.toJson` construit son objet champ par champ, la configuration est
+**reconstruite** à partir d'une liste de clés plutôt que filtrée — un décapage ne
+retire que les clés auxquelles on a déjà pensé, et `localStreamPin` vit dans le
+même objet. Deux règles de déploiement portent le reste : **sans jeton, la socket
+reste sur loopback** (c'est le jeton qui achète le Wi-Fi), et un média est refusé
+s'il ne se canonicalise pas sous `filesDir`. Côté protocole, trois choses ne
+doivent pas être reperdues, parce qu'elles décident si un client se connecte : la
+version se **négocie** (l'imposer rejette tout client qui ne connaît pas déjà la
+chaîne privée du serveur), une notification JSON-RPC ne reçoit **pas** de réponse
+— elle se reconnaît à l'absence d'`id`, pas au nom de sa méthode, et
+`notifications/initialized` est la première trame après la poignée de main —, et
+`resources/list` rend des ressources concrètes quand `resources/templates/list`
+rend les gabarits. Enfin les outils sont nommés `novaguard_*` : le point de
+`mcp.md` est hors du motif que l'API Claude accepte, donc un catalogue pointé est
+un catalogue qu'aucun client ne charge ; la forme pointée reste acceptée à
+l'appel. Le Kotlin n'est compilé par aucun garde-fou de PR ordinaire — `check` ne
+lance pas Gradle — donc il se vérifie en construisant un APK.
+
+**Une erreur d'outil et une erreur de protocole ne vont pas au même endroit.**
+Les deux serveurs partagent ce partage, et il n'est pas cosmétique : un outil qui
+s'exécute et ne peut pas répondre rend un **résultat** portant `isError`, seule
+forme que le modèle qui a posé la question voit — en erreur JSON-RPC elle lui est
+invisible, et « l'évènement 9999 n'existe pas » ressemble alors à un serveur cassé
+plutôt qu'à un identifiant à corriger. Ce qui n'a **pas** atteint un outil reste
+une erreur JSON-RPC, parce qu'aucun argument ne la corrigerait : méthode inconnue
+(`-32601`), outil inconnu (`-32602`), opération de mutation refusée, autorisation
+manquante. D'où deux contrôles placés exprès *avant* la conversion — le refus
+d'une opération et le nom d'outil inconnu — et une ressource introuvable en
+`-32002`. Et le pendant côté entrée : **un schéma d'outil qui n'est pas appliqué
+ment**. `additionalProperties: false` et les énumérations étaient déclarés et
+jamais lus, donc un filtre mal orthographié rendait l'historique non filtré avec
+un 200. La validation dérive du schéma annoncé, jamais d'une table posée à côté :
+deux copies du contrat divergent au premier paramètre ajouté.
+
+**Un contrôle de sécurité qui marche et un qui protège ne se distinguent pas à
+l'usage.** Aucun des points qui suivent n'empêchait une requête d'aboutir, et
+c'est pourquoi aucun n'avait de test : un jeton comparé par `===` authentifie
+exactement les mêmes appelants qu'un jeton comparé à temps constant, et une
+table non bornée est correcte jusqu'à ce que le processus manque de mémoire.
+Quatre décisions à ne pas reperdre. Les jetons sont stockés **et** comparés par
+empreinte SHA-256 : `timingSafeEqual` sur deux tampons de même taille ne fuit ni
+par le préfixe commun ni par la longueur, et une table indexée par empreinte ne
+détient pas l'identifiant qu'un vidage mémoire rendrait. `Origin` n'est envoyé
+que par les navigateurs, donc son absence est acceptée et **`Host` est le
+contrôle qui couvre les autres** — les deux ensemble sont la défense contre le
+*DNS rebinding*, et un `401` porte `WWW-Authenticate` sans quoi un client
+n'apprend rien de ce qui le rendrait autorisé. Un nom d'hôte doit résoudre là où
+sa catégorie le dit — `localhost` était exempté du contrôle, donc le seul nom
+que la liste d'autorisation laisse passer était le seul que rien ne vérifiait —
+et la connexion est **épinglée** sur l'adresse validée, parce que résoudre à
+nouveau au moment de se connecter rouvre la fenêtre que la validation venait de
+fermer. Enfin un plafond de taille descend **avec** la requête : l'appliquer au
+retour, c'est rapporter huit mégaoctets pour en refuser deux.
+
 **Un clip sans événement est une vidéo perdue.** Le sort d'un enregistrement est
 exhaustif (`clipOutcome`) : rattaché, gardé comme événement sans fichier, ou
 supprimé. Il n'y a pas de quatrième issue, et il ne doit pas y en avoir.
@@ -493,9 +556,31 @@ toute la bibliothèque. Ce qui peut détruire quelque chose lit à travers
 clé qu'il n'a pas su lire.
 
 **Les frontières de jour se calculent en jours calendaires**, via
-`startOfDayBefore`. Soustraire 86 400 000 ms décale d'une heure aux changements
-d'heure, et c'est la rétention — donc une suppression — qui en dépend.
-`jest.config.js` fixe `TZ=Europe/Paris` pour que ces tests puissent échouer.
+`startOfDayBefore` — et `novaguard-mcp/calendar.ts` pour les ressources MCP,
+qui les calculaient en UTC pour la timeline et en local pour les statistiques,
+donc pas le même jour d'une ressource à l'autre ni vis-à-vis du serveur natif.
+Soustraire 86 400 000 ms ne décale pas d'une heure mais peut changer de jour :
+au 31 mars 2025, le 30 ne dure que 23 h, donc le retrait naïf atterrit sur le 29.
+C'est la rétention — donc une suppression — qui en dépend. `jest.config.js` fixe
+`TZ=Europe/Paris` pour que ces tests puissent échouer ; sous UTC, minuit local et
+minuit UTC sont le même instant et tout passe.
+
+**Ce que les défauts ne nomment pas ne survit pas à l'hydratation.** La fusion
+pose l'objet stocké **par-dessus** `defaultSettings`, ce qui couvre un champ
+ajouté depuis. Elle gardait aussi tout champ *retiré* depuis : il restait dans
+l'état, était réécrit à la sauvegarde suivante et survivait au code qui le
+lisait, si bien qu'un réglage ne pouvait qu'être ignoré, jamais supprimé.
+`mergeStoredSettings` ne retient que les clés des défauts.
+
+**Une fixture n'a rien à faire dans une classe de production.** Le client MCP
+Node portait le chemin HTTP et une branche répondant depuis un jeu de données
+factice, testée en tête de chaque méthode : un objet livrable avec un
+interrupteur qui lui fait servir des évènements de surveillance inventés, et une
+suite qui ne prenait que cette branche — donc le chemin qui tourne réellement
+n'était presque pas exercé. `NovaGuardReadApi` est le contrat, le client n'est
+que le transport, `InMemoryNovaGuardApi` vit sous `testing/`, et les bornes de
+requête sont partagées (`queryGuards.ts`) : une fixture plus permissive que
+l'appareil est un test qui ne prouve rien.
 
 **Un réglage se vérifie de bout en bout.** Ce dépôt a déjà livré une section
 NOTIFICATIONS entièrement inerte. Un réglage doit être exposé, persisté *et*
