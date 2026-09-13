@@ -4,7 +4,7 @@ import { SecurityContext } from '../security/authentication';
 import { SearchEventsParams, SearchEventsResultDto } from '../types';
 
 export const searchEventsToolDefinition = {
-  name: 'novaguard.search_events',
+  name: 'novaguard_search_events',
   description: 'Primary surveillance-history query with pagination and time filters.',
   inputSchema: {
     type: 'object',

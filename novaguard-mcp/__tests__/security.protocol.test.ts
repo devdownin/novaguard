@@ -2,32 +2,55 @@ import { NovaGuardMcpServer } from '../server';
 import { NovaGuardReadApiClient } from '../client/NovaGuardReadApiClient';
 import { Sanitizer } from '../security/sanitizer';
 import { Authenticator } from '../security/authentication';
+import { LATEST_PROTOCOL_VERSION } from '../protocol';
 
 describe('NovaGuard MCP security', () => {
   it('rejects malformed JSON-RPC requests with -32600', async () => {
     const server = new NovaGuardMcpServer();
-    const response = await server.handleJsonRpcRequest(null as any, undefined, '127.0.0.1');
+    const response = (await server.handleJsonRpcRequest(null as any, undefined, '127.0.0.1'))!;
     expect(response.error?.code).toBe(-32600);
     expect(response.error?.data?.mcpErrorCode).toBe('NOVAGUARD_INVALID_REQUEST');
   });
 
   it('validates the MCP initialize handshake', async () => {
     const server = new NovaGuardMcpServer();
-    const response = await server.handleJsonRpcRequest({
+    const response = (await server.handleJsonRpcRequest({
       jsonrpc: '2.0', id: 1, method: 'initialize',
       params: { protocolVersion: '2026-07-28', capabilities: {}, clientInfo: { name: 'test-client', version: '1.0.0' } },
-    }, undefined, '127.0.0.1');
+    }, undefined, '127.0.0.1'))!;
     expect(response.error).toBeUndefined();
     expect(response.result.protocolVersion).toBe('2026-07-28');
   });
 
-  it('rejects an unsupported MCP protocol version', async () => {
+  it('negotiates a protocol version instead of refusing the handshake', async () => {
+    // This used to assert NOVAGUARD_INVALID_REQUEST for anything but one
+    // pinned string — including `2025-11-25`, a real MCP version. Pinning
+    // means no client that does not already know this server's private
+    // version can complete a handshake, which is the opposite of what
+    // `initialize` is for: the client states what it wants, the server
+    // answers with something it speaks.
     const server = new NovaGuardMcpServer();
-    const response = await server.handleJsonRpcRequest({
+
+    const known = (await server.handleJsonRpcRequest({
       jsonrpc: '2.0', id: 1, method: 'initialize',
       params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test-client', version: '1.0.0' } },
-    }, undefined, '127.0.0.1');
-    expect(response.error?.data?.mcpErrorCode).toBe('NOVAGUARD_INVALID_REQUEST');
+    }, undefined, '127.0.0.1'))!;
+    expect(known.error).toBeUndefined();
+    expect(known.result.protocolVersion).toBe('2025-11-25');
+
+    const unknown = (await server.handleJsonRpcRequest({
+      jsonrpc: '2.0', id: 2, method: 'initialize',
+      params: { protocolVersion: '1999-01-01', capabilities: {}, clientInfo: { name: 'test-client', version: '1.0.0' } },
+    }, undefined, '127.0.0.1'))!;
+    expect(unknown.error).toBeUndefined();
+    expect(unknown.result.protocolVersion).toBe(LATEST_PROTOCOL_VERSION);
+
+    // A handshake with no version at all is still malformed.
+    const missing = (await server.handleJsonRpcRequest({
+      jsonrpc: '2.0', id: 3, method: 'initialize',
+      params: { capabilities: {}, clientInfo: { name: 'test-client', version: '1.0.0' } },
+    }, undefined, '127.0.0.1'))!;
+    expect(missing.error?.data?.mcpErrorCode).toBe('NOVAGUARD_INVALID_REQUEST');
   });
 
   it('rejects invalid calendar dates in resource URIs', () => {
@@ -120,7 +143,7 @@ describe('NovaGuard MCP security', () => {
       { jsonrpc: '2.0' as const, id: 2, method: 'tools/call', params: { name: 'novaguard.get_storage', arguments: {} } },
       { jsonrpc: '2.0' as const, id: 3, method: 'resources/read', params: { uri: 'novaguard://status' } },
     ]) {
-      const res = await server.handleJsonRpcRequest(req, undefined, '127.0.0.1');
+      const res = (await server.handleJsonRpcRequest(req, undefined, '127.0.0.1'))!;
       expect(res.error).toBeUndefined();
     }
   });

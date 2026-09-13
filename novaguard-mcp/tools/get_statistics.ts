@@ -4,7 +4,7 @@ import { SecurityContext } from '../security/authentication';
 import { StatisticsParams, StatisticsResultDto } from '../types';
 
 export const getStatisticsToolDefinition = {
-  name: 'novaguard.get_statistics',
+  name: 'novaguard_get_statistics',
   description: 'Returns aggregate surveillance statistics for a time period without loading raw media.',
   inputSchema: {
     type: 'object',

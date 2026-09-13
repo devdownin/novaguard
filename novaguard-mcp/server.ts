@@ -4,15 +4,40 @@ import { NovaGuardReadApiClient } from './client/NovaGuardReadApiClient';
 import { Authenticator, SecurityContext } from './security/authentication';
 import { Authorizer } from './security/authorization';
 import { AuditLogger } from './security/audit';
-import { ALL_TOOLS, executeToolCall } from './tools';
-import { ALL_RESOURCE_TEMPLATES, readResource } from './resources';
-import { McpError } from './types';
+import { ALL_TOOLS, assertNotForbidden, executeToolCall, isKnownTool } from './tools';
+import { ALL_RESOURCES, ALL_RESOURCE_TEMPLATES, readResource } from './resources';
+import { LATEST_PROTOCOL_VERSION, negotiateProtocolVersion } from './protocol';
+import { McpError, McpErrorCode } from './types';
 
 export interface McpServerOptions { client?: NovaGuardReadApiClient; authenticator?: Authenticator; authorizer?: Authorizer; auditLogger?: AuditLogger; maxThumbnailBytes?: number; maxVideoBytes?: number; }
 export interface JsonRpcRequest { jsonrpc: '2.0'; id?: string | number | null; method: string; params?: any; }
 export interface JsonRpcResponse { jsonrpc: '2.0'; id?: string | number | null; result?: any; error?: { code: number; message: string; data?: any }; }
-const MCP_PROTOCOL_VERSION = '2026-07-28';
 const MAX_REDIRECTS = 3;
+
+/**
+ * Failures that mean "the tool ran and could not answer", as opposed to "the
+ * request never reached a tool".
+ *
+ * The distinction is the whole of the specification's error model for
+ * `tools/call`: a protocol fault — unknown method, unknown tool, a refused
+ * operation, missing authorisation — is a JSON-RPC error, because the caller
+ * cannot fix it by trying differently. Everything below is an outcome of the
+ * call itself and comes back as a result carrying `isError`, which is what
+ * puts it in front of the model that asked rather than in a transport-level
+ * failure it never sees. Returning `NOVAGUARD_NOT_FOUND` for a missing event
+ * as JSON-RPC -32601 also told the client the *method* did not exist.
+ */
+const TOOL_EXECUTION_FAILURES: ReadonlySet<McpErrorCode> = new Set<McpErrorCode>([
+  'NOVAGUARD_NOT_FOUND',
+  'NOVAGUARD_INVALID_ARGUMENT',
+  'NOVAGUARD_RANGE_TOO_LARGE',
+  'NOVAGUARD_LIMIT_EXCEEDED',
+  'NOVAGUARD_MEDIA_UNAVAILABLE',
+  'NOVAGUARD_MEDIA_TOO_LARGE',
+  'NOVAGUARD_STORAGE_UNAVAILABLE',
+  'NOVAGUARD_DEVICE_UNAVAILABLE',
+  'NOVAGUARD_TIMEOUT',
+]);
 
 function ipv4ToNumber(ip: string): number {
   return ip.split('.').reduce((value, part) => ((value * 256) + Number(part)) >>> 0, 0);
@@ -162,8 +187,8 @@ export class NovaGuardMcpServer {
     if (parsed.pathname !== '/' && parsed.pathname !== '') throw new Error('NovaGuard API baseUrl must not contain a path');
   }
 
-  public getCapabilities() {
-    return { capabilities: { tools: { listChanged: false }, resources: { subscribe: false, listChanged: false } }, serverInfo: { name: 'novaguard-mcp', version: '1.0.0' }, protocolVersion: MCP_PROTOCOL_VERSION };
+  public getCapabilities(protocolVersion: string = LATEST_PROTOCOL_VERSION) {
+    return { capabilities: { tools: { listChanged: false }, resources: { subscribe: false, listChanged: false } }, serverInfo: { name: 'novaguard-mcp', version: '1.0.0' }, protocolVersion };
   }
 
   private validateJsonRpcRequest(req: any): asserts req is JsonRpcRequest {
@@ -174,25 +199,44 @@ export class NovaGuardMcpServer {
 
   private validateInitialize(params: any): void {
     if (!params || typeof params !== 'object' || Array.isArray(params)) throw new McpError('NOVAGUARD_INVALID_REQUEST', 'initialize params are required', 400);
-    if (params.protocolVersion !== MCP_PROTOCOL_VERSION) throw new McpError('NOVAGUARD_INVALID_REQUEST', `Unsupported MCP protocol version. Expected ${MCP_PROTOCOL_VERSION}`, 400);
+    if (typeof params.protocolVersion !== 'string') throw new McpError('NOVAGUARD_INVALID_REQUEST', 'initialize protocolVersion is required', 400);
     if (!params.capabilities || typeof params.capabilities !== 'object' || Array.isArray(params.capabilities)) throw new McpError('NOVAGUARD_INVALID_REQUEST', 'initialize capabilities are required', 400);
     if (!params.clientInfo || typeof params.clientInfo !== 'object' || typeof params.clientInfo.name !== 'string' || typeof params.clientInfo.version !== 'string') throw new McpError('NOVAGUARD_INVALID_REQUEST', 'initialize clientInfo is required', 400);
   }
 
-  public async handleJsonRpcRequest(req: JsonRpcRequest, authHeader?: string, remoteAddress?: string): Promise<JsonRpcResponse> {
+  /**
+   * A JSON-RPC notification carries no `id` and must never be answered.
+   *
+   * Both transports ask before dispatching, and this returns `null` for one so
+   * an embedder cannot answer one either. Answering desynchronises a
+   * conforming client at the first opportunity: `notifications/initialized` is
+   * the frame every client sends immediately after the handshake.
+   */
+  public static isNotification(req: any): boolean {
+    return !!req && typeof req === 'object' && !Array.isArray(req) && !('id' in req);
+  }
+
+  public async handleJsonRpcRequest(req: JsonRpcRequest, authHeader?: string, remoteAddress?: string): Promise<JsonRpcResponse | null> {
     const startMs = Date.now();
     let securityContext: SecurityContext = { principal: 'anonymous', scopes: [], isLoopback: true };
     let operation = 'unknown'; let eventId: number | null = null; let mediaBytes = 0; let statusCode = 200; let requestId: string | number | null = null;
+    const notification = NovaGuardMcpServer.isNotification(req);
     try {
       requestId = req && typeof req === 'object' && 'id' in req ? (req.id ?? null) : null;
       operation = req && typeof req === 'object' && typeof req.method === 'string' ? req.method : 'unknown';
       securityContext = this.authenticator.authenticate(authHeader, remoteAddress);
       this.validateJsonRpcRequest(req);
+      if (notification) {
+        this.auditLogger.log({ timestamp: new Date().toISOString(), principal: securityContext.principal, operation, eventId, status: 200, durationMs: Date.now() - startMs, mediaBytes });
+        return null;
+      }
       let result: any;
       switch (req.method) {
-        case 'initialize': this.validateInitialize(req.params); result = this.getCapabilities(); break;
+        case 'initialize':
+          this.validateInitialize(req.params);
+          result = this.getCapabilities(negotiateProtocolVersion(req.params.protocolVersion));
+          break;
         case 'ping': result = {}; break;
-        case 'notifications/initialized': result = {}; break;
         case 'tools/list': result = { tools: ALL_TOOLS }; break;
         case 'tools/call': {
           const toolName = req.params?.name;
@@ -200,10 +244,33 @@ export class NovaGuardMcpServer {
           const toolArgs = req.params?.arguments ?? {};
           if (!toolArgs || typeof toolArgs !== 'object' || Array.isArray(toolArgs)) throw new McpError('NOVAGUARD_INVALID_ARGUMENT', 'Tool arguments must be an object', 400);
           operation = `tool:${toolName}`; if (typeof toolArgs.eventId === 'number') eventId = toolArgs.eventId;
-          const output = await executeToolCall(toolName, toolArgs, this.client, this.authorizer, securityContext);
-          result = { content: [{ type: 'text', text: JSON.stringify(output, null, 2) }] }; break;
+          // Both checks sit outside the inner try on purpose. A refused or
+          // unknown tool is a protocol fault — nothing ran, and no argument a
+          // caller sends would change that — so it stays a JSON-RPC error
+          // where the specification puts it, rather than becoming a result
+          // the model is invited to work around.
+          assertNotForbidden(toolName);
+          if (!isKnownTool(toolName)) throw new McpError('NOVAGUARD_INVALID_ARGUMENT', `Unknown tool: '${toolName}'`, 400);
+          try {
+            const output = await executeToolCall(toolName, toolArgs, this.client, this.authorizer, securityContext);
+            result = { content: [{ type: 'text', text: JSON.stringify(output, null, 2) }], isError: false };
+            // `structuredContent` is specified as an object. A tool whose
+            // payload is a list (get_latest_events) travels in `content` alone
+            // rather than handing a client a shape its schema disallows.
+            if (output && typeof output === 'object' && !Array.isArray(output)) result.structuredContent = output;
+          } catch (toolErr: any) {
+            if (!(toolErr instanceof McpError) || !TOOL_EXECUTION_FAILURES.has(toolErr.code)) throw toolErr;
+            this.auditLogger.log({ timestamp: new Date().toISOString(), principal: securityContext.principal, operation, eventId, status: toolErr.status, durationMs: Date.now() - startMs, mediaBytes: 0 });
+            return {
+              jsonrpc: '2.0',
+              id: requestId,
+              result: { content: [{ type: 'text', text: `${toolErr.code}: ${toolErr.message}` }], isError: true },
+            };
+          }
+          break;
         }
-        case 'resources/list': result = { resources: ALL_RESOURCE_TEMPLATES }; break;
+        case 'resources/list': result = { resources: ALL_RESOURCES }; break;
+        case 'resources/templates/list': result = { resourceTemplates: ALL_RESOURCE_TEMPLATES }; break;
         case 'resources/read': {
           const uri = req.params?.uri;
           if (typeof uri !== 'string' || uri.length === 0 || uri.length > 512) throw new McpError('NOVAGUARD_INVALID_ARGUMENT', 'Resource URI is required', 400);
@@ -226,7 +293,30 @@ export class NovaGuardMcpServer {
       const errorCode = err instanceof McpError ? err.code : 'NOVAGUARD_DEVICE_UNAVAILABLE';
       const safeMessage = err instanceof McpError ? err.message : 'Internal server error';
       this.auditLogger.log({ timestamp: new Date().toISOString(), principal: securityContext.principal, operation, eventId, status: statusCode, durationMs: Date.now() - startMs, mediaBytes: 0 });
-      return { jsonrpc: '2.0', id: requestId, error: { code: errorCode === 'NOVAGUARD_INVALID_REQUEST' ? -32600 : statusCode === 404 ? -32601 : statusCode === 400 ? -32602 : -32603, message: `${errorCode}: ${safeMessage}`, data: { mcpErrorCode: errorCode } } };
+      // A notification that fails still gets no response: there is no id to
+      // answer to, and a client is not waiting for one.
+      if (notification) return null;
+      return { jsonrpc: '2.0', id: requestId, error: { code: this.jsonRpcCodeFor(errorCode, statusCode, operation), message: `${errorCode}: ${safeMessage}`, data: { mcpErrorCode: errorCode } } };
     }
+  }
+
+  /**
+   * Maps an MCP error onto the JSON-RPC code a client acts on.
+   *
+   * `resources/read` gets -32002 for a resource it cannot produce, which is
+   * the code the specification reserves for exactly that. Everything used to
+   * collapse onto the HTTP status: a missing event became -32601, telling the
+   * client the *method* did not exist, which is the one reading that sends it
+   * looking for a server bug rather than at its own URI.
+   */
+  private jsonRpcCodeFor(errorCode: McpErrorCode, statusCode: number, operation: string): number {
+    if (errorCode === 'NOVAGUARD_INVALID_REQUEST') return -32600;
+    if (operation.startsWith('resource:') && (errorCode === 'NOVAGUARD_NOT_FOUND' || errorCode === 'NOVAGUARD_MEDIA_UNAVAILABLE')) return -32002;
+    if (operation === 'unknown' || !operation.includes(':')) {
+      // Only a bare method name reaching the default arm is "method not found".
+      if (statusCode === 404 && errorCode === 'NOVAGUARD_NOT_FOUND') return -32601;
+    }
+    if (statusCode === 400) return -32602;
+    return -32603;
   }
 }

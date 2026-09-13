@@ -4,7 +4,7 @@ import { SecurityContext } from '../security/authentication';
 import { DetectionEventDto, McpError } from '../types';
 
 export const getEventToolDefinition = {
-  name: 'novaguard.get_event',
+  name: 'novaguard_get_event',
   description: 'Returns single surveillance event details by ID.',
   inputSchema: {
     type: 'object',

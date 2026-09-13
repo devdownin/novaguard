@@ -337,7 +337,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
         "initialize" -> successResponse(id, initializeResult(params))
         "ping" -> successResponse(id, JSONObject())
         "tools/list" -> successResponse(id, JSONObject().put("tools", McpCatalog.tools()))
-        "tools/call" -> successResponse(id, callTool(params))
+        "tools/call" -> successResponse(id, callToolReportingFailures(params))
         "resources/list" -> successResponse(id, JSONObject().put("resources", McpCatalog.resources(snapshot)))
         "resources/templates/list" -> successResponse(id, JSONObject().put("resourceTemplates", McpCatalog.resourceTemplates()))
         "resources/read" -> successResponse(id, readResource(params.optString("uri")))
@@ -350,6 +350,46 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       // Deliberately not e.message: an internal failure must not describe the
       // device's filesystem to a caller across the network.
       errorResponse(id, -32603, "NOVAGUARD_DEVICE_UNAVAILABLE", "Internal server error")
+    }
+  }
+
+  /**
+   * Runs a tool, turning a failure of the tool itself into a result.
+   *
+   * The specification separates the two: a protocol fault — an unknown or
+   * refused tool, missing authorisation — is a JSON-RPC error the caller
+   * cannot work around, while a call that reached a tool and could not be
+   * answered comes back as a result carrying `isError`. Only the second form
+   * reaches the model that asked; as a transport error it is invisible to it,
+   * so "event 9999 does not exist" would look like the server being broken
+   * rather than like an id to correct.
+   */
+  private fun callToolReportingFailures(params: JSONObject): JSONObject {
+    // Both checks sit outside the catch on purpose. A refused or unknown tool
+    // is a protocol fault — nothing ran, and no argument a caller sends would
+    // change that — so it stays a JSON-RPC error where the specification puts
+    // it rather than becoming a result the model is invited to work around.
+    val rawName = params.optString("name")
+    assertNotForbidden(rawName)
+    if (!McpCatalog.isKnownTool(rawName)) {
+      throw McpException("NOVAGUARD_INVALID_ARGUMENT", "Unknown tool: '$rawName'", -32602)
+    }
+    return try {
+      callTool(params)
+    } catch (e: McpException) {
+      if (!TOOL_EXECUTION_FAILURES.contains(e.code)) throw e
+      JSONObject()
+        .put("content", JSONArray().put(JSONObject().put("type", "text").put("text", "${e.code}: ${e.message}")))
+        .put("isError", true)
+    }
+  }
+
+  private fun assertNotForbidden(rawName: String) {
+    val operation = McpCatalog.TOOL_PREFIXES.firstNotNullOfOrNull { prefix ->
+      if (rawName.startsWith(prefix)) rawName.removePrefix(prefix) else null
+    } ?: rawName
+    if (FORBIDDEN_OPERATIONS.contains(operation)) {
+      throw McpException("NOVAGUARD_INVALID_ARGUMENT", "Operation '$rawName' is forbidden on a read-only server", -32602)
     }
   }
 
@@ -377,11 +417,13 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     }
     // `mcp.md` names the tools with dots; the Claude API's tool-name pattern
     // rejects them. The underscore form is what `tools/list` advertises, and
-    // the dotted form stays accepted so documented calls keep working.
-    val name = rawName.removePrefix("novaguard.").removePrefix("novaguard_")
-    if (FORBIDDEN_OPERATIONS.contains(name)) {
-      throw McpException("NOVAGUARD_INVALID_ARGUMENT", "Operation '$rawName' is forbidden on a read-only server", -32602)
+    // the dotted form stays accepted so documented calls keep working. An
+    // unprefixed name is neither, and is not a tool this server ever named.
+    val name = McpCatalog.TOOL_PREFIXES.firstNotNullOfOrNull { prefix ->
+      if (rawName.startsWith(prefix)) rawName.removePrefix(prefix) else null
     }
+    assertNotForbidden(rawName)
+    if (name == null) throw McpException("NOVAGUARD_NOT_FOUND", "Unknown tool: '$rawName'", -32601)
     val args = params.optJSONObject("arguments") ?: JSONObject()
     McpCatalog.validateArguments(name, args)
 
@@ -606,6 +648,17 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
      * told it is forbidden rather than that the tool is unknown, and the day
      * someone adds a write path they collide with this set first.
      */
+    /**
+     * Failures that mean the tool ran and could not answer, as opposed to the
+     * request never reaching a tool. The first come back as a result carrying
+     * `isError`; everything else stays a JSON-RPC error.
+     */
+    private val TOOL_EXECUTION_FAILURES = setOf(
+      "NOVAGUARD_NOT_FOUND", "NOVAGUARD_INVALID_ARGUMENT", "NOVAGUARD_RANGE_TOO_LARGE",
+      "NOVAGUARD_LIMIT_EXCEEDED", "NOVAGUARD_MEDIA_UNAVAILABLE", "NOVAGUARD_MEDIA_TOO_LARGE",
+      "NOVAGUARD_STORAGE_UNAVAILABLE", "NOVAGUARD_DEVICE_UNAVAILABLE", "NOVAGUARD_TIMEOUT",
+    )
+
     private val FORBIDDEN_OPERATIONS = setOf(
       "start_surveillance", "stop_surveillance", "arm_camera", "disarm_camera",
       "set_camera", "set_detection_threshold", "set_detection_zone", "set_sensitivity",

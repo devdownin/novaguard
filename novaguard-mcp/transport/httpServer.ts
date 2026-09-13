@@ -1,5 +1,6 @@
 import * as http from 'http';
 import { NovaGuardMcpServer } from '../server';
+import { LATEST_PROTOCOL_VERSION } from '../protocol';
 
 export interface HttpServerOptions {
   port?: number;
@@ -92,11 +93,11 @@ export class McpHttpServer {
             authHeader,
             remoteAddress
           );
-          const errorCode = response.error?.data?.mcpErrorCode;
-          const httpStatus = !response.error ? 200 :
+          const errorCode = response?.error?.data?.mcpErrorCode;
+          const httpStatus = !response?.error ? 200 :
             errorCode === 'NOVAGUARD_AUTH_REQUIRED' ? 401 :
             errorCode === 'NOVAGUARD_AUTH_FORBIDDEN' ? 403 : 500;
-          this.writeJson(res, httpStatus, response, { 'X-MCP-Version': '2026-07-28' });
+          this.writeJson(res, httpStatus, response, { 'MCP-Protocol-Version': LATEST_PROTOCOL_VERSION });
           return;
         }
 
@@ -133,6 +134,14 @@ export class McpHttpServer {
 
               const jsonRpcReq = JSON.parse(body);
               const response = await this.mcpServer.handleJsonRpcRequest(jsonRpcReq, authHeader, remoteAddress);
+              // A notification is acknowledged with no body. Answering one
+              // desynchronises a conforming client, and `202 Accepted` is what
+              // the Streamable HTTP transport specifies for it.
+              if (!response) {
+                res.writeHead(202, { 'MCP-Protocol-Version': LATEST_PROTOCOL_VERSION });
+                res.end();
+                return;
+              }
               const errorCode = response.error?.data?.mcpErrorCode;
               const httpStatus = !response.error ? 200 :
                 errorCode === 'NOVAGUARD_AUTH_REQUIRED' ? 401 :
@@ -141,7 +150,7 @@ export class McpHttpServer {
                 errorCode === 'NOVAGUARD_INVALID_ARGUMENT' ? 400 :
                 errorCode === 'NOVAGUARD_MEDIA_TOO_LARGE' ? 413 : 500;
 
-              this.writeJson(res, httpStatus, response, { 'X-MCP-Version': '2026-07-28' });
+              this.writeJson(res, httpStatus, response, { 'MCP-Protocol-Version': LATEST_PROTOCOL_VERSION });
             } catch {
               this.writeJson(res, 400, {
                 jsonrpc: '2.0',

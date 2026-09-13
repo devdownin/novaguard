@@ -115,6 +115,17 @@ internal object McpCatalog {
 
   // --------------------------------------------------------------- validation
 
+  /** Both spellings a caller may use for a tool. Only the first is advertised. */
+  internal val TOOL_PREFIXES = listOf("novaguard_", "novaguard.")
+
+  /** Whether the catalogue advertises this name, under either prefix. */
+  fun isKnownTool(rawName: String): Boolean {
+    val operation = TOOL_PREFIXES.firstNotNullOfOrNull { prefix ->
+      if (rawName.startsWith(prefix)) rawName.removePrefix(prefix) else null
+    } ?: return false
+    return ARGUMENT_SPECS.containsKey(operation)
+  }
+
   /**
    * Enforces the schema the tool list advertised.
    *

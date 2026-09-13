@@ -6,6 +6,25 @@ import { NovaGuardReadApiClient, RawEvent, NovaGuardMockDataSource } from '../cl
 // local — so these tests name it, exactly as the stdio and HTTP runners do.
 const LOOPBACK = '127.0.0.1';
 
+/**
+ * Sends a request and asserts a response came back.
+ *
+ * `handleJsonRpcRequest` answers `null` to a notification, which is the point
+ * of it. Every request in this suite carries an id, so a `null` here is the
+ * server having mistaken one for the other.
+ */
+async function send(
+  target: NovaGuardMcpServer,
+  req: any,
+  auth?: string,
+  remote: string | undefined = LOOPBACK,
+) {
+  const res = await target.handleJsonRpcRequest(req, auth, remote);
+  if (!res) throw new Error(`No response for ${req?.method} — treated as a notification?`);
+  return res;
+}
+
+
 describe('NovaGuard MCP - Performance Tests', () => {
   let server: NovaGuardMcpServer;
 
@@ -63,7 +82,7 @@ describe('NovaGuard MCP - Performance Tests', () => {
     const from = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
     const to = new Date().toISOString();
 
-    const res = await server.handleJsonRpcRequest({
+    const res = await send(server, {
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
@@ -95,7 +114,7 @@ describe('NovaGuard MCP - Performance Tests', () => {
     const from = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
     const to = new Date().toISOString();
 
-    const res = await server.handleJsonRpcRequest({
+    const res = await send(server, {
       jsonrpc: '2.0',
       id: 2,
       method: 'tools/call',

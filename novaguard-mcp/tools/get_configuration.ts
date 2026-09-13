@@ -5,7 +5,7 @@ import { Sanitizer } from '../security/sanitizer';
 import { ConfigurationDto } from '../types';
 
 export const getConfigurationToolDefinition = {
-  name: 'novaguard.get_configuration',
+  name: 'novaguard_get_configuration',
   description: 'Returns safe diagnostic configuration parameters (camera, detection settings, recording quality, retention, and notification state).',
   inputSchema: {
     type: 'object',

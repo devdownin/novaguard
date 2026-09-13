@@ -6,6 +6,25 @@ import { NovaGuardReadApiClient, NovaGuardMockDataSource } from '../client/NovaG
 // local — so these tests name it, exactly as the stdio and HTTP runners do.
 const LOOPBACK = '127.0.0.1';
 
+/**
+ * Sends a request and asserts a response came back.
+ *
+ * `handleJsonRpcRequest` answers `null` to a notification, which is the point
+ * of it. Every request in this suite carries an id, so a `null` here is the
+ * server having mistaken one for the other.
+ */
+async function send(
+  target: NovaGuardMcpServer,
+  req: any,
+  auth?: string,
+  remote: string | undefined = LOOPBACK,
+) {
+  const res = await target.handleJsonRpcRequest(req, auth, remote);
+  if (!res) throw new Error(`No response for ${req?.method} — treated as a notification?`);
+  return res;
+}
+
+
 describe('NovaGuard MCP - Security Tests', () => {
   let server: NovaGuardMcpServer;
 
@@ -54,7 +73,7 @@ describe('NovaGuard MCP - Security Tests', () => {
   });
 
   test('rejects path traversal in resource URI', async () => {
-    const res = await server.handleJsonRpcRequest({
+    const res = await send(server, {
       jsonrpc: '2.0',
       id: 1,
       method: 'resources/read',
@@ -66,7 +85,7 @@ describe('NovaGuard MCP - Security Tests', () => {
   });
 
   test('rejects arbitrary URI schemes like file:// or content://', async () => {
-    const res1 = await server.handleJsonRpcRequest({
+    const res1 = await send(server, {
       jsonrpc: '2.0',
       id: 2,
       method: 'resources/read',
@@ -74,7 +93,7 @@ describe('NovaGuard MCP - Security Tests', () => {
     }, undefined, LOOPBACK);
     expect(res1.error).toBeDefined();
 
-    const res2 = await server.handleJsonRpcRequest({
+    const res2 = await send(server, {
       jsonrpc: '2.0',
       id: 3,
       method: 'resources/read',
@@ -105,7 +124,7 @@ describe('NovaGuard MCP - Security Tests', () => {
     ];
 
     for (const tool of forbiddenTools) {
-      const res = await server.handleJsonRpcRequest({
+      const res = await send(server, {
         jsonrpc: '2.0',
         id: 10,
         method: 'tools/call',
@@ -118,7 +137,7 @@ describe('NovaGuard MCP - Security Tests', () => {
   });
 
   test('never exposes localStreamPin in configuration response', async () => {
-    const res = await server.handleJsonRpcRequest({
+    const res = await send(server, {
       jsonrpc: '2.0',
       id: 4,
       method: 'tools/call',
@@ -131,7 +150,7 @@ describe('NovaGuard MCP - Security Tests', () => {
   });
 
   test('never leaks internal filesystem paths in event metadata', async () => {
-    const res = await server.handleJsonRpcRequest({
+    const res = await send(server, {
       jsonrpc: '2.0',
       id: 5,
       method: 'tools/call',
@@ -144,7 +163,7 @@ describe('NovaGuard MCP - Security Tests', () => {
   });
 
   test('audit logger does not record bearer tokens or media byte contents', async () => {
-    await server.handleJsonRpcRequest(
+    await send(server, 
       { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'novaguard.get_status' } },
       'Bearer SUPER_SECRET_TOKEN_123',
       LOOPBACK

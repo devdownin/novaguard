@@ -4,7 +4,7 @@ import { SecurityContext } from '../security/authentication';
 import { StatusDto } from '../types';
 
 export const getStatusToolDefinition = {
-  name: 'novaguard.get_status',
+  name: 'novaguard_get_status',
   description: 'Returns high-level surveillance status (active state, camera, last detection time, today detection count, and storage summary).',
   inputSchema: {
     type: 'object',

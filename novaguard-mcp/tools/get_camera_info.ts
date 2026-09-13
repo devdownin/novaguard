@@ -4,7 +4,7 @@ import { SecurityContext } from '../security/authentication';
 import { CameraInfoDto } from '../types';
 
 export const getCameraInfoToolDefinition = {
-  name: 'novaguard.get_camera_info',
+  name: 'novaguard_get_camera_info',
   description: 'Returns safe diagnostic information for the active camera.',
   inputSchema: {
     type: 'object',

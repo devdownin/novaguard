@@ -499,13 +499,30 @@ s'il ne se canonicalise pas sous `filesDir`. Côté protocole, trois choses ne
 doivent pas être reperdues, parce qu'elles décident si un client se connecte : la
 version se **négocie** (l'imposer rejette tout client qui ne connaît pas déjà la
 chaîne privée du serveur), une notification JSON-RPC ne reçoit **pas** de réponse
-— `notifications/initialized` est la première trame après la poignée de main —, et
+— elle se reconnaît à l'absence d'`id`, pas au nom de sa méthode, et
+`notifications/initialized` est la première trame après la poignée de main —, et
 `resources/list` rend des ressources concrètes quand `resources/templates/list`
 rend les gabarits. Enfin les outils sont nommés `novaguard_*` : le point de
 `mcp.md` est hors du motif que l'API Claude accepte, donc un catalogue pointé est
 un catalogue qu'aucun client ne charge ; la forme pointée reste acceptée à
 l'appel. Le Kotlin n'est compilé par aucun garde-fou de PR ordinaire — `check` ne
 lance pas Gradle — donc il se vérifie en construisant un APK.
+
+**Une erreur d'outil et une erreur de protocole ne vont pas au même endroit.**
+Les deux serveurs partagent ce partage, et il n'est pas cosmétique : un outil qui
+s'exécute et ne peut pas répondre rend un **résultat** portant `isError`, seule
+forme que le modèle qui a posé la question voit — en erreur JSON-RPC elle lui est
+invisible, et « l'évènement 9999 n'existe pas » ressemble alors à un serveur cassé
+plutôt qu'à un identifiant à corriger. Ce qui n'a **pas** atteint un outil reste
+une erreur JSON-RPC, parce qu'aucun argument ne la corrigerait : méthode inconnue
+(`-32601`), outil inconnu (`-32602`), opération de mutation refusée, autorisation
+manquante. D'où deux contrôles placés exprès *avant* la conversion — le refus
+d'une opération et le nom d'outil inconnu — et une ressource introuvable en
+`-32002`. Et le pendant côté entrée : **un schéma d'outil qui n'est pas appliqué
+ment**. `additionalProperties: false` et les énumérations étaient déclarés et
+jamais lus, donc un filtre mal orthographié rendait l'historique non filtré avec
+un 200. La validation dérive du schéma annoncé, jamais d'une table posée à côté :
+deux copies du contrat divergent au premier paramètre ajouté.
 
 **Un clip sans événement est une vidéo perdue.** Le sort d'un enregistrement est
 exhaustif (`clipOutcome`) : rattaché, gardé comme événement sans fichier, ou

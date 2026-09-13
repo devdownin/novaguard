@@ -27,11 +27,8 @@ if (require.main === module) {
     try {
       const jsonReq = JSON.parse(line);
       const res = await server.handleJsonRpcRequest(jsonReq, undefined, STDIO_PEER_ADDRESS);
-      // A JSON-RPC notification carries no id and must never be answered.
-      // Writing a response to one desynchronises a conforming client, which is
-      // reached immediately: `notifications/initialized` is the first frame
-      // every client sends after the handshake.
-      if (jsonReq && typeof jsonReq === 'object' && jsonReq.id === undefined) return;
+      // `null` is a notification: it carries no id and must never be answered.
+      if (!res) return;
       process.stdout.write(JSON.stringify(res) + '\n');
     } catch (err: any) {
       const errRes = {

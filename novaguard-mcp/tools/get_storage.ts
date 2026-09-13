@@ -4,7 +4,7 @@ import { SecurityContext } from '../security/authentication';
 import { StorageDetailDto } from '../types';
 
 export const getStorageToolDefinition = {
-  name: 'novaguard.get_storage',
+  name: 'novaguard_get_storage',
   description: 'Returns measured storage information including used, free, total bytes and count of events and videos.',
   inputSchema: {
     type: 'object',
