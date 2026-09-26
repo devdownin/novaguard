@@ -112,6 +112,8 @@ export const en: Record<StringKey, string> = {
   'setup.localStreamPort': 'Local server port',
   'setup.localStreamPin': 'PIN Protection',
   'setup.localStreamPin.none': 'No PIN',
+  'setup.localStreamPin.copy': 'Copy PIN',
+  'setup.localStreamPin.hint': 'The browser asks for any username and this PIN. Use only on a trusted local network.',
   'setup.localStreamUrl': 'Local stream URL',
 
   'setup.camera': 'Camera used',

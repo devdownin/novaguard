@@ -114,6 +114,8 @@ export const fr = {
   'setup.localStreamPort': 'Port du serveur local',
   'setup.localStreamPin': 'Protection PIN',
   'setup.localStreamPin.none': 'Aucun PIN',
+  'setup.localStreamPin.copy': 'Copier le PIN',
+  'setup.localStreamPin.hint': 'Le navigateur demande un identifiant (au choix) et ce PIN. Accès réservé au réseau local de confiance.',
   'setup.localStreamUrl': 'URL de diffusion locale',
 
   'setup.camera': 'Caméra utilisée',

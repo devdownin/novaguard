@@ -35,7 +35,7 @@ import {
   stopForegroundService, thermalStatus,
 } from '../surveillance/foregroundService';
 import {
-  LocalServerStatus, startLocalStreamServer, stopLocalStreamServer,
+  LocalServerStatus, generateLocalStreamPin, startLocalStreamServer, stopLocalStreamServer,
 } from '../surveillance/localStreamServer';
 import {
   McpServerStatus, MCP_SERVER_STOPPED, generateMcpToken as mintMcpToken,
@@ -1486,23 +1486,37 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     running: false, port: 8080, ipAddress: null, url: null,
   });
 
+  const localStreamStarting = useRef(false);
   const toggleLocalStream = useCallback(() => {
-    const next = !settings.localStreamEnabled;
-    patchSettings({ localStreamEnabled: next });
-    if (next) {
-      startLocalStreamServer(settings.localStreamPort, settings.localStreamPin).then(setLocalStreamStatus);
-    } else {
+    if (settings.localStreamEnabled) {
+      patchSettings({ localStreamEnabled: false });
       stopLocalStreamServer().then(() => {
         setLocalStreamStatus({ running: false, port: settings.localStreamPort, ipAddress: null, url: null, hasPin: false, activeClients: 0 });
       });
+    } else if (!localStreamStarting.current) {
+      localStreamStarting.current = true;
+      const pin = settings.localStreamPin;
+      const credential = /^[0-9]{12}$/.test(pin) ? Promise.resolve(pin) : generateLocalStreamPin();
+      credential.then(localStreamPin => {
+        patchSettings({ localStreamPin, localStreamEnabled: true });
+      }).catch(() => {
+        setLocalStreamStatus({ running: false, port: settings.localStreamPort, ipAddress: null, url: null });
+      }).finally(() => { localStreamStarting.current = false; });
     }
   }, [patchSettings, settings.localStreamEnabled, settings.localStreamPin, settings.localStreamPort]);
 
   useEffect(() => {
-    if (hydrated && settings.localStreamEnabled) {
-      startLocalStreamServer(settings.localStreamPort, settings.localStreamPin).then(setLocalStreamStatus);
+    if (!hydrated || !settings.localStreamEnabled) return;
+    if (!/^[0-9]{12}$/.test(settings.localStreamPin)) {
+      generateLocalStreamPin().then(localStreamPin => patchSettings({ localStreamPin })).catch(() => {
+        patchSettings({ localStreamEnabled: false });
+      });
+      return;
     }
-  }, [hydrated, settings.localStreamEnabled, settings.localStreamPin, settings.localStreamPort]);
+    startLocalStreamServer(settings.localStreamPort, settings.localStreamPin).then(setLocalStreamStatus).catch(() => {
+      patchSettings({ localStreamEnabled: false });
+    });
+  }, [hydrated, settings.localStreamEnabled, settings.localStreamPin, settings.localStreamPort, patchSettings]);
 
   /** The furthest stage this session has entered. */
   const frameStageRef = useRef<FrameStage | null>(null);

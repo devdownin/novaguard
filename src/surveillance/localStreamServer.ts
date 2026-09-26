@@ -17,6 +17,12 @@ export async function startLocalStreamServer(port: number = 8080, pin: string = 
   return module.startServer(port, pin);
 }
 
+export async function generateLocalStreamPin(): Promise<string> {
+  const module = NativeModules.LocalStreamServer;
+  if (!module?.generatePin) throw new Error('Local stream PIN generator unavailable');
+  return module.generatePin();
+}
+
 export function pushLocalStreamFrameBase64(base64Jpeg: string): void {
   const module = NativeModules.LocalStreamServer;
   if (!module || !module.updateFrameBase64) return;

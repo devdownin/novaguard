@@ -8,8 +8,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableMap
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import java.io.InputStream
 import java.io.OutputStream
 import java.net.Inet4Address
 import java.net.InetSocketAddress
@@ -18,6 +17,11 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.Semaphore
+import java.security.SecureRandom
 
 /**
  * Embedded HTTP server running on the device using standard Android ServerSocket API.
@@ -37,6 +41,16 @@ class LocalStreamServerModule(private val reactContext: ReactApplicationContext)
 
   @Volatile private var latestFrameJpeg: ByteArray? = null
   private val activeStreamClients = CopyOnWriteArrayList<OutputStream>()
+  private val clientSockets = CopyOnWriteArrayList<Socket>()
+  private val clientSlots = Semaphore(MAX_CLIENTS)
+  private val frameWriter = ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS,
+    ArrayBlockingQueue(1), ThreadPoolExecutor.DiscardPolicy())
+
+  @ReactMethod
+  fun generatePin(promise: Promise) {
+    val random = SecureRandom()
+    promise.resolve(buildString { repeat(12) { append(random.nextInt(10)) } })
+  }
 
   @ReactMethod
   fun startServer(port: Int, pin: String?, promise: Promise) {
@@ -46,7 +60,12 @@ class LocalStreamServerModule(private val reactContext: ReactApplicationContext)
       }
 
       currentPort = if (port in 1024..65535) port else 8080
-      streamPin = pin?.trim() ?: ""
+      val credential = pin?.trim().orEmpty()
+      if (!credential.matches(Regex("[0-9]{12}"))) {
+        promise.reject("PIN_REQUIRED", "A generated 12-digit PIN is required")
+        return
+      }
+      streamPin = credential
 
       serverSocket = ServerSocket().apply {
         reuseAddress = true
@@ -54,6 +73,7 @@ class LocalStreamServerModule(private val reactContext: ReactApplicationContext)
       }
 
       isServerRunning = true
+      activeServer = this
       if (threadPool.isShutdown) {
         threadPool = Executors.newCachedThreadPool()
       }
@@ -75,7 +95,7 @@ class LocalStreamServerModule(private val reactContext: ReactApplicationContext)
       promise.resolve(result)
     } catch (e: Exception) {
       Log.e(TAG, "Failed to start LocalStreamServer: ${e.message}", e)
-      isServerRunning = false
+      stopServerInternal()
       promise.reject("SERVER_ERROR", "Failed to start server: ${e.message}")
     }
   }
@@ -85,11 +105,7 @@ class LocalStreamServerModule(private val reactContext: ReactApplicationContext)
     if (!isServerRunning) return
     try {
       val bytes = Base64.decode(base64Jpeg, Base64.DEFAULT)
-      latestFrameJpeg = bytes
-
-      if (activeStreamClients.isNotEmpty()) {
-        broadcastFrameToClients(bytes)
-      }
+      receiveFrame(bytes)
     } catch (e: Exception) {
       Log.w(TAG, "Error updating frame: ${e.message}")
     }
@@ -119,8 +135,18 @@ class LocalStreamServerModule(private val reactContext: ReactApplicationContext)
     promise.resolve(status)
   }
 
+  override fun invalidate() {
+    stopServerInternal()
+    frameWriter.shutdownNow()
+    threadPool.shutdownNow()
+    super.invalidate()
+  }
+
   private fun stopServerInternal() {
     isServerRunning = false
+    if (activeServer === this) activeServer = null
+    clientSockets.forEach { try { it.close() } catch (_: Exception) {} }
+    clientSockets.clear()
     activeStreamClients.clear()
     latestFrameJpeg = null
     try {
@@ -132,12 +158,54 @@ class LocalStreamServerModule(private val reactContext: ReactApplicationContext)
     Log.i(TAG, "Local HTTP Stream Server stopped")
   }
 
+  private fun receiveFrame(bytes: ByteArray) {
+    if (!isServerRunning) return
+    latestFrameJpeg = bytes
+    if (activeStreamClients.isNotEmpty()) {
+      frameWriter.execute { if (isServerRunning) broadcastFrameToClients(bytes) }
+    }
+  }
+
+  /** Avoid an unbounded allocation from a peer that never completes its headers. */
+  private fun readLine(input: InputStream, socket: Socket, deadline: Long): String? {
+    val bytes = java.io.ByteArrayOutputStream()
+    while (bytes.size() < MAX_LINE_BYTES) {
+      val remaining = deadline - System.currentTimeMillis()
+      if (remaining <= 0) return null
+      socket.soTimeout = remaining.coerceAtMost(READ_TIMEOUT_MS.toLong()).toInt()
+      val next = input.read()
+      if (next < 0) return null
+      if (next == '\n'.code) {
+        val line = bytes.toByteArray()
+        val end = if (line.isNotEmpty() && line.last() == '\r'.code.toByte()) line.size - 1 else line.size
+        return String(line, 0, end, Charsets.UTF_8)
+      }
+      bytes.write(next)
+    }
+    return null
+  }
+
   private fun listenForConnections() {
     while (isServerRunning) {
       try {
         val socket = serverSocket?.accept() ?: break
-        threadPool.execute {
-          handleClient(socket)
+        if (!clientSlots.tryAcquire()) {
+          socket.close()
+          continue
+        }
+        clientSockets.add(socket)
+        try {
+          threadPool.execute {
+            try { handleClient(socket) } finally {
+              clientSockets.remove(socket)
+              clientSlots.release()
+            }
+          }
+        } catch (e: Exception) {
+          clientSockets.remove(socket)
+          clientSlots.release()
+          socket.close()
+          throw e
         }
       } catch (e: Exception) {
         if (!isServerRunning) break
@@ -148,31 +216,31 @@ class LocalStreamServerModule(private val reactContext: ReactApplicationContext)
 
   private fun handleClient(socket: Socket) {
     try {
-      val reader = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.UTF_8))
-      val requestLine = reader.readLine() ?: return
+      val headerDeadline = System.currentTimeMillis() + READ_TIMEOUT_MS
+      val input = socket.getInputStream()
+      val requestLine = readLine(input, socket, headerDeadline) ?: return
       val tokens = requestLine.split(" ")
-      val method = if (tokens.isNotEmpty()) tokens[0] else "GET"
       var path = if (tokens.size >= 2) tokens[1] else "/"
 
-      var authorized = streamPin.isEmpty()
+      var authorized = false
       var authHeader = ""
 
-      var line: String?
-      while (reader.readLine().also { line = it } != null) {
-        if (line.isNull_or_empty()) break
-        if (line!!.startsWith("Authorization:", ignoreCase = true)) {
-          authHeader = line!!.substring(14).trim()
+      var headerCount = 0
+      while (true) {
+        val line = readLine(input, socket, headerDeadline) ?: return
+        if (line.isEmpty()) break
+        if (++headerCount > MAX_HEADERS) return
+        if (line.startsWith("Authorization:", ignoreCase = true)) {
+          authHeader = line.substring(14).trim()
         }
       }
 
       if (streamPin.isNotEmpty()) {
-        if (path.contains("pin=$streamPin")) {
-          authorized = true
-        } else if (authHeader.startsWith("Basic ", ignoreCase = true)) {
+        if (authHeader.startsWith("Basic ", ignoreCase = true)) {
           try {
             val decoded = String(Base64.decode(authHeader.substring(6), Base64.DEFAULT), Charsets.UTF_8)
-            val parts = decoded.split(":")
-            if (parts.size >= 2 && parts[1] == streamPin) {
+            val parts = decoded.split(":", limit = 2)
+            if (parts.size == 2 && parts[1] == streamPin) {
               authorized = true
             }
           } catch (_: Exception) {}
@@ -300,7 +368,6 @@ class LocalStreamServerModule(private val reactContext: ReactApplicationContext)
   }
 
   private fun sendHtmlResponse(out: OutputStream) {
-    val pinQuery = if (streamPin.isNotEmpty()) "?pin=$streamPin" else ""
     val html = """
       <!DOCTYPE html>
       <html lang="fr">
@@ -328,13 +395,13 @@ class LocalStreamServerModule(private val reactContext: ReactApplicationContext)
           <div class="badge"><span class="pulse"></span> Diffusion locale Wi-Fi active</div>
 
           <div class="stream-container">
-            <img class="stream-img" src="/stream.mjpeg$pinQuery" alt="Flux Vidéo Direct" onerror="this.onerror=null;this.src='/snapshot.jpg$pinQuery';" />
+            <img class="stream-img" src="/stream.mjpeg" alt="Flux Vidéo Direct" onerror="this.onerror=null;this.src='/snapshot.jpg';" />
           </div>
 
           <div class="controls">
-            <a class="btn" href="/snapshot.jpg$pinQuery" target="_blank">Capturer une photo</a>
-            <a class="btn" href="/stream.mjpeg$pinQuery" target="_blank">Ouvrir flux brut MJPEG</a>
-            <a class="btn" href="/status$pinQuery" target="_blank">Statut JSON</a>
+            <a class="btn" href="/snapshot.jpg" target="_blank">Capturer une photo</a>
+            <a class="btn" href="/stream.mjpeg" target="_blank">Ouvrir flux brut MJPEG</a>
+            <a class="btn" href="/status" target="_blank">Statut JSON</a>
           </div>
 
           <div class="status-box">
@@ -396,7 +463,14 @@ class LocalStreamServerModule(private val reactContext: ReactApplicationContext)
 
   companion object {
     private const val TAG = "LocalStreamServer"
+    private const val MAX_CLIENTS = 12
+    private const val MAX_HEADERS = 32
+    private const val MAX_LINE_BYTES = 4096
+    private const val READ_TIMEOUT_MS = 5000
+    @Volatile private var activeServer: LocalStreamServerModule? = null
+
+    fun hasActiveServer(): Boolean = activeServer?.isServerRunning == true
+
+    fun publishJpeg(bytes: ByteArray) { activeServer?.receiveFrame(bytes) }
   }
 }
-
-private fun String?.isNull_or_empty(): Boolean = this == null || this.trim().isEmpty()
