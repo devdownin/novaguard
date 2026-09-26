@@ -50,10 +50,13 @@ jobs:
       # A well-formedness check costs a second and catches that whole class.
       - name: Validate Android resource XML
         run: |
-          sudo apt-get install -y --no-install-recommends libxml2-utils \
-            > /dev/null 2>&1 || true
-          find android/app/src/main/res -name '*.xml' -print0 \
-            | xargs -0 --no-run-if-empty xmllint --noout
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree
+
+          for path in Path('android/app/src/main/res').rglob('*.xml'):
+              ElementTree.parse(path)
+          PY
 
   # Whether this pull request can break the native build.
   #

@@ -338,6 +338,14 @@ export function SetupScreen() {
           <SettingRow label={t('setup.localStreamPin')}>
             <StaticValue label={settings.localStreamPin || t('setup.localStreamPin.none')} />
           </SettingRow>
+          {settings.localStreamPin ? (
+            <SecondaryOutlineButton
+              label={copiedLabel === 'streamPin' ? t('setup.mcpCopy.copied') : t('setup.localStreamPin.copy')}
+              onPress={() => copyToClipboard(settings.localStreamPin, 'streamPin')}
+              style={styles.buttonMarginTop}
+            />
+          ) : null}
+          <Text style={styles.hint}>{t('setup.localStreamPin.hint')}</Text>
           {s.localStreamStatus.url ? (
             <SettingRow label={t('setup.localStreamUrl')}>
               <StaticValue label={s.localStreamStatus.url} />

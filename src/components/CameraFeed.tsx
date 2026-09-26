@@ -1,7 +1,7 @@
 import React, { RefObject, useEffect, useMemo } from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
 import {
-  Camera, runAtTargetFps, useCameraDevice, useCameraFormat, useFrameProcessor,
+  Camera, VisionCameraProxy, runAtTargetFps, useCameraDevice, useCameraFormat, useFrameProcessor,
 } from 'react-native-vision-camera';
 import { useResizePlugin } from 'vision-camera-resize-plugin';
 import { useFaceDetector } from 'react-native-vision-camera-face-detector';
@@ -131,6 +131,7 @@ export function CameraFeed({
   ]);
 
   const { resize } = useResizePlugin();
+  const streamPlugin = useMemo(() => VisionCameraProxy?.initFrameProcessorPlugin('novaguardStream', {}), []);
   const precise = settings.preciseDetection;
   // `failed` used to be computed and thrown away, so a model both delegates
   // refused looked exactly like a working camera that never sees anything.
@@ -233,11 +234,33 @@ export function CameraFeed({
   const detectPerson = settings.person;
   const detectAnimal = settings.animal;
   const autoZoom = settings.autoZoom;
+  const streamEnabled = chosen.localStreamEnabled;
   const viewW = viewWidth || 1;
   const viewH = viewHeight || 1;
 
   const frameProcessor = useFrameProcessor((frame) => {
     'worklet';
+    if (streamEnabled) {
+      runAtTargetFps(1, () => {
+        'worklet';
+        try {
+          const aspect = uprightAspect(frame.width, frame.height, frame.orientation);
+          const width = aspect >= 1 ? 480 : Math.max(1, Math.round(480 * aspect));
+          const height = aspect >= 1 ? Math.max(1, Math.round(480 / aspect)) : 480;
+          const swap = swapsAxes(frame.orientation);
+          const rgb = resize(frame, {
+            scale: swap ? { width: height, height: width } : { width, height },
+            rotation: uprightRotation(frame.orientation),
+            pixelFormat: 'rgb',
+            dataType: 'uint8',
+          });
+          streamPlugin?.call(frame, { rgb: rgb.buffer as ArrayBuffer, width, height });
+        } catch (e) {
+          const failure = e as { message?: string } | undefined;
+          onFrameError(failure?.message ?? 'erreur diffusion');
+        }
+      });
+    }
     if (model == null) return;
 
     // Analysed on the thread CameraX delivers the frame on, not handed to
@@ -349,7 +372,7 @@ export function CameraFeed({
         onFrameError(failure?.message ?? 'erreur inconnue');
       }
     });
-  }, [model, inputSize, resize, onJsFrame, onFrameError, onFrameStage, detectFaces, autoZoom, viewW, viewH, targetFps, detectPerson, detectAnimal]);
+  }, [model, inputSize, resize, onJsFrame, onFrameError, onFrameStage, detectFaces, autoZoom, viewW, viewH, targetFps, detectPerson, detectAnimal, streamEnabled, streamPlugin]);
 
   if (!perms.cam || device == null) return null;
 

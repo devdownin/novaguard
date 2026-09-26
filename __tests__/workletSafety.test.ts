@@ -218,7 +218,7 @@ describe('the compiled analysis worklet', () => {
     });
     // The analysis itself, not the frame processor that throttles it: a
     // nested worklet's source also appears inside its parent's body.
-    const analysis = bodies.filter(body => body.includes('resize(frame') && !body.includes('runAtTargetFps('));
+    const analysis = bodies.filter(body => body.includes('model.runSync') && !body.includes('runAtTargetFps('));
     expect(analysis).toHaveLength(1);
     return analysis[0];
   }
