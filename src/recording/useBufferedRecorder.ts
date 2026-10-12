@@ -28,6 +28,7 @@ export function useBufferedRecorder(options: RecorderOptions & {
   const active = useRef<{ id: number; stopping: boolean } | null>(null);
   const ready = useRef(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     if (!native) return undefined;
@@ -69,6 +70,7 @@ export function useBufferedRecorder(options: RecorderOptions & {
   useEffect(() => {
     let cancelled = false;
     ready.current = false;
+    setIsReady(false);
     if (!options.enabled) {
       native?.stopCapture().catch(error => latest.current.onError?.(String(error)));
       return undefined;
@@ -80,7 +82,9 @@ export function useBufferedRecorder(options: RecorderOptions & {
     let retry: ReturnType<typeof setTimeout> | null = null;
     const prepare = () => {
       native.startCapture(options.audio, qualityBitRate(options.quality) * 1_000_000)
-        .then(() => { if (!cancelled) ready.current = true; })
+        .then(() => {
+          if (!cancelled) { ready.current = true; setIsReady(true); latest.current.onRecovered?.(); }
+        })
         .catch(error => {
           if (cancelled) return;
           latest.current.onError?.(String(error));
@@ -103,7 +107,9 @@ export function useBufferedRecorder(options: RecorderOptions & {
     inflight.current.add(id);
     setIsRecording(true);
     latest.current.onStarted?.(id);
-    native.begin(id, fromAt, maxDurationMs(latest.current.max)).catch(error => {
+    native.begin(id, fromAt, maxDurationMs(latest.current.max)).then(() => {
+      if (active.current?.id === id) latest.current.onRecovered?.();
+    }).catch(error => {
       if (!inflight.current.delete(id)) return;
       if (active.current?.id === id) {
         active.current = null;
@@ -133,5 +139,5 @@ export function useBufferedRecorder(options: RecorderOptions & {
     if (invocation && !invocation.stopping) native?.observe(invocation.id, untilAt);
   }, [native]);
   const currentId = useCallback(() => active.current?.id ?? null, []);
-  return { isRecording, start, stop, observe, currentId };
+  return { isRecording, isReady, start, stop, observe, currentId };
 }

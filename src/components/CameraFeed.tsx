@@ -19,6 +19,7 @@ import { tunedSettings } from '../camera/autoTune';
 import { frameErrorMessage } from '../camera/frameErrors';
 import { FrameStage } from '../camera/frameTrace';
 import { qualityBitRate, qualityResolution } from '../recording/library';
+import { usesBufferedCapture } from '../recording/presenceMode';
 import { DetectionBox, FrameDetection } from '../ml/types';
 
 /**
@@ -237,7 +238,7 @@ export function CameraFeed({
     try { return VisionCameraProxy.initFrameProcessorPlugin('novaguardPresence', {}); }
     catch { return undefined; }
   }, []);
-  const strictPresence = monitoring && chosen.post === '0 s';
+  const strictPresence = monitoring && usesBufferedCapture(chosen.post);
 
   const frameProcessor = useFrameProcessor((frame) => {
     'worklet';

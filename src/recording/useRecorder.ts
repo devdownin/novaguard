@@ -27,6 +27,7 @@ export interface RecorderOptions {
   max: MaxDuration;
   onClip: (clip: Clip) => void;
   onError?: (message: string) => void;
+  onRecovered?: () => void;
   onStarted?: (recordingId: number) => void;
   onMaxDuration?: () => void;
   onAbandoned?: (recordingId: number) => void;
@@ -35,6 +36,7 @@ export interface RecorderOptions {
 
 export interface Recorder {
   isRecording: boolean;
+  isReady?: boolean;
   start: (fromAt?: number) => boolean;
   stop: (untilAt?: number) => boolean;
   currentId: () => number | null;
@@ -168,6 +170,7 @@ export function useRecorder(options: RecorderOptions): Recorder {
       return false;
     }
     latest.current.onStarted?.(invocation.id);
+    latest.current.onRecovered?.();
     // Some native wrappers throw before returning a promise: thumbnails remain optional.
     try {
       const snapshot = camera.takeSnapshot({ quality: THUMBNAIL_QUALITY, path: RECORDINGS_DIR })

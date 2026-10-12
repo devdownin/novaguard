@@ -13,6 +13,7 @@
 
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NativeModules } from 'react-native';
 import { useCameraPermission } from 'react-native-vision-camera';
 import * as fs from '@dr.pogodin/react-native-fs';
 import { mountProvider } from '../testing/mountProvider';
@@ -50,6 +51,11 @@ beforeEach(async () => {
   jest.useFakeTimers();
   jest.clearAllMocks();
   await AsyncStorage.clear();
+  NativeModules.PresenceRecorder = {
+    startCapture: jest.fn(async () => {}), stopCapture: jest.fn(async () => {}),
+    begin: jest.fn(async () => {}), observe: jest.fn(), end: jest.fn(async () => {}),
+    addListener: jest.fn(), removeListeners: jest.fn(),
+  };
   mockFs.exists.mockResolvedValue(false);
   mockFs.mkdir.mockResolvedValue(undefined);
   mockFs.unlink.mockResolvedValue(undefined);
@@ -65,13 +71,13 @@ afterEach(async () => {
 
 it('says the camera is down on the surface a dark screen still shows', async () => {
   const handle = await watching();
-  expect(notificationBody()).toBe(NOTIFICATION_BODY);
+  expect(notificationBody()).toBe(t('surv.status.starting'));
 
   await ReactTestRenderer.act(async () => { handle.state.reportCameraError(FAILURE); });
 
   // The notification is the only thing a propped-up phone displays. Leaving it
   // on "surveillance active" is the app asserting something false.
-  expect(notificationBody()).toBe(t('notif.interrupted'));
+  expect(notificationBody()).toBe(t('surv.status.cameraUnavailable'));
   expect(handle.state.cameraHealth).toBe('interrupted');
   expect(handle.state.recError).toBe(FAILURE);
 });
@@ -118,7 +124,7 @@ it('is well again on a frame, not on a restart', async () => {
 
   expect(handle.state.cameraHealth).toBe('healthy');
   // And the notification stops warning about an interruption that is over.
-  expect(notificationBody()).toBe(NOTIFICATION_BODY);
+  expect(notificationBody()).toBe(t('surv.status.on'));
 });
 
 it('restarts nothing when surveillance is not running', async () => {

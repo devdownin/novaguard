@@ -22,6 +22,7 @@ export const defaultSettings: Settings = {
   preciseDetection: false,
   zone: null,
   post: '0 s',
+  tolerance: '1 s',
   max: '2 min',
   quality: '1080p',
   /**

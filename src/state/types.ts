@@ -26,7 +26,9 @@ export type Sensitivity = 'Basse' | 'Moyenne' | 'Haute';
 
 export type Camera = 'Arrière (1×)' | 'Arrière (0,5×)' | 'Avant';
 
-export type PostRoll = '0 s' | '5 s' | '10 s' | '30 s';
+export type PresenceMode = 'strict' | 'tolerant';
+export type PostRoll = '0 s' | '1 s' | '2 s' | '3 s' | '5 s' | '10 s' | '30 s';
+export type PresenceTolerance = Exclude<PostRoll, '0 s'>;
 /**
  * Longest a single clip may run. A passage that outlasts it is not cut short —
  * it continues in the next clip — so this bounds file size and the granularity
@@ -168,6 +170,8 @@ export interface Settings {
    */
   zone: DetectionZone | null;
   post: PostRoll;
+  /** Remembered even when strict mode sets the effective post-roll to zero. */
+  tolerance: PresenceTolerance;
   max: MaxDuration;
   quality: Quality;
   retention: Retention;

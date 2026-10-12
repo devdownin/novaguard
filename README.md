@@ -26,11 +26,15 @@ Caméra de surveillance intelligente, locale et open source. NovaGuard transform
 
 ## Enregistrement limité aux présences
 
-Pour une nouvelle installation, **Setup → Enregistrement → Durée après détection** vaut **0 s**. Ce mode strict conserve les images depuis la première observation du sujet, après confirmation, et demande la fermeture dès qu’aucun sujet confirmé n’est observé. Le délai du tracker n’étend pas la vidéo. Plusieurs personnes et animaux peuvent maintenir une même présence.
+Pour une nouvelle installation, **Réglages → Enregistrement → Mode de capture** vaut **Présence stricte**. Ce mode strict conserve les images depuis la première observation du sujet, après confirmation, et demande la fermeture dès qu’aucun sujet confirmé n’est observé. Le délai du tracker n’étend pas la vidéo. Plusieurs personnes et animaux peuvent maintenir une même présence.
 
 La caméra alimente un encodeur Android continu. Un tampon compressé reste uniquement en mémoire, limité à quatre secondes et 16 Mio. Les MP4 sont segmentés sur les images déjà encodées sans arrêter la capture ni redémarrer l’encodeur. La finalisation des fichiers utilise un thread distinct ; sa file est également bornée. L’audio AAC est inclus uniquement avec la permission microphone. Aucune scène vide n’est écrite dans un fichier de ce mode.
 
-Les préférences existantes sont conservées. Les valeurs **5 s, 10 s et 30 s** choisissent le backend VisionCamera avec une marge après disparition et ses interruptions de segmentation ; sélectionnez **0 s** pour passer au mode strict.
+Le mode **Avec tolérance** propose une marge de **1 s** par défaut, réglable à **2 s** ou **3 s**. Il conserve le même clip si une présence revient dans cette marge, et inclut donc des images sans présence. Ces marges courtes utilisent le même encodeur continu. Le choix est mémorisé lorsqu’on revient au mode strict ; changer de mode ou de marge ferme le clip courant.
+
+Les préférences existantes sont conservées. Les anciennes valeurs **5 s, 10 s et 30 s** restent disponibles avec le backend VisionCamera : leur délai commence après expiration du suivi (jusqu’à 1,2 s supplémentaires), avec ses interruptions de segmentation. Ce comportement est indiqué dans le réglage.
+
+Le viseur, l’état de surveillance et la notification distinguent le démarrage, la surveillance active, l’enregistrement, la caméra indisponible, la détection indisponible et le stockage insuffisant. Une analyse qui ne répond plus depuis plus de trois secondes est signalée et ferme la sélection courante ; une panne ne s’affiche pas comme une scène vide.
 
 La présence est une estimation échantillonnée : le logiciel ne connaît pas l’instant physique exact d’entrée ou de sortie entre deux analyses. Les vidéos restent limitées aux images disponibles, et la dernière image a une durée nominale de 1/30 s. Un passage jamais reconnu ne peut pas être récupéré. Si le tampon est épuisé, le début indisponible est signalé et les images restantes peuvent être enregistrées. Un encodeur incompatible avec les images indépendantes, une surcharge ou une erreur de stockage produit un diagnostic, sans passage silencieux au backend avec post-roll. La cadence et la continuité doivent être mesurées sur les appareils cibles, notamment en 4K et écran éteint.
 

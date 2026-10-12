@@ -7,6 +7,7 @@ import { formatWhen } from '../utils/date';
 import { useLandscape } from '../utils/useLandscape';
 import { t } from '../i18n';
 import { Viewfinder } from '../components/Viewfinder';
+import { STATUS_LABEL, statusIsFault } from '../surveillance/status';
 
 /**
  * The camera screen, in the two shapes a surveillance phone is actually left in.
@@ -21,11 +22,10 @@ import { Viewfinder } from '../components/Viewfinder';
 export function SurveillanceScreen() {
   const {
     monitoring, toggleMonitoring, lastDetAt, detToday, storage: store,
-    events, selectEvent, setTab, setFilter, setPeriod, cameraHealth,
+    events, selectEvent, setTab, setFilter, setPeriod, surveillanceStatus,
   } = useAppState();
-  // "Surveillance active" over a camera another app has taken is the one lie
-  // this screen can tell; the pill says which of the three states it is in.
-  const interrupted = monitoring && cameraHealth === 'interrupted';
+  // Share the same diagnosis with the viewfinder and the standing notification.
+  const interrupted = statusIsFault(surveillanceStatus);
   const landscape = useLandscape();
 
   // Each counter answers a question, and the answer was a dead end: "last
@@ -50,6 +50,10 @@ export function SurveillanceScreen() {
 
   const statusPill = (
     <View
+      testID="surveillance-status"
+      accessible
+      accessibilityLiveRegion="polite"
+      accessibilityLabel={t(STATUS_LABEL[surveillanceStatus])}
       style={[
         styles.statusPill,
         interrupted ? styles.pillInterrupted : monitoring ? styles.pillActive : styles.pillInactive,
@@ -68,7 +72,7 @@ export function SurveillanceScreen() {
           interrupted ? styles.textInterrupted : monitoring ? styles.textActive : styles.textInactive,
         ]}
       >
-        {t(interrupted ? 'surv.status.interrupted' : monitoring ? 'surv.status.on' : 'surv.status.off')}
+        {t(STATUS_LABEL[surveillanceStatus])}
       </Text>
     </View>
   );
@@ -243,6 +247,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   statusPill: {
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
@@ -260,7 +265,7 @@ const styles = StyleSheet.create({
   dotInterrupted: { backgroundColor: color.neutral400 },
   dotActive: { backgroundColor: color.accent },
   dotInactive: { backgroundColor: color.neutral600 },
-  statusLabel: { fontFamily: font.medium, fontSize: 11 },
+  statusLabel: { fontFamily: font.medium, fontSize: 11, flexShrink: 1 },
   textInterrupted: { color: color.neutral300 },
   textActive: { color: color.accent200 },
   textInactive: { color: color.neutral500 },

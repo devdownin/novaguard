@@ -1,8 +1,8 @@
 # Validation de la capture des présences
 
-Le réglage **Durée après détection = 0 s** active le backend tamponné Android. Les autres durées conservent le backend VisionCamera avec post-roll. Les préférences sauvegardées ne sont pas remplacées à la mise à jour.
+Le mode **Présence stricte** (`post = 0 s`) active le backend tamponné Android. **Avec tolérance** utilise ce même backend pour les marges de 1/2/3 s, et conserve la sélection jusqu’à la dernière observation positive + la marge. Un retour avant cette limite garde le même clip ; après, il ouvre une nouvelle fenêtre. Les anciens délais 5/10/30 s gardent leur backend VisionCamera, sa grâce de suivi et ses coupures. Les préférences sauvegardées ne sont pas remplacées à la mise à jour.
 
-Le tampon contient des échantillons H.264/AAC en mémoire ; aucun fichier de scène vide n'est produit. La confirmation sélectionne rétroactivement les images à partir de la première observation de la piste. Un retour après absence commence une nouvelle fenêtre, même si le tracker conserve l'identifiant. Seules les observations positives étendent cette fenêtre. Une panne d'analyse la ferme à la dernière observation connue.
+Le tampon contient des échantillons H.264/AAC en mémoire ; aucun fichier de scène vide n'est produit. La confirmation sélectionne rétroactivement les images à partir de la première observation de la piste. Un retour après absence commence une nouvelle fenêtre, même si le tracker conserve l'identifiant. En mode strict, seules les observations positives étendent cette fenêtre. Une panne d'analyse la ferme à la dernière observation connue.
 
 Une présence terminée libère immédiatement la sélection suivante, même si son fichier reste en finalisation. Les clips partiels d’une erreur sont conservés lorsque le muxer peut les finaliser. Les noms sont réservés et renommés en série pour éviter les collisions entre passages d’une même seconde.
 
@@ -41,3 +41,13 @@ Placer une horloge visible dans le champ et garder les fichiers originaux pour c
 | Vignette tardive et callback de clip ancien | Aucun changement du clip actif ; chaque vignette appartient à son fichier |
 
 Mesurer le retard d'observation, la cadence réelle, les images aux raccords, la durée de la dernière image, la synchronisation audio et la consommation mémoire/température. Ces résultats matériels restent nécessaires : une compilation et des mocks ne prouvent pas la continuité sur téléphone.
+
+## Modes et diagnostic à vérifier sur appareil
+
+- Choisir « Avec tolérance », passer de 1 à 2 puis 3 s : une occultation plus courte doit conserver un clip ; une absence plus longue doit en ouvrir deux. Mesurer la dernière image par rapport à la dernière observation positive + la marge.
+- Revenir à « Présence stricte » : arrêt à la dernière observation positive. Rechoisir « Avec tolérance » : la marge précédente doit être retrouvée, y compris après relancement.
+- Modifier mode ou marge pendant un clip : l’ancien clip doit rester dans l’historique et le suivant commencer à une nouvelle observation.
+- Prendre la caméra avec une autre application : le viseur et la notification doivent dire « Caméra indisponible », puis revenir à l’état actif seulement après une image analysée.
+- Simuler une erreur du modèle ou interrompre l’analyse pendant plus de trois secondes : afficher « Détection indisponible », jamais « Aucune détection ». Vérifier la récupération sur une nouvelle analyse.
+- Remplir le stockage, avec suppression automatique désactivée : annoncer « Stockage insuffisant » avant une tentative d’enregistrement ; vérifier l’état après libération de place et nouvelle mesure du volume.
+- Provoquer un refus d’encodeur : annoncer « Enregistrement indisponible » jusqu’à une reprise réussie, sans effacer une erreur de détection indépendante.

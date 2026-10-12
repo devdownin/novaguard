@@ -59,6 +59,72 @@ it('defaults to strict presence and warms the native buffer without writing an e
   await frame(h, 0, []);
   expect(native.begin).not.toHaveBeenCalled();
 });
+
+it('joins a brief missed detection in tolerant mode without restarting the clip', async () => {
+  const h = await watch();
+  await ReactTestRenderer.act(async () => { h.state.setPresenceMode('tolerant'); });
+  expect(h.state.settings.post).toBe('1 s');
+  await frame(h, 0, [person]); await frame(h, 333, [person]);
+  await frame(h, 666, []); await frame(h, 900, [person]);
+  expect(native.begin).toHaveBeenCalledTimes(1);
+  expect(native.end).not.toHaveBeenCalled();
+  await frame(h, 1233, []);
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(1000); });
+  expect(native.end).toHaveBeenCalledWith(currentId(), T0 + 1900);
+});
+
+it('retains the chosen tolerance when switching back to strict and ends an open clip safely', async () => {
+  const h = await watch();
+  await ReactTestRenderer.act(async () => { h.state.setPresenceMode('tolerant'); });
+  await ReactTestRenderer.act(async () => { h.state.cycleTolerance(); });
+  expect(h.state.settings.post).toBe('2 s');
+  await frame(h, 0, [person]); await frame(h, 333, [person]);
+  await ReactTestRenderer.act(async () => { h.state.setPresenceMode('strict'); });
+  expect(native.end).toHaveBeenCalledWith(currentId(), T0 + 333);
+  expect(h.state.settings.post).toBe('0 s');
+  await ReactTestRenderer.act(async () => { h.state.setPresenceMode('tolerant'); });
+  expect(h.state.settings.post).toBe('2 s');
+  const stored = JSON.parse((await AsyncStorage.getItem('@novaguard:settings'))!);
+  expect(stored.post).toBe('2 s');
+  expect(stored.tolerance).toBe('2 s');
+  await frame(h, 666, [person]);
+  expect(native.begin).toHaveBeenLastCalledWith(expect.any(Number), T0 + 666, 120_000);
+});
+
+it('reports stalled analysis instead of an empty scene and recovers on a new analysed frame', async () => {
+  const h = await watch();
+  await frame(h, 0, []);
+  expect(h.state.surveillanceStatus).toBe('active');
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(4000); });
+  expect(h.state.surveillanceStatus).toBe('analysis-unavailable');
+  expect(h.state.recError).toContain('sans réponse');
+  await frame(h, 4333, []);
+  expect(h.state.surveillanceStatus).toBe('active');
+  expect(h.state.recError).toBeNull();
+});
+
+it('splits a tolerant passage when the subject returns after the selected margin', async () => {
+  const h = await watch();
+  await ReactTestRenderer.act(async () => { h.state.setPresenceMode('tolerant'); });
+  await frame(h, 0, [person]); await frame(h, 333, [person]); await frame(h, 666, []);
+  const firstId = currentId();
+  await frame(h, 1600, [person]);
+  expect(native.end).toHaveBeenCalledWith(firstId, T0 + 1333);
+  expect(native.begin).toHaveBeenCalledTimes(2);
+  expect(currentId()).not.toBe(firstId);
+});
+
+it('exposes capture faults until a successful retry and never clears an analysis fault with a recording start', async () => {
+  native.begin.mockRejectedValueOnce(new Error('codec busy'));
+  const h = await watch();
+  await frame(h, 0, [person]); await frame(h, 333, [person]);
+  expect(h.state.surveillanceStatus).toBe('recording-error');
+  await ReactTestRenderer.act(async () => { h.state.reportCameraProblem('Modèle indisponible'); });
+  await frame(h, 1400, [person]);
+  expect(h.state.surveillanceStatus).toBe('analysis-unavailable');
+  await ReactTestRenderer.act(async () => { h.state.reportCameraProblem(null); });
+  expect(h.state.surveillanceStatus).toBe('recording');
+});
 it('recovers from the first sighting, before confirmation, and closes at the last positive capture', async () => {
   const h = await watch();
   await frame(h, 0, [person]);

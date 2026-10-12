@@ -379,7 +379,9 @@ it('still writes the event when the encoder errors on the cut', async () => {
   });
   await settle();
 
-  expect(p.state.recError).toBe('no space left on device');
+  // The failed sighting remains in history; a successful replacement clears
+  // the old encoder fault instead of claiming that the new clip is failing.
+  expect(p.state.recError).toBeNull();
   expect(p.state.events).toHaveLength(1);
   expect(p.state.events[0].path).toBeNull();
   // And the passage is either recording again or closed — never open and idle.
@@ -472,9 +474,9 @@ it('still writes the event when the encoder never answers the cut', async () => 
   // No `onRecordingFinished` at all. The recorder gives up after
   // FINALIZE_TIMEOUT_MS so the camera can be released — and nothing else would
   // ever write the event the abandoned clip was carrying.
-  await ReactTestRenderer.act(async () => {
-    jest.advanceTimersByTime(FINALIZE_TIMEOUT_MS);
-  });
+  // Analysis keeps flowing; silence would now correctly close the passage as
+  // a detection fault rather than prove that the subject is still present.
+  await p.watch(FINALIZE_TIMEOUT_MS);
   await settle();
 
   expect(p.state.events).toHaveLength(1);

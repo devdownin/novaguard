@@ -168,10 +168,18 @@ it('honours a post-roll changed mid-session', async () => {
   expect(handle.state.events).toHaveLength(0);
 
   // Past the old 10 s delay. A stale ref would have closed the session here.
-  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(15_000); });
+  const analyseEmptyScene = async (seconds: number) => {
+    for (let second = 0; second < seconds; second++) {
+      await ReactTestRenderer.act(async () => {
+        jest.advanceTimersByTime(1000);
+        handle.state.reportDetections([], 9 / 16);
+      });
+    }
+  };
+  await analyseEmptyScene(15);
   expect(handle.state.events).toHaveLength(0);
 
-  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(20_000); });
+  await analyseEmptyScene(20);
   expect(handle.state.events).toHaveLength(1);
 });
 

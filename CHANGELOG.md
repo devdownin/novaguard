@@ -7,6 +7,9 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 ## [Non publié]
 
 ### Présences détectées
+- Deux modes explicites : **Présence stricte** et **Avec tolérance**. Marges courtes 1/2/3 s sur le backend tamponné, durée mémorisée au retour au mode strict et anciens délais 5/10/30 s préservés.
+- États partagés entre le viseur, l’écran de surveillance et la notification : démarrage, surveillance, enregistrement, caméra indisponible, détection indisponible et stockage insuffisant. Les erreurs de capture et de détection se rétablissent indépendamment.
+- Analyse sans réponse signalée après plus de trois secondes, même lorsqu’aucune présence n’a été détectée ; fermeture du clip courant et récupération sur une nouvelle analyse.
 - Mode strict **0 s** par défaut sur une nouvelle installation : tampon H.264/AAC en mémoire, horodatages des images et segmentation native sans arrêt de l’encodeur. Les préférences existantes et les modes avec post-roll sont conservés.
 - Reprise bornée après un démarrage refusé ou une erreur d’encodeur pendant une présence.
 - Métadonnées et callbacks isolés par identifiant d’enregistrement : la finalisation d’un clip ne pilote plus le suivant.
