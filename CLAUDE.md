@@ -4,6 +4,14 @@ Caméra de surveillance Android, locale et open source. React Native 0.81 /
 React 19 / TypeScript. Rien ne quitte l'appareil : pas de réseau, pas de compte,
 pas de télémétrie. Le code est commenté en anglais, l'interface est en français.
 
+## Capture des présences : contrat actuel
+
+Le défaut des nouvelles installations est `post: '0 s'`. Ce mode sélectionne les fenêtres de détection positive et utilise `PresenceFramePlugin` → `PresenceRecorderModule` → `PresenceWindow` → `useBufferedRecorder`. Le tampon H.264/AAC reste en mémoire, les muxers se succèdent sur des images indépendantes sans arrêter l’encodeur, et la finalisation des MP4 tourne sur un thread distinct. Le début remonte à la première observation avant confirmation ; la fin ne comprend ni la grâce du tracker ni un post-roll. Les callbacks et les métadonnées appartiennent à un identifiant d’enregistrement.
+
+Les autres valeurs de `post` conservent le backend VisionCamera, avec marge après départ et coupures d’encodeur. Les descriptions historiques de ces coupures plus bas concernent ce backend. Le zoom de capture décrit plus bas n’est plus appliqué : le mouvement est limité à l’aperçu et le capteur reste au zoom neutre pour préserver tout le champ.
+
+Vérifier la politique native avec `scripts/test-presence-native.sh`, les transitions du mode strict avec `__tests__/strictPresence.test.tsx` et les deux backends avec la suite Jest. Construire un APK pour les modifications Kotlin. Aucun mock ne prouve la continuité des codecs : suivre `docs/PRESENCE_RECORDING.md` sur appareil avant mise en production.
+
 ## Commandes
 
 ```bash

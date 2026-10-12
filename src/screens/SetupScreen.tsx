@@ -209,7 +209,7 @@ export function SetupScreen() {
         </CollapsibleSection>
 
         <CollapsibleSection title={t('setup.section.rec')} expanded={settings.exp.rec} onToggle={() => s.toggleSection('rec')}>
-          <SettingRow label={t('setup.post')}>
+          <SettingRow label={t('setup.post')} subtitle={t('setup.post.sub')}>
             <ValueButton
               label={settings.post}
               onPress={s.cyclePost}

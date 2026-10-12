@@ -140,7 +140,7 @@ it('hands the finished clip over with its real size read from disk', async () =>
 
   // `VideoFile` carries no size, so it comes from stat() once the file closed.
   expect(onClip).toHaveBeenCalledWith<[Clip]>({
-    path: '/clips/a.mp4', bytes: 4096, duration: 12.4, thumbPath: SNAPSHOT,
+    recordingId: 1, path: '/clips/a.mp4', bytes: 4096, duration: 12.4, thumbPath: SNAPSHOT,
   });
   expect(h.recorder.isRecording).toBe(false);
 });
@@ -432,7 +432,7 @@ describe('the still kept for the history', () => {
     expect(camera.startRecording).toHaveBeenCalledTimes(1);
   });
 
-  it('never holds the clip up: the encoder is released first', async () => {
+  it('bounds a stalled thumbnail while releasing the encoder first', async () => {
     const camera = fakeCamera();
     const onEncoderFree = jest.fn();
     // A snapshot that never lands. The clip must not be reported before it —
@@ -448,6 +448,8 @@ describe('the still kept for the history', () => {
 
     expect(onEncoderFree).toHaveBeenCalledTimes(1);
     expect(onClip).not.toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(1500); });
+    expect(onClip).toHaveBeenCalledWith(expect.objectContaining({ path: '/clips/a.mp4', thumbPath: null }));
   });
 
   it('files the clip without one when there is no preview to snapshot', async () => {
@@ -502,4 +504,44 @@ describe('the still kept for the history', () => {
     expect(onClip.mock.calls.map(c => c[0].thumbPath))
       .toEqual([SNAPSHOT, `${RECORDINGS_DIR}/snap2.jpg`]);
   });
+});
+
+it('keeps each thumbnail with its own clip across synchronous rollover', async () => {
+  const camera = fakeCamera();
+  camera.takeSnapshot.mockResolvedValueOnce({ path: '/thumb/A.jpg' }).mockResolvedValueOnce({ path: '/thumb/B.jpg' });
+  const onClip = jest.fn();
+  let h!: Awaited<ReturnType<typeof mount>>;
+  h = await mount(camera, { onClip, onEncoderFree: jest.fn(() => { h.recorder.start(); }) });
+  await ReactTestRenderer.act(async () => { h.recorder.start(); });
+  await ReactTestRenderer.act(async () => { camera.calls[0].onRecordingFinished({ path: '/clips/A.mp4', duration: 60 }); });
+  expect(camera.startRecording).toHaveBeenCalledTimes(2);
+  expect(onClip).toHaveBeenCalledWith(expect.objectContaining({ recordingId: 1, path: '/clips/A.mp4', thumbPath: '/thumb/A.jpg' }));
+  h.unmount();
+});
+
+it('ignores a late completion of an abandoned invocation while the next is recording', async () => {
+  const camera = fakeCamera();
+  const onClip = jest.fn();
+  const h = await mount(camera, { onClip });
+  await ReactTestRenderer.act(async () => { h.recorder.start(); h.recorder.stop(); });
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(FINALIZE_TIMEOUT_MS); });
+  await ReactTestRenderer.act(async () => { h.recorder.start(); });
+  await ReactTestRenderer.act(async () => { camera.calls[0].onRecordingFinished({ path: '/clips/late.mp4', duration: 1 }); });
+  expect(h.recorder.isRecording).toBe(true);
+  expect(h.recorder.currentId()).toBe(2);
+  expect(onClip).not.toHaveBeenCalled();
+  expect(mockFs.unlink).toHaveBeenCalledWith('/clips/late.mp4');
+  h.unmount();
+});
+
+it('handles an asynchronously rejected stop without an unhandled rejection', async () => {
+  const camera = fakeCamera();
+  camera.stopRecording.mockRejectedValueOnce(new Error('encoder unavailable'));
+  const onAbandoned = jest.fn();
+  const h = await mount(camera, { onAbandoned });
+  await ReactTestRenderer.act(async () => { h.recorder.start(); h.recorder.stop(); });
+  expect(h.recorder.isRecording).toBe(false);
+  expect(h.onError).toHaveBeenCalledWith('encoder unavailable');
+  expect(onAbandoned).toHaveBeenCalledTimes(1);
+  h.unmount();
 });

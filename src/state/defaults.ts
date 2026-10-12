@@ -21,7 +21,7 @@ export const defaultSettings: Settings = {
   forceCpu: false,
   preciseDetection: false,
   zone: null,
-  post: '10 s',
+  post: '0 s',
   max: '2 min',
   quality: '1080p',
   /**

@@ -118,6 +118,7 @@ describe('the frame path in the background', () => {
       return null;
     }
     const handle = await mountProvider(<ViewfinderProbe />);
+    await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
     const see = async (n: number) => {
       await ReactTestRenderer.act(async () => {
         handle.state.reportDetections([person(0.3 + n * 0.001)], 9 / 16);

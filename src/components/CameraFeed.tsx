@@ -63,13 +63,7 @@ interface CameraFeedProps {
   viewHeight: number;
   /** Boxes for the auto-zoom, already normalized to the viewfinder rect. */
   onFrame?: (faces: DetectionBox[], persons: DetectionBox[]) => void;
-  /**
-   * Magnification asked of the capture session, as a factor over the device's
-   * neutral position. 1 means the sensor delivers its full field of view.
-   *
-   * This is the only zoom that reaches the recorded file: the viewfinder's
-   * transform scales a React Native view, which the encoder never sees.
-   */
+  /** Deprecated compatibility prop: sensor capture always stays at neutral zoom. */
   cameraZoom?: number;
   /**
    * How far this device can actually be zoomed, in the same factor. Reported
@@ -101,10 +95,10 @@ interface CameraFeedProps {
  * (Viewfinder) falls back to the decorative standby view in that case.
  */
 export function CameraFeed({
-  style, active, viewWidth, viewHeight, onFrame, cameraZoom = 1, onZoomRange, cameraRef,
+  style, active, viewWidth, viewHeight, onFrame, onZoomRange, cameraRef,
   onProblem, onSessionError, onStage,
 }: CameraFeedProps) {
-  const { perms, settings: chosen, autoTune, foreground, reportDetections } = useAppState();
+  const { perms, settings: chosen, autoTune, foreground, monitoring, reportDetections } = useAppState();
   /**
    * What the user asked for, minus whatever the device has been measured to be
    * unable to hold up (see `autoTune.ts`). Only the two costs the ladder can
@@ -197,8 +191,9 @@ export function CameraFeed({
     detections: FrameDetection[],
     faces: DetectionBox[],
     frameAspect: number,
+    capturedAt?: number,
   ) => {
-    reportDetections(detections, frameAspect);
+    reportDetections(detections, frameAspect, capturedAt);
     if (!onFrame) return;
     const persons = detections
       .filter(d => d.kind === 'Personne')
@@ -238,8 +233,30 @@ export function CameraFeed({
   const viewW = viewWidth || 1;
   const viewH = viewHeight || 1;
 
+  const presencePlugin = useMemo(() => {
+    try { return VisionCameraProxy.initFrameProcessorPlugin('novaguardPresence', {}); }
+    catch { return undefined; }
+  }, []);
+  const strictPresence = monitoring && chosen.post === '0 s';
+
   const frameProcessor = useFrameProcessor((frame) => {
     'worklet';
+    let capturedAt: number | undefined;
+    if (strictPresence) {
+      try {
+        if (presencePlugin == null) {
+          onFrameError('Plugin de capture tamponnée indisponible');
+          return;
+        }
+        const timestamp = presencePlugin.call(frame);
+        if (typeof timestamp !== 'number' || timestamp <= 0) return;
+        capturedAt = timestamp;
+      } catch (e) {
+        const failure = e as { message?: string } | undefined;
+        onFrameError(failure?.message ?? 'Capture tamponnée indisponible');
+        return;
+      }
+    }
     if (streamEnabled) {
       runAtTargetFps(1, () => {
         'worklet';
@@ -363,7 +380,7 @@ export function CameraFeed({
         }
 
         onFrameStage('report');
-        onJsFrame(detections, faces, aspect);
+        onJsFrame(detections, faces, aspect, capturedAt);
 
       } catch (e) {
         // Plain property access, no `instanceof`: the worklet runtime is not
@@ -372,7 +389,7 @@ export function CameraFeed({
         onFrameError(failure?.message ?? 'erreur inconnue');
       }
     });
-  }, [model, inputSize, resize, onJsFrame, onFrameError, onFrameStage, detectFaces, autoZoom, viewW, viewH, targetFps, detectPerson, detectAnimal, streamEnabled, streamPlugin]);
+  }, [model, inputSize, resize, onJsFrame, onFrameError, onFrameStage, detectFaces, autoZoom, viewW, viewH, targetFps, detectPerson, detectAnimal, streamEnabled, streamPlugin, strictPresence, presencePlugin]);
 
   if (!perms.cam || device == null) return null;
 
@@ -382,7 +399,7 @@ export function CameraFeed({
       // Expressed against the device's neutral position rather than as a raw
       // factor: on a multi-physical camera `neutralZoom` is the wide-angle
       // lens, and passing 1 there would start the session on the fish-eye.
-      zoom={Math.min(Math.max(device.neutralZoom * cameraZoom, device.minZoom), device.maxZoom)}
+      zoom={device.neutralZoom}
       style={style}
       device={device}
       format={format}

@@ -182,7 +182,7 @@ export function Viewfinder() {
           // What reaches the recorded file. The transform above only moves the
           // preview; the encoder is downstream of the capture session, not of
           // the view tree.
-          cameraZoom={autoZoom.cameraZoom}
+          cameraZoom={1}
           onZoomRange={setMaxCameraZoom}
           cameraRef={cameraRef}
           onProblem={reportCameraProblem}

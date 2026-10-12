@@ -36,7 +36,16 @@ export async function fileSize(path: string): Promise<number> {
  * clobber an existing file, which two events landing in the same second would
  * otherwise do.
  */
-export async function renameRecording(from: string, filename: string): Promise<string> {
+let renameQueue: Promise<void> = Promise.resolve();
+
+/** Serialises name reservation and move: concurrent clips must not pick the same free path. */
+export function renameRecording(from: string, filename: string): Promise<string> {
+  const rename = renameQueue.then(() => renameOne(from, filename));
+  renameQueue = rename.then(() => {}, () => {});
+  return rename;
+}
+
+async function renameOne(from: string, filename: string): Promise<string> {
   if (`${RECORDINGS_DIR}/${filename}` === from) return from;
   try {
     // Walk suffixes until one is free. The previous `_${Date.now() % 1000}`

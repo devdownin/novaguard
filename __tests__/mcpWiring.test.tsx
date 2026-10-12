@@ -1,3 +1,4 @@
+import { useCameraPermission } from 'react-native-vision-camera';
 /**
  * The MCP switch has to start a server, and the server has to be handed data.
  *
@@ -85,7 +86,9 @@ it('restarts the server with the new token when one is generated', async () => {
 });
 
 it('pushes a snapshot when the history changes', async () => {
+  (useCameraPermission as jest.Mock).mockReturnValue({ hasPermission: true, requestPermission: jest.fn() });
   const handle = await mountProvider();
+  await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
   await ReactTestRenderer.act(async () => { handle.state.toggleMcpServer(); });
   await ReactTestRenderer.act(async () => {});
 

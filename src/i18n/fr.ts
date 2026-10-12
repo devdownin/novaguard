@@ -132,7 +132,7 @@ export const fr = {
   'setup.autoTuneSwitch': 'Auto-réglage',
   'setup.autoTuneSwitch.sub': 'Retire du calcul quand l’appareil n’analyse plus assez d’images. Ne rallume jamais ce que vous avez éteint.',
   'setup.autoZoom': 'Zoom auto sur les personnes',
-  'setup.autoZoom.sub': 'Plan serré 4 s, puis plan large sur la scène',
+  'setup.autoZoom.sub': 'Grossissement de l’aperçu ; la vidéo conserve tout le champ',
   'setup.forceCpu': 'Détection sur le processeur',
   'setup.forceCpu.sub': 'À essayer si rien n’est jamais détecté : force le calcul sur le CPU',
   'setup.precise': 'Détection étendue',
@@ -154,6 +154,7 @@ export const fr = {
   'setup.threshold': 'Seuil de confiance',
 
   'setup.post': 'Durée après détection',
+  'setup.post.sub': '0 s : uniquement la présence détectée. Les autres durées ajoutent une marge après le départ.',
   'setup.max': 'Durée max. par clip',
   'setup.max.sub': 'L’enregistrement continue tant qu’un sujet est visible : au-delà, il se poursuit dans un nouveau clip',
   'setup.quality': 'Qualité vidéo',

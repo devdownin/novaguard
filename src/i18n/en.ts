@@ -130,7 +130,7 @@ export const en: Record<StringKey, string> = {
   'setup.autoTuneSwitch': 'Self-tuning',
   'setup.autoTuneSwitch.sub': 'Gives up compute when the device stops analysing enough frames. Never switches back on what you turned off.',
   'setup.autoZoom': 'Auto-zoom on people',
-  'setup.autoZoom.sub': 'Close shot for 4 s, then a wide shot of the scene',
+  'setup.autoZoom.sub': 'Preview magnification; recordings keep the full field of view',
   'setup.forceCpu': 'Detect on the CPU',
   'setup.forceCpu.sub': 'Worth trying if nothing is ever detected: forces the computation onto the CPU',
   'setup.precise': 'Extended detection',
@@ -152,6 +152,7 @@ export const en: Record<StringKey, string> = {
   'setup.threshold': 'Confidence threshold',
 
   'setup.post': 'Keep recording after a detection',
+  'setup.post.sub': '0 s: detected presence only. Other durations add a margin after departure.',
   'setup.max': 'Max. clip length',
   'setup.max.sub': 'Recording continues while a subject is visible: past this, it carries on in a new clip',
   'setup.quality': 'Video quality',

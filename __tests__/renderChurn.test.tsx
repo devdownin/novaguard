@@ -38,12 +38,14 @@ async function mount() {
   renders.app = 0;
   renders.viewfinder = 0;
   seen.frameRate = 0;
-  return mountProvider(
+  const handle = await mountProvider(
     <>
       <AppConsumer />
       <ViewfinderConsumer />
     </>,
   );
+  await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
+  return handle;
 }
 
 beforeEach(async () => {
@@ -142,7 +144,6 @@ describe('the measured cadence', () => {
     // Through the handle: `toggleMonitoring` closes over `monitoring`, so a
     // destructured copy would start a second session instead of stopping the first.
     const handle = await mount();
-    await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
     await ReactTestRenderer.act(async () => {
       handle.state.reportDetections([], 9 / 16);
       jest.advanceTimersByTime(FRAME_RATE_WINDOW_MS);

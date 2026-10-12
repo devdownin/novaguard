@@ -117,6 +117,7 @@ export function maxDurationMs(max: MaxDuration): number {
 
 export function postRollMs(post: PostRoll): number {
   switch (post) {
+    case '0 s': return 0;
     case '5 s': return 5_000;
     case '10 s': return 10_000;
     case '30 s': return 30_000;

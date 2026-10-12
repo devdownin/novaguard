@@ -12,6 +12,7 @@ class SurveillanceServicePackage : BaseReactPackage() {
     when (name) {
       SurveillanceServiceModule.NAME -> SurveillanceServiceModule(reactContext)
       "LocalStreamServer" -> LocalStreamServerModule(reactContext)
+      PresenceRecorderModule.NAME -> PresenceRecorderModule(reactContext)
       McpServerModule.NAME -> McpServerModule(reactContext)
       else -> null
     }
@@ -29,6 +30,14 @@ class SurveillanceServicePackage : BaseReactPackage() {
       "LocalStreamServer" to ReactModuleInfo(
         name = "LocalStreamServer",
         className = "LocalStreamServerModule",
+        canOverrideExistingModule = false,
+        needsEagerInit = false,
+        isCxxModule = false,
+        isTurboModule = false,
+      ),
+      PresenceRecorderModule.NAME to ReactModuleInfo(
+        name = PresenceRecorderModule.NAME,
+        className = "PresenceRecorderModule",
         canOverrideExistingModule = false,
         needsEagerInit = false,
         isCxxModule = false,

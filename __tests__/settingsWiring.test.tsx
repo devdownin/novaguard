@@ -11,13 +11,20 @@
 
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { mountProvider } from '../testing/mountProvider';
+import { useCameraPermission } from 'react-native-vision-camera';
+import { mountLegacyProvider } from '../testing/mountProvider';
 import { defaultSettings } from '../src/state/defaults';
 import { Settings } from '../src/state/types';
 import { FrameDetection } from '../src/ml/types';
 import { DEFAULT_TRACKER_OPTIONS } from '../src/ml/tracker';
 
 jest.mock('../src/surveillance/foregroundService');
+
+async function mountProvider() {
+  const handle = await mountLegacyProvider();
+  await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
+  return handle;
+}
 
 const SETTINGS_KEY = '@novaguard:settings';
 
@@ -31,6 +38,7 @@ async function storedSettings(): Promise<Settings> {
 beforeEach(async () => {
   jest.useFakeTimers();
   jest.clearAllMocks();
+  (useCameraPermission as jest.Mock).mockReturnValue({ hasPermission: true, requestPermission: jest.fn() });
   await AsyncStorage.clear();
 });
 
