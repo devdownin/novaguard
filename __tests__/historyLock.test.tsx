@@ -44,6 +44,8 @@ type Handle = {
 };
 
 /** Mounted here rather than through `mountProvider`: these cases read the tree. */
+const mounted: ReactTestRenderer.ReactTestRenderer[] = [];
+
 async function history(lockHistory: boolean): Promise<Handle> {
   await AsyncStorage.setItem(EVENTS_KEY, JSON.stringify([event(1)]));
   await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings, lockHistory }));
@@ -63,6 +65,7 @@ async function history(lockHistory: boolean): Promise<Handle> {
     );
   });
   await ReactTestRenderer.act(async () => {});
+  mounted.push(handle.renderer);
   return handle;
 }
 
@@ -84,6 +87,12 @@ async function press(handle: Handle, label: string) {
   await ReactTestRenderer.act(async () => { button.props.onPress(); });
   await ReactTestRenderer.act(async () => {});
 }
+
+afterEach(async () => {
+  await ReactTestRenderer.act(async () => {
+    while (mounted.length) mounted.pop()!.unmount();
+  });
+});
 
 beforeEach(async () => {
   jest.clearAllMocks();

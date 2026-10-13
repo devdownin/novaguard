@@ -17,6 +17,14 @@ import { defaultSettings } from '../src/state/defaults';
 
 const MODEL = require('../assets/models/efficientdet-lite0.tflite');
 
+function loadedModel() {
+  return {
+    runSync: jest.fn(),
+    inputs: [{ dataType: 'uint8', shape: [1, 320, 320, 3] }],
+    outputs: Array.from({ length: 4 }, () => ({ dataType: 'float32' })),
+  };
+}
+
 type Json = ReturnType<ReactTestRenderer.ReactTestRenderer['toJSON']>;
 
 /** Every string rendered anywhere in the tree. */
@@ -216,7 +224,7 @@ describe('detection model loading', () => {
   });
 
   it('exposes the model once the plugin reports it loaded', async () => {
-    const fakeModel = { runSync: jest.fn() };
+    const fakeModel = loadedModel();
     mock.__setResolver(() => ({ state: 'loaded', model: fakeModel }));
     const { container } = await loadModel();
     expect(container.value?.model).toBe(fakeModel);
@@ -228,7 +236,7 @@ describe('detection model loading', () => {
     // decline; without this fallback there would be no detection at all.
     mock.__setResolver((_source, delegate) => (delegate === 'android-gpu'
       ? { state: 'error', error: new Error('delegate refused') }
-      : { state: 'loaded', model: { runSync: jest.fn() } }));
+      : { state: 'loaded', model: loadedModel() }));
     const { container } = await loadModel();
     expect(container.value?.delegate).toBe('default');
     expect(container.value?.model).toBeDefined();
@@ -248,7 +256,7 @@ describe('detection model loading', () => {
     // exactly like a camera that never sees anybody — this is what makes the
     // two distinguishable on a device, so it has to actually reach the plugin.
     it('never asks for the GPU delegate at all', async () => {
-      mock.__setResolver(() => ({ state: 'loaded', model: { runSync: jest.fn() } }));
+      mock.__setResolver(() => ({ state: 'loaded', model: loadedModel() }));
       const { container } = await loadModel(true);
 
       expect(container.value?.delegate).toBe('default');
@@ -258,7 +266,7 @@ describe('detection model loading', () => {
     it('gives the GPU another go when the switch is turned back off', async () => {
       // Stored as "we fell back", this could never be undone: one flick of the
       // switch would have pinned the session to the CPU for good.
-      mock.__setResolver(() => ({ state: 'loaded', model: { runSync: jest.fn() } }));
+      mock.__setResolver(() => ({ state: 'loaded', model: loadedModel() }));
       const { container, setForceCpu } = await loadModel(true);
       await setForceCpu(false);
 
@@ -268,7 +276,7 @@ describe('detection model loading', () => {
     it('does not re-ask a GPU that already refused', async () => {
       mock.__setResolver((_source, delegate) => (delegate === 'android-gpu'
         ? { state: 'error', error: new Error('delegate refused') }
-        : { state: 'loaded', model: { runSync: jest.fn() } }));
+        : { state: 'loaded', model: loadedModel() }));
       const { container, setForceCpu } = await loadModel();
       expect(container.value?.delegate).toBe('default');
 
