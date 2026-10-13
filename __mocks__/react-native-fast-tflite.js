@@ -1,8 +1,7 @@
 // No native TFLite module in the Jest environment — see react-native-vision-camera.js.
 //
-// `useTensorflowModel` is configurable so tests can drive the load states the
-// real plugin reports ('loading' | 'loaded' | 'error') and exercise the
-// GPU-to-CPU delegate fallback in src/camera/useDetectionModel.ts.
+// Resolve loading through a Promise, as the native loader does. The dedicated
+// initialization suite additionally uses the real library asset loader.
 const state = {
   // Called with (source, delegate); returns whatever the test asked for.
   resolve: () => ({ state: 'loading', model: undefined }),
@@ -14,9 +13,18 @@ function useTensorflowModel(source, delegate) {
   return state.resolve(source, delegate);
 }
 
+function loadTensorflowModel(source, delegate) {
+  state.calls.push({ source, delegate });
+  return Promise.resolve().then(() => state.resolve(source, delegate)).then(result => {
+    if (result.state === 'loaded') return result.model;
+    if (result.state === 'error') throw result.error;
+    return new Promise(() => {});
+  });
+}
+
 module.exports = {
   useTensorflowModel,
-  loadTensorflowModel: () => Promise.reject(new Error('not available in tests')),
+  loadTensorflowModel,
   __setResolver: fn => { state.resolve = fn; },
   __calls: () => state.calls,
   __reset: () => {

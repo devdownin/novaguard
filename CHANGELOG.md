@@ -6,6 +6,12 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ## [Non publié]
 
+### Initialisation TFLite
+- Les chargements de modèles sont isolés par source, choix CPU et dimensions : une réponse périmée ne peut plus remplacer le modèle actif, même pendant le premier rendu d’un changement.
+- Validation des entrées RGB uint8 et des quatre sorties float32 avant exposition au processeur d’images.
+- Refus GPU mémorisé par modèle ; chargement limité à 20 secondes et trois tentatives CPU au maximum, espacées de 1 puis 3 secondes. Le diagnostic reste visible jusqu’à une reprise réussie.
+- Tests asynchrones avec le vrai chargeur JavaScript de la bibliothèque, et nettoyage du test d’historique qui retenait des timers après la suite.
+
 ### Sécurité
 - **Un jeton MCP ne se compare plus caractère par caractère, et n'est plus détenu en clair.** `token === expectedToken` rend la main dès que deux octets diffèrent : le temps de la comparaison est fonction du préfixe commun, et qui sait le mesurer reconstitue le jeton octet par octet. Les jetons sont désormais stockés et comparés par empreinte SHA-256 — `timingSafeEqual` sur deux tampons de 32 octets, donc jamais de fuite par la longueur non plus — et la table des jetons enregistrés est indexée par empreinte, si bien que le processus ne détient plus un identifiant qu'un vidage mémoire, un log ou une sérialisation accidentelle pourraient rendre.
 - **Un nom loopback est enfin vérifié, et la connexion va à l'adresse vérifiée.** Le contrôle DNS se lisait `!loopbackHost && records.some(isBlocked)` : le seul nom d'hôte que la liste d'autorisation laisse passer — `localhost` — était précisément celui que rien ne regardait, donc un `localhost` pointé sur une adresse du réseau local par un fichier `hosts` ou un résolveur était contacté sans examen. Chaque nom doit maintenant résoudre là où sa catégorie le dit, un seul mauvais enregistrement suffit à refuser, et l'URL est réécrite sur l'adresse qui vient d'être validée — résoudre à nouveau au moment de se connecter, c'est une seconde interrogation qui peut répondre autrement, et c'est exactement la fenêtre de *rebinding* que la validation laissait ouverte.
