@@ -13,6 +13,9 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 - Historique regroupé par identifiant de passage persistant, avec personnes/animaux, heure de début et durée des vidéos disponibles. Les anciens clips restent séparés.
 - Lecture successive des fichiers d’un passage, séquences manquantes signalées, erreurs de lecture visibles et actions de partage/suppression appliquées à la séquence affichée.
 
+### Capture des présences
+- Copies YUV ligne par ligne au lieu d’octet par octet, de la caméra vers le tampon puis vers l’encodeur : en 1080p/4K, la copie seule dépassait le budget d’une image et la capture s’arrêtait sur « Encodeur vidéo trop lent : image perdue ».
+
 ### Initialisation TFLite
 - Les chargements de modèles sont isolés par source, choix CPU et dimensions : une réponse périmée ne peut plus remplacer le modèle actif, même pendant le premier rendu d’un changement.
 - Validation des entrées RGB uint8 et des quatre sorties float32 avant exposition au processeur d’images.

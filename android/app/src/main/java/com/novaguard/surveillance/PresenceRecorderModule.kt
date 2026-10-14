@@ -189,14 +189,11 @@ class PresenceRecorderModule(private val context: ReactApplicationContext) : Rea
       }
       val bytes = ByteArray(size.toInt())
       var offset = 0
+      // Runs on the camera thread: a per-pixel copy here also delays frame delivery.
       image.planes.forEachIndexed { index, plane ->
         val w = if (index == 0) width else width / 2
         val h = if (index == 0) height else height / 2
-        val buffer = plane.buffer.duplicate()
-        val origin = buffer.position()
-        for (y in 0 until h) for (x in 0 until w) {
-          bytes[offset++] = buffer.get(origin + y * plane.rowStride + x * plane.pixelStride)
-        }
+        offset = YuvPlanes.read(plane.buffer, plane.rowStride, plane.pixelStride, w, h, bytes, offset)
       }
       worker.post {
         try {
@@ -253,11 +250,7 @@ class PresenceRecorderModule(private val context: ReactApplicationContext) : Rea
     image.planes.forEachIndexed { planeIndex, plane ->
       val w = if (planeIndex == 0) inputWidth else inputWidth / 2
       val h = if (planeIndex == 0) inputHeight else inputHeight / 2
-      val buffer = plane.buffer
-      val origin = buffer.position()
-      for (y in 0 until h) for (x in 0 until w) {
-        buffer.put(origin + y * plane.rowStride + x * plane.pixelStride, bytes[offset++])
-      }
+      offset = YuvPlanes.write(bytes, offset, plane.buffer, plane.rowStride, plane.pixelStride, w, h)
     }
     codec.queueInputBuffer(index, 0, bytes.size, atUs, 0)
     lastVideoInputUs = atUs
