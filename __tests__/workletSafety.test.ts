@@ -241,6 +241,7 @@ describe('the compiled analysis worklet', () => {
       detectPerson: true,
       detectAnimal: true,
       autoZoom: false,
+      capturedAt: 123_000,
       detectFaces: () => [],
       viewW: 320,
       viewH: 640,

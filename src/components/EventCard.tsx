@@ -6,9 +6,10 @@ import { formatDuration, formatTimeOfDay, formatWhen } from '../utils/date';
 import { ChevronRightIcon } from './icons';
 import { ClipThumbnail } from './ClipThumbnail';
 import { t } from '../i18n';
+import { Passage } from '../recording/passages';
 
-export function EventCard({ event, onPress }: { event: DetectionEvent; onPress: () => void }) {
-  const title = t(event.kind === 'Personne' ? 'hist.event.person' : 'hist.event.animal');
+export function EventCard({ event, onPress, passage }: { event: DetectionEvent; onPress: () => void; passage?: Passage }) {
+  const title = passage && passage.kinds.length > 1 ? t('hist.passage.mixed') : t(event.kind === 'Personne' ? 'hist.event.person' : 'hist.event.animal');
   const durLabel = formatDuration(event.dur);
 
   return (
@@ -18,7 +19,7 @@ export function EventCard({ event, onPress }: { event: DetectionEvent; onPress: 
       // the thumbnail, the title, the time and the meta line into one target.
       accessible
       accessibilityRole="button"
-      accessibilityLabel={t('a11y.event', { title, when: formatWhen(event.timestamp) })}
+      accessibilityLabel={passage && passage.events.length > 1 ? t('a11y.passage', { title, when: formatWhen(event.timestamp), count: passage.events.length, duration: durLabel }) : t('a11y.event', { title, when: formatWhen(event.timestamp) })}
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
     >
       <View style={styles.thumb}>
@@ -45,6 +46,8 @@ export function EventCard({ event, onPress }: { event: DetectionEvent; onPress: 
             read in, and the confidence is an engineer's number the detail sheet
             already carries — while an event whose encoder produced no file
             looked exactly like the others, and was opened to find out. */}
+        {passage && passage.events.length > 1 && <Text style={styles.when}>{t('hist.passage.clips', { count: passage.events.length })}</Text>}
+        {passage && passage.missingCount > 0 && passage.events.length > 1 && <Text style={styles.noClip}>{t('hist.passage.missing', { count: passage.missingCount })}</Text>}
         {event.path == null && <Text style={styles.noClip}>{t('hist.event.noClip')}</Text>}
       </View>
       <ChevronRightIcon size={7} color={color.neutral700} />

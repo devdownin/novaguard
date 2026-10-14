@@ -12,6 +12,7 @@ import { DetectionOverlay } from './DetectionOverlay';
 import { ZoneLayer } from './ZoneLayer';
 import { LiveClock } from './LiveClock';
 import { t } from '../i18n';
+import { STATUS_LABEL, statusIsFault } from '../surveillance/status';
 
 const BEAM_HEIGHT = 70;
 
@@ -89,8 +90,8 @@ export function Viewfinder() {
   // rate — the detection boxes and the REC timer — are leaves below, so this
   // component only re-renders when a session starts or a setting changes.
   const {
-    monitoring, det, perms, settings, autoTune, recording, recError, cameraRef, reportCameraProblem,
-    reportCameraError, cameraActive, reportFrameStage, zoneEditing,
+    monitoring, det, perms, settings, autoTune, recording, recError, surveillanceStatus, cameraRef, reportCameraProblem,
+    reportCameraError, cameraActive, reportFrameStage, zoneEditing, captureRevision,
   } = useAppState();
 
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -123,10 +124,13 @@ export function Viewfinder() {
       : 'view.standby');
   const standbySubtext = !perms.cam ? t('view.grantCameraWhere') : undefined;
 
-  const overlayText = t(det
-    ? det === 'Personne' ? 'view.overlay.person' : 'view.overlay.animal'
-    : monitoring ? 'view.overlay.none' : 'view.overlay.idle');
-  const overlayDotColor = det ? color.accent : color.neutral600;
+  const fault = statusIsFault(surveillanceStatus);
+  const overlayText = fault || surveillanceStatus === 'starting'
+    ? t(STATUS_LABEL[surveillanceStatus])
+    : det
+      ? t(recording ? det === 'Personne' ? 'view.overlay.person' : 'view.overlay.animal' : det === 'Personne' ? 'view.detected.person' : 'view.detected.animal')
+      : t(monitoring ? 'view.overlay.none' : 'view.overlay.idle');
+  const overlayDotColor = fault ? color.warning : det ? color.accent : color.neutral600;
 
   return (
     <View style={[styles.frame, det ? styles.frameGlowActive : styles.frameGlowIdle]} onLayout={onLayout}>
@@ -163,6 +167,7 @@ export function Viewfinder() {
         ]}
       >
         <CameraFeed
+          key={captureRevision}
           style={StyleSheet.absoluteFill}
           // `|| recording` on purpose: stopping surveillance issues
           // `stopRecording()` and drops `monitoring` in the same commit, so
@@ -182,7 +187,7 @@ export function Viewfinder() {
           // What reaches the recorded file. The transform above only moves the
           // preview; the encoder is downstream of the capture session, not of
           // the view tree.
-          cameraZoom={autoZoom.cameraZoom}
+          cameraZoom={1}
           onZoomRange={setMaxCameraZoom}
           cameraRef={cameraRef}
           onProblem={reportCameraProblem}
@@ -199,7 +204,7 @@ export function Viewfinder() {
 
       {/* Announced when it changes: on a surveillance app, "someone is in
           frame" is the one thing worth interrupting a screen-reader user for. */}
-      <View style={styles.overlayChip} accessible accessibilityLiveRegion="polite">
+      <View testID="viewfinder-status" style={styles.overlayChip} accessible accessibilityLiveRegion="polite" accessibilityLabel={overlayText}>
         <View style={[styles.overlayDot, { backgroundColor: overlayDotColor }]} />
         <Text style={styles.overlayText} maxFontSizeMultiplier={MAX_FONT_SCALE}>{overlayText}</Text>
         {/* "Sensibilité" sets a target the device does not have to reach; this
@@ -237,7 +242,7 @@ export function Viewfinder() {
       )}
 
       {recError && (
-        <View style={styles.errorChip} pointerEvents="none">
+        <View style={styles.errorChip} pointerEvents="none" accessible accessibilityLiveRegion="polite" accessibilityLabel={recError}>
           <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.errorText}>{recError}</Text>
         </View>
       )}

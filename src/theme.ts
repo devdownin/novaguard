@@ -15,6 +15,8 @@ export const color = {
   text: '#e9e9ed',
   accent: '#9184d9',
   accent2: '#a7a1db',
+  warning: '#f5b36b',
+  recording: '#ff9292',
   divider: 'rgba(233,233,237,0.16)',
 
   neutral100: '#f3f5fe',

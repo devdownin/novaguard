@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+import { Text } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import App from '../App';
@@ -125,7 +126,9 @@ describe('a label that does not stand on its own carries one that does', () => {
     const named = (setting: string) => labels.filter(l => l.startsWith(`${setting} : `)).length;
     expect(named(t('setup.retention'))).toBe(5);
     expect(named(t('setup.camera'))).toBe(1);
-    expect(named(t('setup.post'))).toBe(1);
+    // Strict mode has no tolerance duration. Both mode buttons remain named.
+    expect(named(t('setup.post'))).toBe(0);
+    expect(pressables(renderer).some(n => n.findAll(child => child.type === Text && child.props.children === t('setup.mode.strict')).length > 0)).toBe(true);
     expect(named(t('setup.max'))).toBe(1);
     expect(named(t('setup.quality'))).toBe(1);
   });

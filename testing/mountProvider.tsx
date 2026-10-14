@@ -1,5 +1,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
+import { storage } from '../src/state/storage';
+import { defaultSettings } from '../src/state/defaults';
 import { AppStateProvider, useAppState } from '../src/state/AppStateContext';
 
 export type AppState = ReturnType<typeof useAppState>;
@@ -41,4 +43,11 @@ export async function mountProvider(extra?: React.ReactNode): Promise<{ state: A
   await ReactTestRenderer.act(async () => {});
 
   return handle;
+}
+
+/** Explicit fixture for the optional VisionCamera backend with post-roll. */
+export async function mountLegacyProvider(extra?: React.ReactNode): Promise<{ state: AppState }> {
+  const stored = await storage.loadSettings();
+  await storage.saveSettings({ ...defaultSettings, ...stored, post: '10 s' });
+  return mountProvider(extra);
 }

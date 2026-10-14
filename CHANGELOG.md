@@ -6,11 +6,31 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ## [Non publié]
 
+### Interface et passages
+- État principal agrandi, lisible en portrait et paysage, avec couleur et texte, mode de capture et accès direct à son réglage.
+- Actions de reprise explicites : autoriser la caméra, réessayer la capture et ouvrir le stockage sans suppression automatique déclenchée par le bouton.
+- Deux cartes de mode avec leur explication ; marge visible uniquement avec tolérance.
+- Historique regroupé par identifiant de passage persistant, avec personnes/animaux, heure de début et durée des vidéos disponibles. Les anciens clips restent séparés.
+- Lecture successive des fichiers d’un passage, séquences manquantes signalées, erreurs de lecture visibles et actions de partage/suppression appliquées à la séquence affichée.
+
 ### Initialisation TFLite
 - Les chargements de modèles sont isolés par source, choix CPU et dimensions : une réponse périmée ne peut plus remplacer le modèle actif, même pendant le premier rendu d’un changement.
 - Validation des entrées RGB uint8 et des quatre sorties float32 avant exposition au processeur d’images.
 - Refus GPU mémorisé par modèle ; chargement limité à 20 secondes et trois tentatives CPU au maximum, espacées de 1 puis 3 secondes. Le diagnostic reste visible jusqu’à une reprise réussie.
 - Tests asynchrones avec le vrai chargeur JavaScript de la bibliothèque, et nettoyage du test d’historique qui retenait des timers après la suite.
+
+### Présences détectées
+- Deux modes explicites : **Présence stricte** et **Avec tolérance**. Marges courtes 1/2/3 s sur le backend tamponné, durée mémorisée au retour au mode strict et anciens délais 5/10/30 s préservés.
+- États partagés entre le viseur, l’écran de surveillance et la notification : démarrage, surveillance, enregistrement, caméra indisponible, détection indisponible et stockage insuffisant. Les erreurs de capture et de détection se rétablissent indépendamment.
+- Analyse sans réponse signalée après plus de trois secondes, même lorsqu’aucune présence n’a été détectée ; fermeture du clip courant et récupération sur une nouvelle analyse.
+- Mode strict **0 s** par défaut sur une nouvelle installation : tampon H.264/AAC en mémoire, horodatages des images et segmentation native sans arrêt de l’encodeur. Les préférences existantes et les modes avec post-roll sont conservés.
+- Reprise bornée après un démarrage refusé ou une erreur d’encodeur pendant une présence.
+- Métadonnées et callbacks isolés par identifiant d’enregistrement : la finalisation d’un clip ne pilote plus le suivant.
+- Vignette propre à chaque clip, attente bornée et nettoyage des réponses tardives.
+- Zoom limité à l’aperçu ; le champ détecté et enregistré reste intégral.
+- Fin du mode strict à la dernière observation positive, sans ajouter la tolérance du tracker ; les images résiduelles après arrêt utilisateur sont ignorées.
+- Tests de transitions, de présences multiples, de tampon avant confirmation et de partitions natives ; procédure de validation sur appareil dans `docs/PRESENCE_RECORDING.md`.
+
 
 ### Sécurité
 - **Un jeton MCP ne se compare plus caractère par caractère, et n'est plus détenu en clair.** `token === expectedToken` rend la main dès que deux octets diffèrent : le temps de la comparaison est fonction du préfixe commun, et qui sait le mesurer reconstitue le jeton octet par octet. Les jetons sont désormais stockés et comparés par empreinte SHA-256 — `timingSafeEqual` sur deux tampons de 32 octets, donc jamais de fuite par la longueur non plus — et la table des jetons enregistrés est indexée par empreinte, si bien que le processus ne détient plus un identifiant qu'un vidage mémoire, un log ou une sérialisation accidentelle pourraient rendre.

@@ -8,6 +8,7 @@ import { PeriodDropdown } from '../components/PeriodDropdown';
 import { EventCard } from '../components/EventCard';
 import { PrimaryOutlineButton } from '../components/OutlineButton';
 import { historyRows } from '../recording/library';
+import { groupPassages } from '../recording/passages';
 import { formatDay } from '../utils/date';
 import { useLandscape } from '../utils/useLandscape';
 import { t, tn } from '../i18n';
@@ -69,12 +70,18 @@ export function HistoryScreen() {
     events, filter, setFilter, period, setPeriod, periodOpen, togglePeriodOpen, selectEvent,
     historyLocked, unlockHistory,
   } = useAppState();
-  const { shown } = useFilteredEvents();
+  const { shown } = useFilteredEvents(true);
   const landscape = useLandscape();
 
   // A card is wide and short: one per line wastes most of a landscape window.
   const perRow = landscape ? 2 : 1;
-  const rows = useMemo(() => historyRows(shown, perRow), [shown, perRow]);
+  const passages = useMemo(() => {
+    const matched = new Set(shown.map(event => event.id));
+    return groupPassages(events).filter(passage => passage.events.some(event => matched.has(event.id)) &&
+      (filter === 'Toutes' || passage.kinds.includes(filter === 'Personnes' ? 'Personne' : 'Animal')));
+  }, [events, shown, filter]);
+  const byEvent = useMemo(() => new Map(passages.map(passage => [passage.summary.id, passage])), [passages]);
+  const rows = useMemo(() => historyRows(passages.map(passage => passage.summary), perRow), [passages, perRow]);
 
   const resetFilters = useCallback(() => {
     setFilter('Toutes');
@@ -98,7 +105,7 @@ export function HistoryScreen() {
     <View style={styles.screen}>
       <View style={styles.header}>
         <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.title}>{t('hist.title')}</Text>
-        <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.count}>{tn('hist.count.other', shown.length)}</Text>
+        <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.count}>{tn('hist.passages.other', passages.length)}</Text>
       </View>
 
       <View style={styles.filters}>
@@ -125,7 +132,7 @@ export function HistoryScreen() {
             <View style={styles.row}>
               {item.events.map(event => (
                 <View key={event.id} style={styles.cell}>
-                  <EventCard event={event} onPress={() => selectEvent(event.id)} />
+                  <EventCard event={event} passage={byEvent.get(event.id)} onPress={() => selectEvent(event.id)} />
                 </View>
               ))}
               {/* Keeps a lone last card the width of a column instead of

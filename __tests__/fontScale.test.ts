@@ -62,9 +62,11 @@ const PINNED: Record<string, string[]> = {
   'components/OnboardingModal.tsx': ['stepBadge', 'permRow'],
   'components/VideoDetailSheet.tsx': ['cell'],
   'components/Viewfinder.tsx': ['overlayChip', 'recChip', 'coverageChip', 'zoomChip', 'errorChip'],
+  'components/SurveillanceStatusPanel.tsx': ['statusRow', 'modeButton'],
+  'components/PresenceModePicker.tsx': ['option'],
   'screens/HistoryScreen.tsx': ['header'],
   'screens/SetupScreen.tsx': ['thresholdRow', 'storageStatsRow'],
-  'screens/SurveillanceScreen.tsx': ['brand', 'brandSub', 'statusLabel', 'statLabel', 'statValue'],
+  'screens/SurveillanceScreen.tsx': ['brand', 'brandSub', 'statLabel', 'statValue'],
 };
 
 interface TextNode {

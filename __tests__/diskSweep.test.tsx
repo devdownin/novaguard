@@ -11,6 +11,7 @@
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as fs from '@dr.pogodin/react-native-fs';
+import { useCameraPermission } from 'react-native-vision-camera';
 import { DISK_SWEEP_MS } from '../src/state/AppStateContext';
 import { mountProvider } from '../testing/mountProvider';
 import { defaultSettings } from '../src/state/defaults';
@@ -60,7 +61,9 @@ afterEach(() => {
 });
 
 it('does not measure the volume when an event is committed', async () => {
+  (useCameraPermission as jest.Mock).mockReturnValue({ hasPermission: true, requestPermission: jest.fn() });
   const handle = await mountProvider();
+  await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
   const after = mockFs.getFSInfo.mock.calls.length;
 
   await oneSession(handle.state.reportDetections);

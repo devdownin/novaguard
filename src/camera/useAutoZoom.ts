@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing } from 'react-native';
 import { DetectionBox } from '../ml/types';
 import {
-  boxInZoomedFrame, captureZoomFor, computeFraming, Framing, FramingOptions,
+  computeFraming, Framing, FramingOptions,
   NEUTRAL_FRAMING, padBox, smoothBox, subjectBox, unionBox,
 } from './framing';
 
@@ -74,7 +74,6 @@ const WIDE_PADDING = 0.2;
 /** Ignore re-frames smaller than this — micro-corrections are what make a zoom feel twitchy. */
 const SCALE_EPSILON = 0.08;
 /** Below this, handing magnification to the sensor buys nothing and costs a session change. */
-const ZOOM_EPSILON = 0.05;
 
 const PAN_EPSILON = 0.06;
 
@@ -123,7 +122,7 @@ export interface AutoZoom {
  * frame-processor threads cannot stutter the movement.
  */
 export function useAutoZoom({
-  enabled, viewWidth, viewHeight, maxCameraZoom = 1,
+  enabled, viewWidth, viewHeight,
 }: AutoZoomParams): AutoZoom {
   const scale = useRef(new Animated.Value(1)).current;
   const translateX = useRef(new Animated.Value(0)).current;
@@ -143,8 +142,8 @@ export function useAutoZoom({
    * the two are changed in the same commit and their product is unchanged: the
    * viewer sees nothing, and the recording gains the close shot for the hold.
    */
-  const [cameraZoom, setCameraZoom] = useState(1);
-  const cameraZoomRef = useRef(1);
+  // Sensor capture stays wide. The cinematic move affects the preview only.
+  const cameraZoom = 1;
 
   const currentFraming = useRef<Framing>(NEUTRAL_FRAMING);
   const animation = useRef<Animated.CompositeAnimation | null>(null);
@@ -177,83 +176,17 @@ export function useAutoZoom({
       Animated.timing(translateX, { toValue: target.translateX, duration, easing: EASING, useNativeDriver: true }),
       Animated.timing(translateY, { toValue: target.translateY, duration, easing: EASING, useNativeDriver: true }),
     ]);
-    // Only on arrival: a move cut short by the next one must not hand a framing
-    // to the sensor that the preview never actually reached.
     animation.current.start(({ finished }) => { if (finished) onArrived?.(); });
   }, [scale, translateX, translateY]);
 
-  /** Puts the three channels exactly where they are told, with no animation. */
-  const snapTo = useCallback((target: Framing) => {
-    animation.current?.stop();
-    currentFraming.current = target;
-    scale.setValue(target.scale);
-    translateX.setValue(target.translateX);
-    translateY.setValue(target.translateY);
-  }, [scale, translateX, translateY]);
-
-  /**
-   * Hands as much of the magnification as it safely can to the capture session.
-   *
-   * This is what puts the move in the recorded file: a view transform scales
-   * the preview and nothing else. `<Camera zoom>` crops the sensor about its
-   * centre with no pan, so how far it may go is bounded by the subject's own
-   * position — see `maxZoomKeepingInFrame`. Whatever is left over stays with
-   * the transform, which can pan and therefore still frames the subject.
-   *
-   * Both are changed in the same commit and their product is unchanged, so the
-   * viewer sees nothing happen. `box` is in the current, already-cropped frame,
-   * so everything here is relative to the zoom in force.
-   */
-  const handToCamera = useCallback((
-    framed: DetectionBox, tracked: DetectionBox, options: FramingOptions,
-  ) => {
-    const wanted = computeFraming(framed, viewWidth, viewHeight, options).scale;
-    const headroom = maxCameraZoom / cameraZoomRef.current;
-    // `tracked` is the raw detection the tracker compares — now literally one
-    // of its own person boxes, since the move frames people rather than faces —
-    // and `framed` the padded box the framing uses. The two bounds are not
-    // interchangeable: see `captureZoomFor`, which is where the decision lives
-    // so it can be swept.
-    const extra = captureZoomFor(framed, tracked, wanted, headroom);
-    if (!(extra > 1 + ZOOM_EPSILON)) return;
-
-    cameraZoomRef.current *= extra;
-    setCameraZoom(cameraZoomRef.current);
-    snapTo(computeFraming(boxInZoomedFrame(framed, extra), viewWidth, viewHeight, options));
-  }, [maxCameraZoom, snapTo, viewWidth, viewHeight]);
-
-  /**
-   * Takes the magnification back off the sensor without the preview moving.
-   *
-   * Widening the capture makes the frame jump outwards at once, so the
-   * transform has to absorb exactly what the sensor gives up in the same
-   * commit. The framing computed against the box in the *full* frame is that
-   * value: residual x cameraZoom is the total, which is what `computeFraming`
-   * on the un-cropped box returns.
-   */
-  const releaseCamera = useCallback((box: DetectionBox | null, options: FramingOptions) => {
-    const zoom = cameraZoomRef.current;
-    if (zoom <= 1) return;
-    cameraZoomRef.current = 1;
-    setCameraZoom(1);
-    if (!box) return;
-    snapTo(computeFraming(boxInZoomedFrame(box, 1 / zoom), viewWidth, viewHeight, options));
-  }, [snapTo, viewWidth, viewHeight]);
-
   const release = useCallback((duration = RELEASE_MS) => {
     clearTimers();
-    // Off the sensor first, and against whatever it was framing: the transform
-    // absorbs it in the same commit, then eases the whole thing out from there.
-    releaseCamera(
-      smoothedSubject.current ?? smoothedScene.current,
-      phaseRef.current === 'wide' ? WIDE_FRAMING : CLOSE_FRAMING,
-    );
     smoothedSubject.current = null;
     smoothedScene.current = null;
     subjectStreak.current = 0;
     setPhaseBoth('idle');
     animateTo(NEUTRAL_FRAMING, duration);
-  }, [animateTo, clearTimers, releaseCamera, setPhaseBoth]);
+  }, [animateTo, clearTimers, setPhaseBoth]);
 
   const isWorthMoving = useCallback((next: Framing) => {
     const previous = currentFraming.current;
@@ -272,17 +205,12 @@ export function useAutoZoom({
       return;
     }
     setPhaseBoth('wide');
-    // Widening: the sensor gives its crop back first, so the pull-back starts
-    // from the full field of view and the wide shot is genuinely wide — in the
-    // file as much as on screen.
-    releaseCamera(smoothedSubject.current ?? scene, CLOSE_FRAMING);
     const framed = padBox(scene, WIDE_PADDING);
     animateTo(
       computeFraming(framed, viewWidth, viewHeight, WIDE_FRAMING),
       WIDE_ZOOM_OUT_MS,
-      () => handToCamera(framed, scene, WIDE_FRAMING),
     );
-  }, [animateTo, handToCamera, release, releaseCamera, setPhaseBoth, viewWidth, viewHeight]);
+  }, [animateTo, release, setPhaseBoth, viewWidth, viewHeight]);
 
   const submitFrame = useCallback((faces: DetectionBox[], persons: DetectionBox[]) => {
     if (!enabled || viewWidth <= 0 || viewHeight <= 0) return;
@@ -326,9 +254,6 @@ export function useAutoZoom({
       animateTo(
         computeFraming(framed, viewWidth, viewHeight, CLOSE_FRAMING),
         CLOSE_ZOOM_IN_MS,
-        // Only once the preview has arrived: the sensor then holds the close
-        // shot for the whole hold, which is what puts it in the recording.
-        () => handToCamera(framed, tracked, CLOSE_FRAMING),
       );
       holdTimer.current = setTimeout(goToWide, CLOSE_HOLD_MS + CLOSE_ZOOM_IN_MS);
       return;
@@ -342,7 +267,7 @@ export function useAutoZoom({
       const next = computeFraming(padBox(smoothedScene.current, WIDE_PADDING), viewWidth, viewHeight, WIDE_FRAMING);
       if (isWorthMoving(next)) animateTo(next, FOLLOW_MS);
     }
-  }, [animateTo, enabled, goToWide, handToCamera, isWorthMoving, release, setPhaseBoth, viewWidth, viewHeight]);
+  }, [animateTo, enabled, goToWide, isWorthMoving, release, setPhaseBoth, viewWidth, viewHeight]);
 
   // Turning the feature off (or unmounting) must not leave the preview zoomed.
   useEffect(() => {

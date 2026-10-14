@@ -107,3 +107,21 @@ describe('deleteFiles', () => {
     expect(mockFs.unlink).toHaveBeenCalledTimes(200);
   });
 });
+
+it('does not overwrite either clip when two renames request the same name concurrently', async () => {
+  const files = new Set<string>();
+  mockFs.exists.mockImplementation(async path => files.has(path));
+  mockFs.moveFile.mockImplementation(async (_from, to) => {
+    // A real move completes asynchronously and makes its destination visible.
+    await Promise.resolve();
+    files.add(to);
+  });
+  const filename = 'Personne_2026-09-02_14-32-07.mp4';
+  const paths = await Promise.all([
+    renameRecording('/clips/A.mp4', filename),
+    renameRecording('/clips/B.mp4', filename),
+  ]);
+  expect(new Set(paths).size).toBe(2);
+  expect(files.size).toBe(2);
+  expect(paths[1]).toBe(`${RECORDINGS_DIR}/Personne_2026-09-02_14-32-07_1.mp4`);
+});

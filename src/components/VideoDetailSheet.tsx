@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Video from 'react-native-video';
 import { color, font, radius, MAX_FONT_SCALE } from '../theme';
 import { useAppState } from '../state/AppStateContext';
+import { groupPassages } from '../recording/passages';
 import { formatBytes } from '../recording/library';
 import { t, tValue } from '../i18n';
 import { shareRecording } from '../surveillance/foregroundService';
@@ -13,18 +14,46 @@ import { ClipThumbnail } from './ClipThumbnail';
 import { PrimaryOutlineButton, SecondaryOutlineButton, TextButton } from './OutlineButton';
 
 export function VideoDetailSheet() {
-  const { selected, selectedEvent: event, selectEvent, askDelete } = useAppState();
-  const [playing, setPlaying] = useState(false);
+  const { selected, selectedEvent, events, selectEvent, askDelete } = useAppState();
+  const [playback, setPlayback] = useState<{ root: number; clip: number; all: boolean; running: boolean } | null>(null);
+  const active = useRef<typeof playback>(null);
+  const [playFailed, setPlayFailed] = useState(false);
   const [shareFailed, setShareFailed] = useState(false);
-
-  // Never carry playback over from the previously opened event.
-  useEffect(() => { setPlaying(false); setShareFailed(false); }, [selected]);
-
+  const passage = useMemo(() => groupPassages(events).find(group => group.events.some(clip => clip.id === selected)), [events, selected]);
+  const clips = useMemo(() => passage?.events ?? [], [passage]);
+  const playable = useMemo(() => clips.filter(clip => clip.path != null), [clips]);
+  const current = playback?.root === selected ? clips.find(clip => clip.id === playback.clip) : null;
+  const event = selectedEvent ? current ?? selectedEvent : null;
+  const playing = !!current && current.path != null && playback?.running === true;
+  const updatePlayback = useCallback((next: typeof playback) => {
+    active.current = next;
+    setPlayback(next);
+  }, []);
+  useEffect(() => {
+    updatePlayback(null); setPlayFailed(false); setShareFailed(false);
+  }, [selected, updatePlayback]);
+  useEffect(() => {
+    if (playback && !clips.some(clip => clip.id === playback.clip && clip.path != null)) {
+      updatePlayback(null); setPlayFailed(true);
+    }
+  }, [clips, playback, updatePlayback]);
   const close = useCallback(() => {
-    setPlaying(false);
+    updatePlayback(null);
     selectEvent(null);
-  }, [selectEvent]);
-
+  }, [selectEvent, updatePlayback]);
+  const start = (all: boolean) => {
+    const first = all ? playable[0] : event;
+    if (!first?.path || selected == null) return;
+    setPlayFailed(false);
+    updatePlayback({ root: selected, clip: first.id, all, running: true });
+  };
+  const finish = (failed: boolean) => {
+    if (!playback?.running || active.current !== playback) return;
+    const index = playable.findIndex(clip => clip.id === playback.clip);
+    const next = playable[index + 1];
+    if (!failed && playback.all && next) updatePlayback({ ...playback, clip: next.id });
+    else { updatePlayback({ ...playback, running: false }); if (failed) setPlayFailed(true); }
+  };
   const path = event?.path ?? null;
   /**
    * The one door out of the device, and it takes a tap.
@@ -60,18 +89,19 @@ export function VideoDetailSheet() {
 
             {hasClip && playing ? (
               <Video
+                key={event.id}
                 source={{ uri: `file://${event.path}` }}
                 style={StyleSheet.absoluteFill}
                 resizeMode="contain"
                 controls
                 paused={false}
-                onEnd={() => setPlaying(false)}
-                onError={() => setPlaying(false)}
+                onEnd={() => finish(false)}
+                onError={() => finish(true)}
               />
             ) : hasClip ? (
               <Pressable
                 style={({ pressed }) => [styles.playButton, pressed && { opacity: 0.62 }]}
-                onPress={() => setPlaying(true)}
+                onPress={() => start(false)}
                 accessibilityRole="button"
                 accessibilityLabel={t('detail.play')}
               >
@@ -84,6 +114,20 @@ export function VideoDetailSheet() {
               <Text style={styles.noClip}>{t('detail.noClip')}</Text>
             )}
           </View>
+
+          {clips.length > 1 && <View style={styles.passageControls}>
+            <Text style={styles.cellValue} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+              {t('detail.sequence', { index: clips.findIndex(clip => clip.id === event.id) + 1, count: clips.length })}
+            </Text>
+            {playable.length > 0 && <PrimaryOutlineButton label={t('detail.playPassage')} onPress={() => start(true)} />}
+            {(passage?.missingCount ?? 0) > 0 && <Text style={styles.cellValue} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+              {t('hist.passage.missing', { count: passage!.missingCount })}
+            </Text>}
+            {clips.map((clip, index) => <TextButton key={clip.id}
+              label={t(clip.path ? 'detail.selectSequence' : 'detail.missingSequence', { index: index + 1 })}
+              onPress={() => { updatePlayback(null); selectEvent(clip.id); }} />)}
+          </View>}
+          {playFailed && <Text style={styles.playError} accessibilityLiveRegion="polite">{t('detail.playError')}</Text>}
 
           <View style={styles.titleRow}>
             <View style={styles.dot} />
@@ -113,7 +157,7 @@ export function VideoDetailSheet() {
             {hasClip && (
               <PrimaryOutlineButton label={t('detail.share')} onPress={share} style={styles.action} />
             )}
-            <SecondaryOutlineButton label={t('detail.delete')} onPress={askDelete} style={styles.action} />
+            <SecondaryOutlineButton label={t(clips.length > 1 ? 'detail.deleteSequence' : 'detail.delete')} onPress={() => { updatePlayback(null); selectEvent(event.id); askDelete(); }} style={styles.action} />
             <TextButton label={t('detail.close')} onPress={close} style={styles.action} />
           </View>
         </View>
@@ -142,6 +186,8 @@ function StatCell({ label, value, accent, small }: StatCellProps) {
 }
 
 const styles = StyleSheet.create({
+  passageControls: { gap: 8, marginTop: 12 },
+  playError: { color: color.warning, fontFamily: font.regular, fontSize: 12, marginTop: 10 },
   preview: {
     aspectRatio: 16 / 10,
     borderRadius: radius.lg - 2,

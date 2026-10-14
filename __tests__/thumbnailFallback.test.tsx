@@ -23,7 +23,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as fs from '@dr.pogodin/react-native-fs';
 import { useCameraPermission } from 'react-native-vision-camera';
-import { mountProvider } from '../testing/mountProvider';
+import { mountLegacyProvider as mountProvider } from '../testing/mountProvider';
 import { extractThumbnail } from '../src/surveillance/foregroundService';
 import { FrameDetection } from '../src/ml/types';
 
