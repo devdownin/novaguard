@@ -161,3 +161,29 @@ it('tries the GPU for a different source even if it refused the previous source'
   await ReactTestRenderer.act(async () => { tree.update(<Harness source={2} />); });
   expect(requests[2].delegate).toBe('android-gpu');
 });
+
+it('reloads on CPU when a loaded GPU model fails at inference, and remembers it', async () => {
+  await mount(); await resolve(0, 320);
+  expect(value.delegate).toBe('android-gpu');
+  let demoted = false;
+  await ReactTestRenderer.act(async () => { demoted = value.refuseRunningDelegate(); });
+  expect(demoted).toBe(true);
+  expect(value.model).toBeUndefined();
+  expect(requests).toHaveLength(2);
+  expect(requests[1].delegate).toBe('default');
+  // Frames still in flight on the old model must not queue further reloads.
+  await ReactTestRenderer.act(async () => { value.refuseRunningDelegate(); });
+  expect(requests).toHaveLength(2);
+  await resolve(1, 320);
+  expect(value.delegate).toBe('default');
+  expect(value.model).toBeDefined();
+  expect(value.failed).toBe(false);
+});
+
+it('reports a CPU inference failure instead of swallowing it', async () => {
+  await mount(true); await resolve(0, 320);
+  let demoted = true;
+  await ReactTestRenderer.act(async () => { demoted = value.refuseRunningDelegate(); });
+  expect(demoted).toBe(false);
+  expect(requests).toHaveLength(1);
+});

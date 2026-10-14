@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { loadTensorflowModel, TensorflowModel, TensorflowModelDelegate } from 'react-native-fast-tflite';
 
@@ -9,6 +9,7 @@ interface LoadState {
   source: number;
   forceCpu: boolean;
   inputSize: number | undefined;
+  demotions: number;
   delegate: TensorflowModelDelegate;
   model?: TensorflowModel;
   failed: boolean;
@@ -33,16 +34,24 @@ function validateModel(model: TensorflowModel, inputSize?: number): void {
  * an old source/delegate must never replace the one the camera is preparing for.
  * GPU refusal is remembered per asset. CPU failures remain visible through two
  * bounded retries; changing source or forceCpu starts a fresh request sequence.
+ *
+ * A GPU delegate can also accept the graph at load and then fail every
+ * `Invoke` — the OpenGL backend is bound to the thread that created it, and the
+ * frame processor runs on CameraX's analyser thread. `refuseRunningDelegate`
+ * is how the camera reports that: it remembers the refusal and reloads on CPU.
  */
 export function useDetectionModel(source: number, forceCpu = false, inputSize?: number): {
   model: TensorflowModel | undefined;
   delegate: TensorflowModelDelegate;
   failed: boolean;
+  /** True when the failing model ran on the GPU and a CPU reload has started. */
+  refuseRunningDelegate: () => boolean;
 } {
   const refusedGpu = useRef(new Set<number>());
   const preferred: TensorflowModelDelegate =
     Platform.OS === 'android' && !forceCpu && !refusedGpu.current.has(source) ? 'android-gpu' : 'default';
   const [state, setState] = useState<LoadState | null>(null);
+  const [demotions, setDemotions] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,7 +59,7 @@ export function useDetectionModel(source: number, forceCpu = false, inputSize?: 
     let cpuFailed = false;
     let timeout: ReturnType<typeof setTimeout> | null = null;
     let retry: ReturnType<typeof setTimeout> | null = null;
-    const identity = { source, forceCpu, inputSize };
+    const identity = { source, forceCpu, inputSize, demotions };
 
     const attempt = (delegate: TensorflowModelDelegate, cpuAttempt: number) => {
       const request = ++sequence;
@@ -102,14 +111,33 @@ export function useDetectionModel(source: number, forceCpu = false, inputSize?: 
       if (timeout != null) clearTimeout(timeout);
       if (retry != null) clearTimeout(retry);
     };
-  }, [source, forceCpu, inputSize]);
+  }, [source, forceCpu, inputSize, demotions]);
 
   // Effects run after commit. Suppress the previous model during the render
   // that changes inputs as well as after any late asynchronous completion.
-  const matches = state?.source === source && state.forceCpu === forceCpu && state.inputSize === inputSize;
+  const matches = state?.source === source && state.forceCpu === forceCpu &&
+    state.inputSize === inputSize && state.demotions === demotions;
+  const running = matches && state.model != null ? state : undefined;
+  const runningRef = useRef(running);
+  runningRef.current = running;
+
+  // Stable identity: it reaches the frame processor's dependency list through
+  // the JS callback, and a new function there rebuilds the worklet. Called at
+  // up to the analysis rate until the CPU model replaces this one, hence the
+  // idempotence through the remembered refusal.
+  const refuseRunningDelegate = useCallback(() => {
+    const current = runningRef.current;
+    if (current == null || current.delegate === 'default') return false;
+    if (refusedGpu.current.has(current.source)) return true;
+    refusedGpu.current.add(current.source);
+    setDemotions(n => n + 1);
+    return true;
+  }, []);
+
   return {
     model: matches ? state.model : undefined,
     delegate: matches ? state.delegate : preferred,
     failed: matches ? state.failed : false,
+    refuseRunningDelegate,
   };
 }
