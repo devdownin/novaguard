@@ -80,3 +80,31 @@ it('shows insufficient storage even before a subject triggers a recording', asyn
   expect(statusOnScreen()).toBe(t('surv.status.storage'));
   expect(startForegroundService).toHaveBeenLastCalledWith(t('surv.status.storage'));
 });
+
+it('offers a real capture restart while keeping surveillance enabled', async () => {
+  await mount();
+  await ReactTestRenderer.act(async () => { state.toggleMonitoring(); state.reportCameraProblem('Modèle indisponible'); });
+  const revision = state.captureRevision;
+  const starts = native.startCapture.mock.calls.length;
+  await ReactTestRenderer.act(async () => { button(t('surv.action.retry')).props.onPress(); });
+  expect(state.monitoring).toBe(true);
+  expect(state.captureRevision).toBe(revision + 1);
+  expect(native.startCapture.mock.calls.length).toBe(starts + 1);
+});
+it('opens the storage controls without deleting any clips', async () => {
+  (fs.getFSInfo as jest.Mock).mockResolvedValue({ freeSpace: 0, totalSpace: 1e11 });
+  await mount();
+  await ReactTestRenderer.act(async () => { state.toggleMonitoring(); });
+  const previous = state.events;
+  await ReactTestRenderer.act(async () => { button(t('surv.action.storage')).props.onPress(); });
+  expect(state.tab).toBe('setup');
+  expect(state.settings.exp.sto).toBe(true);
+  expect(state.events).toEqual(previous);
+});
+it('asks Android for the camera permission from the main status panel', async () => {
+  const ask = jest.fn(async () => true);
+  (useCameraPermission as jest.Mock).mockReturnValue({ hasPermission: false, requestPermission: ask });
+  await mount();
+  await ReactTestRenderer.act(async () => { button(t('surv.action.permission')).props.onPress(); });
+  expect(ask).toHaveBeenCalledTimes(1);
+});

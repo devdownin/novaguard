@@ -28,6 +28,7 @@ export interface RecorderOptions {
   onClip: (clip: Clip) => void;
   onError?: (message: string) => void;
   onRecovered?: () => void;
+  retryKey?: number;
   onStarted?: (recordingId: number) => void;
   onMaxDuration?: () => void;
   onAbandoned?: (recordingId: number) => void;
@@ -46,6 +47,7 @@ export interface Recorder {
 
 interface Invocation {
   id: number;
+  retryKey: number | undefined;
   stopping: boolean;
   completed: boolean;
   abandoned: boolean;
@@ -80,9 +82,15 @@ export function useRecorder(options: RecorderOptions): Recorder {
 
   useEffect(() => {
     let cancelled = false;
+    ready.current = false;
     let retry: ReturnType<typeof setTimeout> | null = null;
     const prepare = () => {
-      ensureRecordingsDir().then(() => { if (!cancelled) ready.current = true; })
+      ensureRecordingsDir().then(() => {
+        if (!cancelled) {
+          ready.current = true;
+          if (latest.current.enabled) latest.current.onRecovered?.();
+        }
+      })
         .catch(() => {
           if (cancelled) return;
           latest.current.onError?.("Dossier d'enregistrement inaccessible");
@@ -91,7 +99,7 @@ export function useRecorder(options: RecorderOptions): Recorder {
     };
     prepare();
     return () => { cancelled = true; if (retry != null) clearTimeout(retry); };
-  }, []);
+  }, [options.retryKey]);
 
   const settle = useCallback((invocation: Invocation) => {
     if (invocation.cap != null) clearTimeout(invocation.cap);
@@ -109,7 +117,7 @@ export function useRecorder(options: RecorderOptions): Recorder {
     invocation.completed = invocation.abandoned = true;
     settle(invocation);
     invocation.thumb.then(deleteFile);
-    if (message) latest.current.onError?.(message);
+    if (message && invocation.retryKey === latest.current.retryKey) latest.current.onError?.(message);
     latest.current.onAbandoned?.(invocation.id);
   }, [settle]);
 
@@ -139,6 +147,7 @@ export function useRecorder(options: RecorderOptions): Recorder {
     if (!camera || !enabled || !ready.current || active.current) return false;
     const invocation: Invocation = {
       id: ++sequence.current, stopping: false, completed: false, abandoned: false,
+      retryKey: latest.current.retryKey,
       thumb: Promise.resolve(null), cap: null, finalize: null,
     };
     active.current = invocation;

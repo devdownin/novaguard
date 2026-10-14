@@ -43,6 +43,9 @@ describe('the two catalogues', () => {
       'a11y.event',
       'detail.percent',
       'detail.type',
+      // "Passage" is the same noun in French and English.
+      'hist.passages.one',
+      'hist.passages.other',
       'info.perm.mic',
       'info.perm.notif',
       'info.perms',

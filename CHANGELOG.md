@@ -6,6 +6,13 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ## [Non publié]
 
+### Interface et passages
+- État principal agrandi, lisible en portrait et paysage, avec couleur et texte, mode de capture et accès direct à son réglage.
+- Actions de reprise explicites : autoriser la caméra, réessayer la capture et ouvrir le stockage sans suppression automatique déclenchée par le bouton.
+- Deux cartes de mode avec leur explication ; marge visible uniquement avec tolérance.
+- Historique regroupé par identifiant de passage persistant, avec personnes/animaux, heure de début et durée des vidéos disponibles. Les anciens clips restent séparés.
+- Lecture successive des fichiers d’un passage, séquences manquantes signalées, erreurs de lecture visibles et actions de partage/suppression appliquées à la séquence affichée.
+
 ### Initialisation TFLite
 - Les chargements de modèles sont isolés par source, choix CPU et dimensions : une réponse périmée ne peut plus remplacer le modèle actif, même pendant le premier rendu d’un changement.
 - Validation des entrées RGB uint8 et des quatre sorties float32 avant exposition au processeur d’images.

@@ -24,6 +24,14 @@ Caméra de surveillance intelligente, locale et open source. NovaGuard transform
 
 > Plus aucun réglage de l'interface n'est décoratif : tout ce qui est affiché agit réellement, ou a été retiré. Rien n'a toutefois pu être exécuté sur un vrai capteur dans cet environnement de build (ni SDK Android ni émulateur) : la géométrie, la gestion du stockage et les règles d'alerte sont couvertes par des tests unitaires, mais la capture, l'orientation, l'alignement des cadres et tout le code natif restent à valider en conditions réelles — voir [Feuille de route](#feuille-de-route). Le workflow CI produit un APK installable pour ça.
 
+## Surveiller et relire un passage
+
+L’écran caméra affiche un état principal avec texte et couleur, puis le mode de capture. Toucher le mode ouvre directement son réglage. Les erreurs proposent une action : **Autoriser la caméra**, **Réessayer** ou **Libérer de l’espace**. La reprise automatique de la caméra est indiquée ; le bouton de stockage ouvre les contrôles et ne supprime aucune vidéo à lui seul.
+
+Dans l’historique, les séquences d’une même présence sont réunies en un passage. Les passages mixtes restent visibles dans les filtres Personnes et Animaux, avec toutes leurs séquences. La durée agrégée est la somme des vidéos disponibles ; les séquences sans fichier sont signalées. Les clips anciens, sans identifiant de passage, restent indépendants.
+
+**Lire les vidéos du passage** enchaîne les fichiers disponibles dans l’ordre de capture. Une erreur de lecture arrête la lecture et permet de réessayer la séquence concernée. Le partage et la suppression concernent la séquence affichée ; la suppression garde sa confirmation habituelle.
+
 ## Enregistrement limité aux présences
 
 Pour une nouvelle installation, **Réglages → Enregistrement → Mode de capture** vaut **Présence stricte**. Ce mode strict conserve les images depuis la première observation du sujet, après confirmation, et demande la fermeture dès qu’aucun sujet confirmé n’est observé. Le délai du tracker n’étend pas la vidéo. Plusieurs personnes et animaux peuvent maintenir une même présence.

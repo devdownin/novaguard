@@ -91,7 +91,7 @@ export function Viewfinder() {
   // component only re-renders when a session starts or a setting changes.
   const {
     monitoring, det, perms, settings, autoTune, recording, recError, surveillanceStatus, cameraRef, reportCameraProblem,
-    reportCameraError, cameraActive, reportFrameStage, zoneEditing,
+    reportCameraError, cameraActive, reportFrameStage, zoneEditing, captureRevision,
   } = useAppState();
 
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -130,7 +130,7 @@ export function Viewfinder() {
     : det
       ? t(recording ? det === 'Personne' ? 'view.overlay.person' : 'view.overlay.animal' : det === 'Personne' ? 'view.detected.person' : 'view.detected.animal')
       : t(monitoring ? 'view.overlay.none' : 'view.overlay.idle');
-  const overlayDotColor = fault ? '#f5b36b' : det ? color.accent : color.neutral600;
+  const overlayDotColor = fault ? color.warning : det ? color.accent : color.neutral600;
 
   return (
     <View style={[styles.frame, det ? styles.frameGlowActive : styles.frameGlowIdle]} onLayout={onLayout}>
@@ -167,6 +167,7 @@ export function Viewfinder() {
         ]}
       >
         <CameraFeed
+          key={captureRevision}
           style={StyleSheet.absoluteFill}
           // `|| recording` on purpose: stopping surveillance issues
           // `stopRecording()` and drops `monitoring` in the same commit, so

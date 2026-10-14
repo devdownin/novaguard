@@ -237,3 +237,34 @@ it('keeps a partial clip after an encoder error without settling the replacement
   expect(h.state.recording).toBe(true);
   expect(native.begin).toHaveBeenCalledTimes(2);
 });
+
+it('persists one passage identity across native segments and a different one for a new presence', async () => {
+  const h = await watch();
+  await frame(h, 0, [person, dog]); await frame(h, 333, [person, dog]);
+  await clip(true); await clip(true, '/clips/B.mp4');
+  const first = h.state.events[0].passageId;
+  expect(first).toBeTruthy();
+  expect(h.state.events[1].passageId).toBe(first);
+  expect(h.state.events[0].kinds).toEqual(['Personne', 'Animal']);
+  await frame(h, 666, []); await clip(false, '/clips/C.mp4');
+  await frame(h, 999, [person]); await frame(h, 1333, [person]);
+  await clip(true, '/clips/D.mp4');
+  expect(h.state.events[0].passageId).not.toBe(first);
+  const saved = JSON.parse((await AsyncStorage.getItem('@novaguard:events:v2'))!);
+  expect(saved[0].passageId).toBe(h.state.events[0].passageId);
+});
+
+it('does not let an old recording error overwrite a successful explicit restart', async () => {
+  const h = await watch();
+  await frame(h, 0, [person]); await frame(h, 333, [person]);
+  const old = currentId();
+  await ReactTestRenderer.act(async () => { h.state.retryCapture(); });
+  await ReactTestRenderer.act(async () => {
+    for (const listener of mockListeners) listener({ recordingId: old, error: 'old codec error', encoderFree: true });
+    for (const listener of mockListeners) listener({ recordingId: old, error: 'old codec error' });
+  });
+  await frame(h, 666, []);
+  expect(h.state.surveillanceStatus).toBe('active');
+  expect(h.state.recError).toBeNull();
+  expect(h.state.events.some(event => event.path === null)).toBe(true);
+});

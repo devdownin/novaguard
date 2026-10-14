@@ -4,7 +4,8 @@ import LinearGradient from 'react-native-linear-gradient';
 import Slider from '@react-native-community/slider';
 import { color, font, radius, MAX_FONT_SCALE } from '../theme';
 import { useAppState } from '../state/AppStateContext';
-import { PresenceMode, Retention, Sensitivity } from '../state/types';
+import { Retention, Sensitivity } from '../state/types';
+import { PresenceModePicker } from '../components/PresenceModePicker';
 import { presenceModeFor, usesBufferedCapture } from '../recording/presenceMode';
 import { formatBytes } from '../recording/library';
 import { describeClipGap, formatClipGap } from '../recording/clipGap';
@@ -212,15 +213,7 @@ export function SetupScreen() {
         <CollapsibleSection title={t('setup.section.rec')} expanded={settings.exp.rec} onToggle={() => s.toggleSection('rec')}>
           <View style={styles.subBlock}>
             <Text style={styles.subLabel}>{t('setup.presenceMode')}</Text>
-            <SegmentedControl<PresenceMode>
-              options={[
-                { value: 'strict', label: t('setup.mode.strict') },
-                { value: 'tolerant', label: t('setup.mode.tolerant') },
-              ]}
-              value={presenceModeFor(settings.post)}
-              onChange={s.setPresenceMode}
-            />
-            <Text style={styles.hint}>{t(settings.post === '0 s' ? 'setup.mode.strict.sub' : 'setup.mode.tolerant.sub')}</Text>
+            <PresenceModePicker value={presenceModeFor(settings.post)} onChange={s.setPresenceMode} />
           </View>
           {settings.post !== '0 s' && (
             <SettingRow label={t('setup.post')} subtitle={t(usesBufferedCapture(settings.post) ? 'setup.post.sub' : 'setup.post.legacy')}>

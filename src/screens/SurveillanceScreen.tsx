@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { color, font, MAX_FONT_SCALE } from '../theme';
 import { useAppState } from '../state/AppStateContext';
 import { formatBytes } from '../recording/library';
@@ -7,7 +7,7 @@ import { formatWhen } from '../utils/date';
 import { useLandscape } from '../utils/useLandscape';
 import { t } from '../i18n';
 import { Viewfinder } from '../components/Viewfinder';
-import { STATUS_LABEL, statusIsFault } from '../surveillance/status';
+import { SurveillanceStatusPanel } from '../components/SurveillanceStatusPanel';
 
 /**
  * The camera screen, in the two shapes a surveillance phone is actually left in.
@@ -22,10 +22,8 @@ import { STATUS_LABEL, statusIsFault } from '../surveillance/status';
 export function SurveillanceScreen() {
   const {
     monitoring, toggleMonitoring, lastDetAt, detToday, storage: store,
-    events, selectEvent, setTab, setFilter, setPeriod, surveillanceStatus,
+    events, selectEvent, setTab, setFilter, setPeriod,
   } = useAppState();
-  // Share the same diagnosis with the viewfinder and the standing notification.
-  const interrupted = statusIsFault(surveillanceStatus);
   const landscape = useLandscape();
 
   // Each counter answers a question, and the answer was a dead end: "last
@@ -48,34 +46,7 @@ export function SurveillanceScreen() {
     </View>
   );
 
-  const statusPill = (
-    <View
-      testID="surveillance-status"
-      accessible
-      accessibilityLiveRegion="polite"
-      accessibilityLabel={t(STATUS_LABEL[surveillanceStatus])}
-      style={[
-        styles.statusPill,
-        interrupted ? styles.pillInterrupted : monitoring ? styles.pillActive : styles.pillInactive,
-      ]}
-    >
-      <View
-        style={[
-          styles.statusDot,
-          interrupted ? styles.dotInterrupted : monitoring ? styles.dotActive : styles.dotInactive,
-        ]}
-      />
-      <Text
-        maxFontSizeMultiplier={MAX_FONT_SCALE}
-        style={[
-          styles.statusLabel,
-          interrupted ? styles.textInterrupted : monitoring ? styles.textActive : styles.textInactive,
-        ]}
-      >
-        {t(STATUS_LABEL[surveillanceStatus])}
-      </Text>
-    </View>
-  );
+  const statusPill = <SurveillanceStatusPanel />;
 
   const cta = (
     <Pressable
@@ -130,13 +101,13 @@ export function SurveillanceScreen() {
         <View style={styles.viewfinderSlot}>
           <Viewfinder />
         </View>
-        <View style={styles.aside}>
+        <ScrollView style={styles.aside} contentContainerStyle={styles.asideContent}>
           {brand}
           {statusPill}
           <View style={styles.asideSpacer} />
           {cta}
           {stats}
-        </View>
+        </ScrollView>
       </View>
     );
   }
@@ -145,8 +116,8 @@ export function SurveillanceScreen() {
     <View style={styles.screen}>
       <View style={styles.header}>
         {brand}
-        {statusPill}
       </View>
+      <View style={styles.statusSlot}>{statusPill}</View>
 
       <Viewfinder />
 
@@ -206,6 +177,8 @@ function StatCell({ label, value, landscape, onPress, hint }: {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  statusSlot: { marginHorizontal: 14, marginBottom: 10 },
+  asideContent: { flexGrow: 1, gap: 10 },
   screenLandscape: {
     flex: 1,
     flexDirection: 'row',
@@ -246,29 +219,6 @@ const styles = StyleSheet.create({
     color: color.neutral500,
     marginTop: 1,
   },
-  statusPill: {
-    flexShrink: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 7,
-    paddingVertical: 5,
-    paddingLeft: 9,
-    paddingRight: 11,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  pillInterrupted: { borderColor: color.neutral700, backgroundColor: 'transparent' },
-  pillActive: { borderColor: color.accent700, backgroundColor: color.accent900 },
-  pillInactive: { borderColor: color.neutral800, backgroundColor: 'transparent' },
-  statusDot: { width: 7, height: 7, borderRadius: 3.5 },
-  dotInterrupted: { backgroundColor: color.neutral400 },
-  dotActive: { backgroundColor: color.accent },
-  dotInactive: { backgroundColor: color.neutral600 },
-  statusLabel: { fontFamily: font.medium, fontSize: 11, flexShrink: 1 },
-  textInterrupted: { color: color.neutral300 },
-  textActive: { color: color.accent200 },
-  textInactive: { color: color.neutral500 },
   ctaMonitoring: { backgroundColor: 'transparent', borderColor: color.neutral700 },
   ctaIdle: { backgroundColor: color.accent900, borderColor: color.accent },
   ctaPressed: { opacity: 0.72, transform: [{ scale: 0.985 }] },

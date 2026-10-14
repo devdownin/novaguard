@@ -56,6 +56,8 @@ describe('the ratios the maths is built on', () => {
 
 describe('text', () => {
   const cases: [string, string, string][] = [
+    ['recording status on its panel', color.recording, color.surface],
+    ['failure status on its panel', color.warning, color.surface],
     ['body text on the app ground', color.text, color.bg],
     ['body text on a card', color.text, color.surface],
     ['secondary text on the app ground', color.neutral500, color.bg],

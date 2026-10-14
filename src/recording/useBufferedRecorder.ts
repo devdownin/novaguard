@@ -25,6 +25,7 @@ export function useBufferedRecorder(options: RecorderOptions & {
   const latest = useRef(options);
   useEffect(() => { latest.current = options; });
   const inflight = useRef(new Set<number>());
+  const revisions = useRef(new Map<number, number | undefined>());
   const active = useRef<{ id: number; stopping: boolean } | null>(null);
   const ready = useRef(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -33,13 +34,14 @@ export function useBufferedRecorder(options: RecorderOptions & {
   useEffect(() => {
     if (!native) return undefined;
     const subscription = new NativeEventEmitter(native).addListener('PresenceRecorderClip', (clip: NativeClip) => {
+      const ownsRevision = revisions.current.get(clip.recordingId) === latest.current.retryKey;
       if (clip.encoderFree) {
         if (active.current?.id === clip.recordingId) {
           active.current = null;
           setIsRecording(false);
-          if (clip.error) latest.current.onError?.(clip.error);
+          if (clip.error && ownsRevision) latest.current.onError?.(clip.error);
           latest.current.onEncoderFree?.(clip.recordingId);
-        } else if (active.current == null && inflight.current.has(clip.recordingId) && clip.error) {
+        } else if (ownsRevision && active.current == null && inflight.current.has(clip.recordingId) && clip.error) {
           latest.current.onError?.(clip.error);
         }
         return;
@@ -47,22 +49,26 @@ export function useBufferedRecorder(options: RecorderOptions & {
       if (clip.error) {
         if (clip.recordingId === 0) { latest.current.onError?.(clip.error); return; }
         if (!inflight.current.delete(clip.recordingId)) return;
+        revisions.current.delete(clip.recordingId);
         if (active.current?.id === clip.recordingId) {
           active.current = null;
           setIsRecording(false);
-          latest.current.onError?.(clip.error);
-        } else if (active.current == null) latest.current.onError?.(clip.error);
+          if (ownsRevision) latest.current.onError?.(clip.error);
+        } else if (active.current == null && ownsRevision) latest.current.onError?.(clip.error);
         latest.current.onAbandoned?.(clip.recordingId);
         return;
       }
       latest.current.onClip(clip);
-      if (!clip.continued) inflight.current.delete(clip.recordingId);
+      if (!clip.continued) {
+        inflight.current.delete(clip.recordingId);
+        revisions.current.delete(clip.recordingId);
+      }
       if (!clip.continued && active.current?.id === clip.recordingId) {
         active.current = null;
         setIsRecording(false);
         latest.current.onEncoderFree?.(clip.recordingId);
       }
-      if (clip.warning && active.current == null) latest.current.onError?.(clip.warning);
+      if (clip.warning && active.current == null && ownsRevision) latest.current.onError?.(clip.warning);
     });
     return () => subscription.remove();
   }, [native]);
@@ -98,19 +104,21 @@ export function useBufferedRecorder(options: RecorderOptions & {
       if (retry != null) clearTimeout(retry);
       native.stopCapture().catch(() => {});
     };
-  }, [native, options.enabled, options.audio, options.quality]);
+  }, [native, options.enabled, options.audio, options.quality, options.retryKey]);
 
   const start = useCallback((fromAt = Date.now()) => {
     if (!native || !latest.current.enabled || !ready.current || active.current) return false;
     const id = --nextRecordingId;
     active.current = { id, stopping: false };
     inflight.current.add(id);
+    revisions.current.set(id, latest.current.retryKey);
     setIsRecording(true);
     latest.current.onStarted?.(id);
     native.begin(id, fromAt, maxDurationMs(latest.current.max)).then(() => {
       if (active.current?.id === id) latest.current.onRecovered?.();
     }).catch(error => {
       if (!inflight.current.delete(id)) return;
+      revisions.current.delete(id);
       if (active.current?.id === id) {
         active.current = null;
         setIsRecording(false);
@@ -129,7 +137,9 @@ export function useBufferedRecorder(options: RecorderOptions & {
     setIsRecording(false);
     native.end(invocation.id, untilAt).catch(error => {
       if (!inflight.current.delete(invocation.id)) return;
-      if (active.current == null) latest.current.onError?.(String(error));
+      const ownsRevision = revisions.current.get(invocation.id) === latest.current.retryKey;
+      revisions.current.delete(invocation.id);
+      if (active.current == null && ownsRevision) latest.current.onError?.(String(error));
       latest.current.onAbandoned?.(invocation.id);
     });
     return true;

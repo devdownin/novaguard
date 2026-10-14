@@ -40,6 +40,9 @@ export type Retention = '1 jour' | '7 jours' | '30 jours' | '90 jours' | 'Toujou
 
 export interface DetectionEvent {
   id: number;
+  /** Explicit capture session identity; absent on historical, ungrouped clips. */
+  passageId?: string;
+  kinds?: DetectionKind[];
   kind: DetectionKind;
   /** epoch ms — display label and period bucket are derived from this, not stored. */
   timestamp: number;

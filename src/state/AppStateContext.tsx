@@ -82,6 +82,10 @@ interface AppStateValue {
   /** Last recording failure, surfaced in the viewfinder instead of being swallowed. */
   recError: string | null;
   surveillanceStatus: SurveillanceStatus;
+  captureRevision: number;
+  retryCapture: () => void;
+  openCaptureSettings: () => void;
+  openStorageSettings: () => void;
   /**
    * Measured cost of a duration-cap cut, this session. Only a device can
    * answer this — see `clipGap.ts` — so the app measures itself.
@@ -419,6 +423,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [analysisStalled, setAnalysisStalled] = useState(false);
   const analysisStalledRef = useRef(false);
   const lastAnalysisAtRef = useRef<number | null>(null);
+  const [captureRevision, setCaptureRevision] = useState(0);
   const [recordingProblem, setRecordingProblem] = useState<string | null>(null);
   const recordingRecovered = useCallback(() => setRecordingProblem(null), []);
   const [volume, setVolume] = useState<VolumeSpace>({ free: 0, total: 0 });
@@ -609,6 +614,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // Active-session bookkeeping. Refs (not state) because reportDetections
   // fires many times a second and only some updates should trigger a render.
   const sessionKindRef = useRef<DetectionKind | null>(null);
+  const passageIdRef = useRef<string | undefined>(undefined);
+  const passageSerialRef = useRef(0);
+  const sessionKindsRef = useRef(new Set<DetectionKind>());
   /**
    * The track the session opened on.
    *
@@ -644,7 +652,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
    * so the session survives it and the next clip opens as soon as this one is
    * filed.
    */
-  type PendingClip = { kind: DetectionKind; dur: number; conf: number; rollover: boolean };
+  type PendingClip = { kind: DetectionKind; dur: number; conf: number; rollover: boolean; passageId?: string; startedAt?: number; kinds?: DetectionKind[] };
   const pendingRef = useRef(new Map<number, PendingClip>());
   const recordingMetaRef = useRef(new Map<number, PendingClip>());
   const sessionRecordingIdRef = useRef<number | null>(null);
@@ -722,7 +730,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   }, [freeSpaceRef, settingsRef]);
 
   const commitEvent = useCallback((
-    kind: DetectionKind, dur: number, c: number, clip: Clip | null, at: number = Date.now(),
+    kind: DetectionKind, dur: number, c: number, clip: Clip | null, at: number = Date.now(), passageId?: string, kinds?: DetectionKind[],
   ) => {
     const now = at;
     setDetToday(v => v + 1);
@@ -736,6 +744,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         id,
         kind,
         timestamp: now,
+        ...(passageId ? { passageId } : {}),
+        ...(kinds?.length ? { kinds } : {}),
         // Prefer the encoder's own duration: it counts what is actually in the
         // file, including the post-roll, which our session timer does not.
         dur: clip && clip.duration > 0 ? Math.round(clip.duration) : dur,
@@ -770,6 +780,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const clearSession = useCallback(() => {
     sessionKindRef.current = null;
+    passageIdRef.current = undefined;
+    sessionKindsRef.current = new Set();
     sessionTrackIdRef.current = null;
     sessionRecordingIdRef.current = null;
     setDet(null);
@@ -779,6 +791,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   /** Describes the clip being closed, not the passage that may outlive it. */
   const sessionMeta = useCallback(() => ({
     kind: sessionKindRef.current as DetectionKind,
+    passageId: passageIdRef.current,
+    kinds: [...sessionKindsRef.current],
+    startedAt: segmentStartRef.current,
     dur: Math.max(1, Math.round((Date.now() - segmentStartRef.current) / 1000)),
     conf: Math.round(sessionMaxConfRef.current * 100),
   }), []);
@@ -840,14 +855,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         // an unplayable 0-byte row in the history is worse than none.
         if (!pending && ownsActive && !clip.continued) clearSession();
         deleteFiles([clip.path, clip.thumbPath]);
-        commitEvent(meta!.kind, meta!.dur, meta!.conf, null);
+        commitEvent(meta!.kind, meta!.dur, meta!.conf, null, meta!.startedAt, meta!.passageId, meta!.kinds);
         return;
 
       case 'attach': {
         if (!pending && ownsActive && !clip.continued) clearSession();
-        const at = clip.startedAt ?? Date.now();
+        const at = clip.startedAt ?? meta!.startedAt ?? Date.now();
         renameRecording(clip.path, clipFileName(meta!.kind, at)).then(path => {
-          const id = commitEvent(meta!.kind, meta!.dur, meta!.conf, { ...clip, path }, at);
+          const id = commitEvent(meta!.kind, meta!.dur, meta!.conf, { ...clip, path }, at, meta!.passageId, meta!.kinds);
           // The snapshot taken as the clip opened is the better picture — it is
           // the frame that says why the clip exists — but it needs a preview to
           // screenshot, and there is none with the screen off. That is most of
@@ -904,7 +919,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
     if (pending.rollover && sessionKindRef.current != null && sessionRecordingIdRef.current === recordingId &&
       (usesBufferedCapture(settingsRef.current.post) === (recordingId < 0))) openNextSegment();
-    commitEvent(pending.kind, pending.dur, pending.conf, null);
+    commitEvent(pending.kind, pending.dur, pending.conf, null, pending.startedAt, pending.passageId, pending.kinds);
   }, [commitEvent, openNextSegment, settingsRef]);
 
   /**
@@ -942,6 +957,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     cameraRef,
     enabled: monitoring && perms.cam && !usesBufferedCapture(settings.post),
     max: settings.max,
+    retryKey: captureRevision,
     onClip,
     onStarted: onRecordingStarted,
     onError: setRecordingProblem, onRecovered: recordingRecovered,
@@ -950,7 +966,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     onEncoderFree,
   });
   const bufferedRecorder = useBufferedRecorder({
-    cameraRef, enabled: monitoring && perms.cam && usesBufferedCapture(settings.post),
+    cameraRef, retryKey: captureRevision, enabled: monitoring && perms.cam && usesBufferedCapture(settings.post),
     audio: perms.mic, quality: settings.quality, max: settings.max,
     onClip, onStarted: onRecordingStarted, onError: setRecordingProblem, onRecovered: recordingRecovered, onAbandoned: onClipAbandoned, onEncoderFree,
   });
@@ -1004,9 +1020,32 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     } else {
       // Nothing was recording (no permission, disk full, camera gone). The
       // sighting still happened, so keep it — just without a file.
-      commitEvent(meta.kind, meta.dur, meta.conf, null);
+      commitEvent(meta.kind, meta.dur, meta.conf, null, meta.startedAt, meta.passageId, meta.kinds);
     }
   }, [cancelPostRoll, clearSession, commitEvent, sessionMeta, stopRecording]);
+
+  const retryCapture = useCallback(() => {
+    if (!monitoringRef.current || !perms.cam) return;
+    endSession();
+    tracksRef.current = [];
+    positiveStartRef.current.clear();
+    primaryIdRef.current = null;
+    viewfinder.current?.setTracks(() => []);
+    sawFrameRef.current = false;
+    setSawFrame(false);
+    frameWindowRef.current = { ...EMPTY_FRAME_RATE_WINDOW };
+    viewfinder.current?.setFrameRate(0);
+    lastAnalysisAtRef.current = null;
+    analysisStalledRef.current = false;
+    setAnalysisStalled(false);
+    setCameraProblem(null);
+    setRecError(null);
+    recoveryRef.current = HEALTHY_CAMERA;
+    setRecovery(HEALTHY_CAMERA);
+    setCameraActive(true);
+    nextRecordingAttemptRef.current = 0;
+    setCaptureRevision(value => value + 1);
+  }, [endSession, monitoringRef, perms.cam]);
 
   const reportDetections = useCallback((detections: FrameDetection[], aspect: number, capturedAt?: number) => {
     const now = Date.now();
@@ -1133,7 +1172,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (sessionKindRef.current == null) {
         if (attemptAt < nextRecordingAttemptRef.current) return;
         sessionKindRef.current = primary.kind;
+        passageIdRef.current = `${Date.now()}-${++passageSerialRef.current}-${Math.random().toString(36).slice(2, 10)}`;
         sessionTrackIdRef.current = primary.id;
+        sessionKindsRef.current = new Set(observed.filter(track => track.confirmed).map(track => track.kind));
         sessionStartRef.current = Math.max(positiveStartRef.current.get(primary.id) ?? frameAt, lastClosedAtRef.current);
         segmentStartRef.current = sessionStartRef.current;
         sessionMaxConfRef.current = primary.maxConfidence;
@@ -1172,6 +1213,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         shown?.setRecSec(Math.floor((now - sessionStartRef.current) / 1000));
       }
       const recordingId = recordingIdRef.current();
+      for (const track of observed) if (track.confirmed) sessionKindsRef.current.add(track.kind);
       if (recordingId != null && sessionKindRef.current != null) {
         recordingMetaRef.current.set(recordingId, { ...sessionMeta(), rollover: false });
       }
@@ -1297,7 +1339,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // something that is no longer true.
     dismissDetectionAlert();
     lastAlertRef.current = null;
-  }, [monitoring]);
+  }, [monitoring, captureRevision]);
 
   /**
    * The camera is down: say so where it can be read, and take it back.
@@ -1489,6 +1531,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const patchSettings = useCallback((patch: Partial<Settings>) => {
     setSettings(s => ({ ...s, ...patch }));
   }, []);
+
+  const openCaptureSettings = useCallback(() => {
+    setSettings(value => ({ ...value, exp: { ...value.exp, rec: true } }));
+    setTab('setup');
+  }, []);
+  const openStorageSettings = useCallback(() => {
+    setSettings(value => ({ ...value, exp: { ...value.exp, sto: true } }));
+    setTab('setup');
+    refreshVolume();
+  }, [refreshVolume]);
 
   const toggleSection = useCallback((key: keyof ExpandedSections) => {
     setSettings(s => ({ ...s, exp: { ...s.exp, [key]: !s.exp[key] } }));
@@ -1789,7 +1841,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     hydrated,
     tab, setTab,
     monitoring, det, detToday, lastDetAt,
-    recording: isRecording, recError: visibleError, surveillanceStatus, clipGap, autoTune, autoTuneLog: autoTuneLogRef, deviceLoad: deviceLoadRef, storage: store, cameraRef, foreground, reportCameraProblem, reportCameraError, cameraHealth: recovery.health, cameraActive, reportFrameStage,
+    recording: isRecording, recError: visibleError, surveillanceStatus, captureRevision, retryCapture, openCaptureSettings, openStorageSettings, clipGap, autoTune, autoTuneLog: autoTuneLogRef, deviceLoad: deviceLoadRef, storage: store, cameraRef, foreground, reportCameraProblem, reportCameraError, cameraHealth: recovery.health, cameraActive, reportFrameStage,
     toggleMonitoring, reportDetections,
     events, filter, setFilter, period, setPeriod, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent, historyLocked, unlockHistory, identityAvailable,
     confirmDelete, askDelete, cancelDelete, doDelete,
@@ -1802,7 +1854,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
     hydrated, tab, monitoring, det, detToday, lastDetAt,
-    isRecording, visibleError, surveillanceStatus, clipGap, autoTune, autoTuneLogRef, deviceLoadRef, store, cameraRef, foreground, reportCameraProblem, reportCameraError, recovery, cameraActive, reportFrameStage, toggleMonitoring, reportDetections,
+    isRecording, visibleError, surveillanceStatus, captureRevision, retryCapture, openCaptureSettings, openStorageSettings, clipGap, autoTune, autoTuneLogRef, deviceLoadRef, store, cameraRef, foreground, reportCameraProblem, reportCameraError, recovery, cameraActive, reportFrameStage, toggleMonitoring, reportDetections,
     events, filter, period, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent, historyLocked, unlockHistory, identityAvailable,
     confirmDelete, askDelete, cancelDelete, doDelete, confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
@@ -1831,15 +1883,15 @@ export function useAppState(): AppStateValue {
   return ctx;
 }
 
-export function useFilteredEvents(): { shown: DetectionEvent[]; totalCount: number } {
+export function useFilteredEvents(allKinds = false): { shown: DetectionEvent[]; totalCount: number } {
   const { events, filter, period } = useAppState();
   const shown = useMemo(() => {
     const { from, to } = periodRange(period, Date.now());
     return events.filter(e => {
-      if (filter === 'Personnes' && e.kind !== 'Personne') return false;
-      if (filter === 'Animaux' && e.kind !== 'Animal') return false;
+      if (!allKinds && filter === 'Personnes' && !(e.kinds ?? [e.kind]).includes('Personne')) return false;
+      if (!allKinds && filter === 'Animaux' && !(e.kinds ?? [e.kind]).includes('Animal')) return false;
       return e.timestamp >= from && e.timestamp < to;
     });
-  }, [events, filter, period]);
+  }, [events, filter, period, allKinds]);
   return { shown, totalCount: events.length };
 }
