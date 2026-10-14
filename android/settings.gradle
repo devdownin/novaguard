@@ -17,7 +17,10 @@ pluginManagement {
         }
     }
 
-    includeBuild(reactNativeGradlePlugin)
+    // PluginManagementSpec accepts a String. Passing a File selects the outer
+    // Settings.includeBuild(Object) overload instead, which registers a normal
+    // composite build too late to resolve the settings plugin below.
+    includeBuild(reactNativeGradlePlugin.absolutePath)
 }
 plugins { id("com.facebook.react.settings") }
 extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
