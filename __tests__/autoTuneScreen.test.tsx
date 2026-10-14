@@ -114,6 +114,7 @@ async function open(): Promise<{ handle: { state: AppState }; tree: Tree }> {
     );
   });
   await ReactTestRenderer.act(async () => {});
+  await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
   await ReactTestRenderer.act(async () => { handle.state.openInfo('autotune'); });
   return { handle, tree };
 }

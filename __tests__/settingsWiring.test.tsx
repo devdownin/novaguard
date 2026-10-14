@@ -11,13 +11,20 @@
 
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { mountProvider } from '../testing/mountProvider';
+import { useCameraPermission } from 'react-native-vision-camera';
+import { mountLegacyProvider } from '../testing/mountProvider';
 import { defaultSettings } from '../src/state/defaults';
 import { Settings } from '../src/state/types';
 import { FrameDetection } from '../src/ml/types';
 import { DEFAULT_TRACKER_OPTIONS } from '../src/ml/tracker';
 
 jest.mock('../src/surveillance/foregroundService');
+
+async function mountProvider() {
+  const handle = await mountLegacyProvider();
+  await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
+  return handle;
+}
 
 const SETTINGS_KEY = '@novaguard:settings';
 
@@ -31,6 +38,7 @@ async function storedSettings(): Promise<Settings> {
 beforeEach(async () => {
   jest.useFakeTimers();
   jest.clearAllMocks();
+  (useCameraPermission as jest.Mock).mockReturnValue({ hasPermission: true, requestPermission: jest.fn() });
   await AsyncStorage.clear();
 });
 
@@ -160,10 +168,18 @@ it('honours a post-roll changed mid-session', async () => {
   expect(handle.state.events).toHaveLength(0);
 
   // Past the old 10 s delay. A stale ref would have closed the session here.
-  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(15_000); });
+  const analyseEmptyScene = async (seconds: number) => {
+    for (let second = 0; second < seconds; second++) {
+      await ReactTestRenderer.act(async () => {
+        jest.advanceTimersByTime(1000);
+        handle.state.reportDetections([], 9 / 16);
+      });
+    }
+  };
+  await analyseEmptyScene(15);
   expect(handle.state.events).toHaveLength(0);
 
-  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(20_000); });
+  await analyseEmptyScene(20);
   expect(handle.state.events).toHaveLength(1);
 });
 

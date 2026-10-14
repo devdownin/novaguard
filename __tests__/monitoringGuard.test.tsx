@@ -13,7 +13,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import { useCameraPermission } from 'react-native-vision-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RESUME_ARM_MS } from '../src/state/AppStateContext';
-import { AppState, mountProvider } from '../testing/mountProvider';
+import { AppState, mountLegacyProvider as mountProvider } from '../testing/mountProvider';
 import { startForegroundService } from '../src/surveillance/foregroundService';
 
 jest.mock('../src/surveillance/foregroundService');

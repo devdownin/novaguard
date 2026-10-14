@@ -17,7 +17,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCameraPermission } from 'react-native-vision-camera';
 import * as fs from '@dr.pogodin/react-native-fs';
-import { AppState, mountProvider } from '../testing/mountProvider';
+import { AppState, mountLegacyProvider as mountProvider } from '../testing/mountProvider';
 import { useViewfinderState, ViewfinderState } from '../src/state/AppStateContext';
 import { notifyDetection } from '../src/surveillance/foregroundService';
 import { maxDurationMs, minFreeBytes, postRollMs } from '../src/recording/library';
@@ -35,7 +35,7 @@ const permission = useCameraPermission as jest.Mock;
 const alert = notifyDetection as jest.Mock;
 
 const CAP_MS = maxDurationMs(defaultSettings.max);
-const POST_ROLL_MS = postRollMs(defaultSettings.post);
+const POST_ROLL_MS = postRollMs('10 s');
 const { dropAfterMs } = DEFAULT_TRACKER_OPTIONS;
 
 /** Analysis runs at a few frames a second; one a second is enough to hold a track. */
@@ -379,7 +379,9 @@ it('still writes the event when the encoder errors on the cut', async () => {
   });
   await settle();
 
-  expect(p.state.recError).toBe('no space left on device');
+  // The failed sighting remains in history; a successful replacement clears
+  // the old encoder fault instead of claiming that the new clip is failing.
+  expect(p.state.recError).toBeNull();
   expect(p.state.events).toHaveLength(1);
   expect(p.state.events[0].path).toBeNull();
   // And the passage is either recording again or closed — never open and idle.
@@ -472,13 +474,58 @@ it('still writes the event when the encoder never answers the cut', async () => 
   // No `onRecordingFinished` at all. The recorder gives up after
   // FINALIZE_TIMEOUT_MS so the camera can be released — and nothing else would
   // ever write the event the abandoned clip was carrying.
-  await ReactTestRenderer.act(async () => {
-    jest.advanceTimersByTime(FINALIZE_TIMEOUT_MS);
-  });
+  // Analysis keeps flowing; silence would now correctly close the passage as
+  // a detection fault rather than prove that the subject is still present.
+  await p.watch(FINALIZE_TIMEOUT_MS);
   await settle();
 
   expect(p.state.events).toHaveLength(1);
   expect(p.state.events[0].path).toBeNull();
   // The subject is still there, so the passage carries on in a new clip.
   expect(p.camera.startRecording).toHaveBeenCalledTimes(2);
+});
+
+it('stops B when presence ends while A is still waiting for its file size', async () => {
+  const p = await passage();
+  await p.watch(CAP_MS);
+  let finishStat!: (info: unknown) => void;
+  mockFs.stat.mockReturnValueOnce(new Promise(resolve => { finishStat = resolve; }) as never);
+  await ReactTestRenderer.act(async () => {
+    p.camera.calls[0].onRecordingFinished({ path: '/clips/A.mp4', duration: CAP_MS / 1000 });
+  });
+  expect(p.camera.startRecording).toHaveBeenCalledTimes(2);
+  await p.idle(dropAfterMs + POST_ROLL_MS + 2 * FRAME_MS);
+  expect(p.camera.stopRecording).toHaveBeenCalledTimes(2);
+  await ReactTestRenderer.act(async () => { finishStat({ size: 1000 }); });
+  await p.land('/clips/B.mp4', 10);
+  expect(p.state.events).toHaveLength(2);
+  expect(p.state.events.every(event => event.path != null)).toBe(true);
+});
+
+it('retries a refused initial recording while the same subject remains present', async () => {
+  permission.mockReturnValue({ hasPermission: true, requestPermission: jest.fn() });
+  const handle = await mountProvider();
+  const camera = fakeCamera();
+  camera.startRecording.mockImplementationOnce(() => { throw new Error('busy'); });
+  handle.state.cameraRef.current = camera as never;
+  await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
+  await ReactTestRenderer.act(async () => {
+    handle.state.reportDetections([person(0.3)], 9 / 16);
+    handle.state.reportDetections([person(0.3)], 9 / 16);
+  });
+  expect(camera.startRecording).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(async () => {
+    jest.advanceTimersByTime(1000);
+    handle.state.reportDetections([person(0.3)], 9 / 16);
+  });
+  expect(camera.startRecording).toHaveBeenCalledTimes(2);
+  expect(handle.state.recording).toBe(true);
+});
+
+it('retries an encoder error during a presence, before any duration cut', async () => {
+  const p = await passage();
+  await ReactTestRenderer.act(async () => { p.camera.last().onRecordingError({ message: 'encoder error' }); });
+  await p.watch(1000);
+  expect(p.camera.startRecording).toHaveBeenCalledTimes(2);
+  expect(p.state.recording).toBe(true);
 });

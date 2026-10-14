@@ -51,6 +51,7 @@ async function starve(
 beforeEach(async () => {
   jest.useFakeTimers();
   jest.clearAllMocks();
+  thermal.mockReturnValue(-1);
   (useCameraPermission as jest.Mock).mockReturnValue({
     hasPermission: true, requestPermission: jest.fn(async () => true),
   });
@@ -63,6 +64,7 @@ afterEach(() => {
 
 it('leaves the camera alone while the device keeps up', async () => {
   const handle = await mountProvider();
+  await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
   const target = SENSITIVITY_PROFILES[defaultSettings.sens].fps;
 
   await ReactTestRenderer.act(async () => {
@@ -81,6 +83,7 @@ it('leaves the camera alone while the device keeps up', async () => {
 
 it('gives up the auto-zoom when the device cannot hold the cadence', async () => {
   const handle = await mountProvider();
+  await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
 
   await starve(handle.state, WINDOWS_TO_GIVE_UP);
 
@@ -91,6 +94,7 @@ it('gives up the auto-zoom when the device cannot hold the cadence', async () =>
 
 it('never rewrites what the user asked for', async () => {
   const handle = await mountProvider();
+  await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
 
   await starve(handle.state, WINDOWS_TO_GIVE_UP);
 
@@ -212,6 +216,7 @@ describe('a notch of sensitivity given up', () => {
 
   it('confirms on one look, as "Basse" does', async () => {
     const handle = await mountProvider();
+    await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
     await starve(handle.state, TO_SECOND_STEP);
     expect(handle.state.autoTune.applied).toEqual(['sensitivity']);
 
@@ -226,6 +231,7 @@ describe('a notch of sensitivity given up', () => {
 
   it('still needs two looks while the notch is the user’s', async () => {
     const handle = await mountProvider();
+    await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
 
     await ReactTestRenderer.act(async () => {
       handle.state.reportDetections([person(0.9)], 9 / 16);

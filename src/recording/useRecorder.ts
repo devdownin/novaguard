@@ -2,267 +2,201 @@ import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import type { Camera, VideoFile } from 'react-native-vision-camera';
 import { MaxDuration } from '../state/types';
 import { maxDurationMs } from './library';
-import { deleteFile, ensureRecordingsDir, fileSize, RECORDINGS_DIR } from './videoStore';
+import { deleteFile, deleteFiles, ensureRecordingsDir, fileSize, RECORDINGS_DIR } from './videoStore';
 
 export interface Clip {
+  /** Identity of the encoder invocation, retained across asynchronous finalisation. */
+  recordingId: number;
   path: string;
   bytes: number;
-  /** Seconds, as reported by the encoder rather than measured by our timers. */
   duration: number;
-  /** The still saved for the history, or null when none could be taken. */
   thumbPath: string | null;
+  /** Native buffered segments report their actual capture window. */
+  startedAt?: number;
+  endedAt?: number;
+  continued?: boolean;
 }
 
-/**
- * JPEG quality of the still kept for the history.
- *
- * It is drawn 74x52 dp on a card and about a third of the screen in the detail
- * sheet, so nothing above this is visible — and a thumbnail's bytes are not
- * counted in the event's `bytes`, which is the size of the *video* the detail
- * sheet reports. At this quality the under-count is a few hundred kilobytes
- * across a full history, against a free-space figure that is measured on the
- * volume rather than derived from it.
- */
 export const THUMBNAIL_QUALITY = 55;
+export const FINALIZE_TIMEOUT_MS = 5000;
+export const THUMBNAIL_TIMEOUT_MS = 1500;
 
-interface Options {
+export interface RecorderOptions {
   cameraRef: RefObject<Camera | null>;
-  /** Recording is only ever attempted while this is true. */
   enabled: boolean;
   max: MaxDuration;
   onClip: (clip: Clip) => void;
   onError?: (message: string) => void;
-  /**
-   * Fired when the duration cap expires, just before the clip is cut.
-   *
-   * The cap has to cut the file — an encoder left running produces one
-   * unbounded MP4 — but cutting the file is not the same as ending what is
-   * being filmed. This hook lets the session layer close the clip itself, so
-   * the clip carries its event and the next one opens straight away. The cap
-   * still calls `stop()` afterwards: a handler that does nothing must not turn
-   * the maximum duration into no maximum at all.
-   */
+  onRecovered?: () => void;
+  onStarted?: (recordingId: number) => void;
   onMaxDuration?: () => void;
-  /**
-   * The encoder never answered a stop within {@link FINALIZE_TIMEOUT_MS}.
-   *
-   * `onClip` will not fire, so this is the only notice the caller gets that the
-   * clip it was expecting is not coming — without it, whatever the caller set
-   * aside for that clip (the event it was to carry) is simply dropped.
-   */
-  onAbandoned?: () => void;
-  /**
-   * The encoder has released the camera, before the clip's size is read back.
-   *
-   * `onClip` cannot serve this purpose: it waits on a `stat()` round trip over
-   * the bridge, and between a stop and the next start that wait is dead air —
-   * seconds of a passage nobody is filming. A caller continuing a recording
-   * starts the next clip from here and lets the byte count catch up.
-   */
-  onEncoderFree?: () => void;
+  onAbandoned?: (recordingId: number) => void;
+  onEncoderFree?: (recordingId: number) => void;
 }
-
-/**
- * How long the encoder gets to hand a clip back after a stop.
- *
- * `isRecording` stays true across that window, which is what keeps the camera
- * session alive while the file is being finalised — so it also has to end.
- * Without a bound, a stop VisionCamera never calls back on would leave the
- * preview running with surveillance switched off.
- */
-export const FINALIZE_TIMEOUT_MS = 5000;
 
 export interface Recorder {
-  /** True while a clip is being written, and while a stop is still in flight. */
   isRecording: boolean;
-  /** Returns false if already recording, disabled, or the clip directory isn't ready. */
-  start: () => boolean;
-  /**
-   * Returns false if nothing was recording — the caller then knows no clip is
-   * coming through `onClip` and must close the session itself.
-   */
-  stop: () => boolean;
+  isReady?: boolean;
+  start: (fromAt?: number) => boolean;
+  stop: (untilAt?: number) => boolean;
+  currentId: () => number | null;
+  /** Buffered backends only persist frames through the last positive observation. */
+  observe?: (untilAt: number) => void;
 }
 
-/**
- * Wraps VisionCamera's file recorder.
- *
- * VisionCamera hands the clip back through `onRecordingFinished` rather than a
- * promise, and throws if you stop a recording that never started, so the
- * in-flight state lives in a ref that both callbacks and the duration cap read.
- */
-export function useRecorder({
-  cameraRef, enabled, max, onClip, onError, onMaxDuration, onAbandoned, onEncoderFree,
-}: Options): Recorder {
-  const [isRecording, setIsRecording] = useState(false);
-  const activeRef = useRef(false);
-  /** Set between `stopRecording()` and the callback that answers it. */
-  const stoppingRef = useRef(false);
-  const readyRef = useRef(false);
-  const capTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const finalizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+interface Invocation {
+  id: number;
+  stopping: boolean;
+  completed: boolean;
+  abandoned: boolean;
+  thumb: Promise<string | null>;
+  cap: ReturnType<typeof setTimeout> | null;
+  finalize: ReturnType<typeof setTimeout> | null;
+}
 
-  // Callbacks are read through refs so a re-render mid-recording can't leave
-  // VisionCamera holding a stale `onClip` from a previous settings value.
-  const onClipRef = useRef(onClip);
-  const onErrorRef = useRef(onError);
-  const onMaxDurationRef = useRef(onMaxDuration);
-  const onAbandonedRef = useRef(onAbandoned);
-  const onEncoderFreeRef = useRef(onEncoderFree);
-  /**
-   * The still for the clip being written, still in flight.
-   *
-   * Held as the promise rather than its value so the clip is never reported
-   * before the snapshot has landed: resolving it afterwards would leave a JPEG
-   * in the recordings directory that no event points at, and the launch sweep
-   * is the only thing that would ever remove it.
-   */
-  const thumbRef = useRef<Promise<string | null> | null>(null);
-  useEffect(() => { onClipRef.current = onClip; }, [onClip]);
-  useEffect(() => { onErrorRef.current = onError; }, [onError]);
-  useEffect(() => { onMaxDurationRef.current = onMaxDuration; }, [onMaxDuration]);
-  useEffect(() => { onAbandonedRef.current = onAbandoned; }, [onAbandoned]);
-  useEffect(() => { onEncoderFreeRef.current = onEncoderFree; }, [onEncoderFree]);
+/** A snapshot may never resolve; it must not block the event carrying a video. */
+function boundedThumbnail(snapshot: Promise<string | null>): Promise<string | null> {
+  return new Promise(resolve => {
+    let finished = false;
+    const timer = setTimeout(() => { finished = true; resolve(null); }, THUMBNAIL_TIMEOUT_MS);
+    snapshot.then(path => {
+      if (finished) { deleteFile(path); return; }
+      finished = true;
+      clearTimeout(timer);
+      resolve(path);
+    });
+  });
+}
+
+/** Legacy VisionCamera backend for users explicitly retaining post-roll. */
+export function useRecorder(options: RecorderOptions): Recorder {
+  const { cameraRef, enabled, max } = options;
+  const latest = useRef(options);
+  useEffect(() => { latest.current = options; });
+  const [isRecording, setIsRecording] = useState(false);
+  const active = useRef<Invocation | null>(null);
+  const sequence = useRef(0);
+  const ready = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
-    ensureRecordingsDir()
-      .then(() => { if (!cancelled) readyRef.current = true; })
-      .catch(() => { onErrorRef.current?.("Dossier d'enregistrement inaccessible"); });
-    return () => { cancelled = true; };
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    const prepare = () => {
+      ensureRecordingsDir().then(() => { if (!cancelled) ready.current = true; })
+        .catch(() => {
+          if (cancelled) return;
+          latest.current.onError?.("Dossier d'enregistrement inaccessible");
+          retry = setTimeout(prepare, 1000);
+        });
+    };
+    prepare();
+    return () => { cancelled = true; if (retry != null) clearTimeout(retry); };
   }, []);
 
-  const clearCap = useCallback(() => {
-    if (capTimerRef.current) {
-      clearTimeout(capTimerRef.current);
-      capTimerRef.current = null;
+  const settle = useCallback((invocation: Invocation) => {
+    if (invocation.cap != null) clearTimeout(invocation.cap);
+    if (invocation.finalize != null) clearTimeout(invocation.finalize);
+    invocation.cap = invocation.finalize = null;
+    // A delayed callback from A must never settle B or cancel B's duration cap.
+    if (active.current === invocation) {
+      active.current = null;
+      setIsRecording(false);
     }
   }, []);
 
-  /** Whatever the encoder answered, the recording is over. */
-  const settle = useCallback(() => {
-    activeRef.current = false;
-    stoppingRef.current = false;
-    if (finalizeTimerRef.current) {
-      clearTimeout(finalizeTimerRef.current);
-      finalizeTimerRef.current = null;
-    }
-    setIsRecording(false);
-  }, []);
+  const abandon = useCallback((invocation: Invocation, message?: string) => {
+    if (invocation.completed) return;
+    invocation.completed = invocation.abandoned = true;
+    settle(invocation);
+    invocation.thumb.then(deleteFile);
+    if (message) latest.current.onError?.(message);
+    latest.current.onAbandoned?.(invocation.id);
+  }, [settle]);
 
   const stop = useCallback((): boolean => {
-    // A second stop while the first is still in flight is not a second clip:
-    // VisionCamera throws on it, and the old code took that throw as proof
-    // nothing was recording — clearing `isRecording` while the encoder was
-    // still writing, which is exactly when the camera session must stay up.
-    if (!activeRef.current || stoppingRef.current) return false;
-    clearCap();
-    // Leave `activeRef` set until the callback fires: stopping is asynchronous,
-    // and a start() slipping in before then would throw inside VisionCamera.
+    const invocation = active.current;
+    if (!invocation || invocation.stopping) return false;
+    invocation.stopping = true;
+    if (invocation.cap != null) clearTimeout(invocation.cap);
+    invocation.cap = null;
+    invocation.finalize = setTimeout(() => abandon(invocation), FINALIZE_TIMEOUT_MS);
     try {
-      cameraRef.current?.stopRecording();
-      stoppingRef.current = true;
-      finalizeTimerRef.current = setTimeout(() => {
-        settle();
-        onAbandonedRef.current?.();
-      }, FINALIZE_TIMEOUT_MS);
+      const camera = cameraRef.current;
+      if (!camera) { abandon(invocation); return false; }
+      // VisionCamera returns a Promise. A synchronous try/catch alone misses rejection.
+      Promise.resolve(camera.stopRecording()).catch(error => {
+        abandon(invocation, error instanceof Error ? error.message : 'Arrêt impossible');
+      });
       return true;
-    } catch {
-      settle();
+    } catch (error) {
+      abandon(invocation, error instanceof Error ? error.message : 'Arrêt impossible');
       return false;
     }
-  }, [cameraRef, clearCap, settle]);
+  }, [abandon, cameraRef]);
 
   const start = useCallback((): boolean => {
     const camera = cameraRef.current;
-    if (!camera || !enabled || !readyRef.current || activeRef.current) return false;
-
-    activeRef.current = true;
+    if (!camera || !enabled || !ready.current || active.current) return false;
+    const invocation: Invocation = {
+      id: ++sequence.current, stopping: false, completed: false, abandoned: false,
+      thumb: Promise.resolve(null), cap: null, finalize: null,
+    };
+    active.current = invocation;
     setIsRecording(true);
-
     try {
       camera.startRecording({
-        fileType: 'mp4',
-        videoCodec: 'h264',
-        path: RECORDINGS_DIR,
+        fileType: 'mp4', videoCodec: 'h264', path: RECORDINGS_DIR,
         onRecordingFinished: (video: VideoFile) => {
-          settle();
-          clearCap();
-          // Announced before the size is read, and deliberately: the camera is
-          // free now, and anything done first is footage the next clip misses.
-          onEncoderFreeRef.current?.();
-          const thumb = thumbRef.current ?? Promise.resolve(null);
-          // `VideoFile` has no size, so the real byte count is read back from
-          // disk once the encoder has closed the file. Both round trips happen
-          // after `onEncoderFree`, so neither is time nobody is being filmed.
+          if (invocation.completed) {
+            // A callback after timeout still owns its files, never the next invocation.
+            invocation.thumb.then(thumb => deleteFiles([video.path, thumb]));
+            return;
+          }
+          invocation.completed = true;
+          // Capture A's thumbnail before the callback can synchronously start B.
+          const thumb = invocation.thumb;
+          settle(invocation);
+          latest.current.onEncoderFree?.(invocation.id);
           Promise.all([fileSize(video.path), thumb]).then(([bytes, thumbPath]) => {
-            onClipRef.current({ path: video.path, bytes, duration: video.duration, thumbPath });
+            latest.current.onClip({ recordingId: invocation.id, path: video.path,
+              bytes, duration: video.duration, thumbPath });
           });
         },
-        onRecordingError: error => {
-          settle();
-          clearCap();
-          // No clip will carry it, so nothing would ever delete it.
-          thumbRef.current?.then(deleteFile);
-          thumbRef.current = null;
-          onErrorRef.current?.(error.message);
-          // No clip is coming from this one either — a caller holding an event
-          // for it would otherwise wait forever. A recording that was never
-          // stopped has nothing set aside, so this is a no-op there.
-          onAbandonedRef.current?.();
-        },
+        onRecordingError: error => abandon(invocation, error.message),
       });
-    } catch (e) {
-      settle();
-      onErrorRef.current?.(e instanceof Error ? e.message : 'Enregistrement impossible');
+    } catch (error) {
+      settle(invocation);
+      latest.current.onError?.(error instanceof Error ? error.message : 'Enregistrement impossible');
       return false;
     }
-
-    /*
-     * The frame that opened the clip, kept so the history shows what was seen
-     * rather than a gradient that is the same on every card.
-     *
-     * `takeSnapshot` and not `takePhoto`: a photo output would have to be added
-     * to the capture session, and reconfiguring that session mid-passage is a
-     * mistake this repository has already paid for. A snapshot is a screenshot
-     * of the preview view — it touches neither the encoder nor the session, and
-     * it costs nothing when it fails.
-     *
-     * It fails whenever there is no preview to screenshot, which is exactly the
-     * screen-off case `useForeground` creates: those clips keep the placeholder,
-     * and that is the accepted price of not reconfiguring the session.
-     */
-    thumbRef.current = camera
-      .takeSnapshot({ quality: THUMBNAIL_QUALITY, path: RECORDINGS_DIR })
-      .then(photo => photo.path)
-      .catch(() => null);
-
-    capTimerRef.current = setTimeout(() => {
-      capTimerRef.current = null;
-      // Give the session layer the chance to stop the clip itself — that is
-      // what makes the next one part of the same passage. `stop()` no-ops once
-      // a stop is in flight, so it is the guarantee, not a second cut.
-      onMaxDurationRef.current?.();
+    latest.current.onStarted?.(invocation.id);
+    latest.current.onRecovered?.();
+    // Some native wrappers throw before returning a promise: thumbnails remain optional.
+    try {
+      const snapshot = camera.takeSnapshot({ quality: THUMBNAIL_QUALITY, path: RECORDINGS_DIR })
+        .then(photo => photo.path).catch(() => null);
+      invocation.thumb = boundedThumbnail(snapshot);
+    } catch { invocation.thumb = Promise.resolve(null); }
+    invocation.cap = setTimeout(() => {
+      invocation.cap = null;
+      latest.current.onMaxDuration?.();
       stop();
     }, maxDurationMs(max));
     return true;
-  }, [cameraRef, clearCap, enabled, max, settle, stop]);
+  }, [abandon, cameraRef, enabled, max, settle, stop]);
 
-  // Losing the camera (monitoring off, screen unmounted) must not leave the
-  // encoder running against a file nothing will ever claim.
-  useEffect(() => {
-    if (!enabled && activeRef.current) stop();
-  }, [enabled, stop]);
-
+  useEffect(() => { if (!enabled && active.current) stop(); }, [enabled, stop]);
   useEffect(() => () => {
-    clearCap();
-    if (finalizeTimerRef.current) clearTimeout(finalizeTimerRef.current);
-    if (activeRef.current && !stoppingRef.current) {
-      try { cameraRef.current?.stopRecording(); } catch { /* already torn down */ }
+    const invocation = active.current;
+    if (!invocation) return;
+    if (invocation.cap != null) clearTimeout(invocation.cap);
+    if (invocation.finalize != null) clearTimeout(invocation.finalize);
+    if (!invocation.stopping) {
+      try { Promise.resolve(cameraRef.current?.stopRecording()).catch(() => {}); } catch { /* torn down */ }
     }
-    activeRef.current = false;
-    stoppingRef.current = false;
-  }, [cameraRef, clearCap]);
+    active.current = null;
+  }, [cameraRef]);
 
-  return { isRecording, start, stop };
+  const currentId = useCallback(() => active.current?.id ?? null, []);
+  return { isRecording, start, stop, currentId };
 }

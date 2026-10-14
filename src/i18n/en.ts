@@ -19,6 +19,22 @@ export const en: Record<StringKey, string> = {
   'tab.hist': 'History',
   'tab.setup': 'Setup',
 
+  'surv.status.starting': 'Starting monitoring',
+  'surv.status.recording': 'Recording in progress',
+  'surv.status.cameraUnavailable': 'Camera unavailable — retrying',
+  'surv.status.storage': 'Insufficient storage — video unavailable',
+  'surv.status.analysis': 'Detection unavailable',
+  'surv.status.recordingError': 'Recording unavailable',
+  'view.detected.person': 'Person detected',
+  'view.detected.animal': 'Animal detected',
+  'setup.presenceMode': 'Capture mode',
+  'setup.mode.strict': 'Strict presence',
+  'setup.mode.tolerant': 'With tolerance',
+  'setup.mode.strict.sub': 'Records detected presence only. A missed detection can split a passage into several clips.',
+  'setup.mode.tolerant.sub': 'Keeps the same clip if a subject returns within the chosen margin. Empty-scene images are included during that margin.',
+  'setup.post.legacy': 'Previous delay retained: this margin starts after tracking expires (up to 1.2 additional seconds).',
+  'error.storage': 'Insufficient space to record',
+
   // ── surveillance screen ──────────────────────────────────────────────
   'surv.tagline': 'Local smart camera',
   'surv.status.on': 'Monitoring on',
@@ -130,7 +146,7 @@ export const en: Record<StringKey, string> = {
   'setup.autoTuneSwitch': 'Self-tuning',
   'setup.autoTuneSwitch.sub': 'Gives up compute when the device stops analysing enough frames. Never switches back on what you turned off.',
   'setup.autoZoom': 'Auto-zoom on people',
-  'setup.autoZoom.sub': 'Close shot for 4 s, then a wide shot of the scene',
+  'setup.autoZoom.sub': 'Preview magnification; recordings keep the full field of view',
   'setup.forceCpu': 'Detect on the CPU',
   'setup.forceCpu.sub': 'Worth trying if nothing is ever detected: forces the computation onto the CPU',
   'setup.precise': 'Extended detection',
@@ -151,7 +167,8 @@ export const en: Record<StringKey, string> = {
   'setup.sens.hint.Haute': '5 frames per second — quickest to react and most forgiving, heaviest on the battery',
   'setup.threshold': 'Confidence threshold',
 
-  'setup.post': 'Keep recording after a detection',
+  'setup.post': 'Tolerance margin',
+  'setup.post.sub': 'Maximum time kept after the last positive detection.',
   'setup.max': 'Max. clip length',
   'setup.max.sub': 'Recording continues while a subject is visible: past this, it carries on in a new clip',
   'setup.quality': 'Video quality',
@@ -268,6 +285,8 @@ export const en: Record<StringKey, string> = {
   'confirm.wipe.body.one': '{count} video will be deleted from this device. This cannot be undone.',
   'confirm.wipe.body.other': '{count} videos will be deleted from this device. This cannot be undone.',
   'confirm.wipe.ok': 'Delete everything',
+
+  'error.analysisStalled': 'Camera analysis stalled',
 
   // ── errors shown to the user ─────────────────────────────────────────
   'error.historyUnreadable': 'History unreadable: the videos are kept',

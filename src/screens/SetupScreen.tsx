@@ -4,7 +4,8 @@ import LinearGradient from 'react-native-linear-gradient';
 import Slider from '@react-native-community/slider';
 import { color, font, radius, MAX_FONT_SCALE } from '../theme';
 import { useAppState } from '../state/AppStateContext';
-import { Retention, Sensitivity } from '../state/types';
+import { PresenceMode, Retention, Sensitivity } from '../state/types';
+import { presenceModeFor, usesBufferedCapture } from '../recording/presenceMode';
 import { formatBytes } from '../recording/library';
 import { describeClipGap, formatClipGap } from '../recording/clipGap';
 import { describeAutoTune, formatAutoTune } from '../camera/autoTune';
@@ -209,13 +210,27 @@ export function SetupScreen() {
         </CollapsibleSection>
 
         <CollapsibleSection title={t('setup.section.rec')} expanded={settings.exp.rec} onToggle={() => s.toggleSection('rec')}>
-          <SettingRow label={t('setup.post')}>
-            <ValueButton
-              label={settings.post}
-              onPress={s.cyclePost}
-              accessibilityLabel={t('a11y.setting', { name: t('setup.post'), value: settings.post })}
+          <View style={styles.subBlock}>
+            <Text style={styles.subLabel}>{t('setup.presenceMode')}</Text>
+            <SegmentedControl<PresenceMode>
+              options={[
+                { value: 'strict', label: t('setup.mode.strict') },
+                { value: 'tolerant', label: t('setup.mode.tolerant') },
+              ]}
+              value={presenceModeFor(settings.post)}
+              onChange={s.setPresenceMode}
             />
-          </SettingRow>
+            <Text style={styles.hint}>{t(settings.post === '0 s' ? 'setup.mode.strict.sub' : 'setup.mode.tolerant.sub')}</Text>
+          </View>
+          {settings.post !== '0 s' && (
+            <SettingRow label={t('setup.post')} subtitle={t(usesBufferedCapture(settings.post) ? 'setup.post.sub' : 'setup.post.legacy')}>
+              <ValueButton
+                label={settings.post}
+                onPress={s.cycleTolerance}
+                accessibilityLabel={t('a11y.setting', { name: t('setup.post'), value: settings.post })}
+              />
+            </SettingRow>
+          )}
           <SettingRow
             label={t('setup.max')}
             subtitle={t('setup.max.sub')}

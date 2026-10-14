@@ -19,6 +19,22 @@ export const fr = {
   'tab.hist': 'Historique',
   'tab.setup': 'Setup',
 
+  'surv.status.starting': 'Démarrage de la surveillance',
+  'surv.status.recording': 'Enregistrement en cours',
+  'surv.status.cameraUnavailable': 'Caméra indisponible — reprise en cours',
+  'surv.status.storage': 'Stockage insuffisant — vidéo indisponible',
+  'surv.status.analysis': 'Détection indisponible',
+  'surv.status.recordingError': 'Enregistrement indisponible',
+  'view.detected.person': 'Personne détectée',
+  'view.detected.animal': 'Animal détecté',
+  'setup.presenceMode': 'Mode de capture',
+  'setup.mode.strict': 'Présence stricte',
+  'setup.mode.tolerant': 'Avec tolérance',
+  'setup.mode.strict.sub': 'Enregistre uniquement les présences détectées. Une détection manquée peut créer plusieurs clips.',
+  'setup.mode.tolerant.sub': 'Conserve le même clip si une présence revient pendant la marge choisie. Des images sans présence sont incluses pendant cette marge.',
+  'setup.post.legacy': 'Ancien délai conservé : cette marge commence après la disparition du suivi (jusqu’à 1,2 s supplémentaires).',
+  'error.storage': 'Espace insuffisant pour enregistrer',
+
   // ── surveillance screen ──────────────────────────────────────────────
   'surv.tagline': 'Caméra intelligente locale',
   'surv.status.on': 'Surveillance active',
@@ -132,7 +148,7 @@ export const fr = {
   'setup.autoTuneSwitch': 'Auto-réglage',
   'setup.autoTuneSwitch.sub': 'Retire du calcul quand l’appareil n’analyse plus assez d’images. Ne rallume jamais ce que vous avez éteint.',
   'setup.autoZoom': 'Zoom auto sur les personnes',
-  'setup.autoZoom.sub': 'Plan serré 4 s, puis plan large sur la scène',
+  'setup.autoZoom.sub': 'Grossissement de l’aperçu ; la vidéo conserve tout le champ',
   'setup.forceCpu': 'Détection sur le processeur',
   'setup.forceCpu.sub': 'À essayer si rien n’est jamais détecté : force le calcul sur le CPU',
   'setup.precise': 'Détection étendue',
@@ -153,7 +169,8 @@ export const fr = {
   'setup.sens.hint.Haute': '5 images par seconde — la plus réactive et la plus indulgente, batterie la plus sollicitée',
   'setup.threshold': 'Seuil de confiance',
 
-  'setup.post': 'Durée après détection',
+  'setup.post': 'Marge de tolérance',
+  'setup.post.sub': 'Durée maximale conservée après la dernière détection positive.',
   'setup.max': 'Durée max. par clip',
   'setup.max.sub': 'L’enregistrement continue tant qu’un sujet est visible : au-delà, il se poursuit dans un nouveau clip',
   'setup.quality': 'Qualité vidéo',
@@ -271,6 +288,8 @@ export const fr = {
   'confirm.wipe.body.one': '{count} vidéo sera supprimée de cet appareil. Cette action est irréversible.',
   'confirm.wipe.body.other': '{count} vidéos seront supprimées de cet appareil. Cette action est irréversible.',
   'confirm.wipe.ok': 'Tout supprimer',
+
+  'error.analysisStalled': 'Analyse de la caméra sans réponse',
 
   // ── errors shown to the user ─────────────────────────────────────────
   'error.historyUnreadable': 'Historique illisible : les vidéos sont conservées',

@@ -5,7 +5,7 @@ import type { Camera as VisionCamera } from 'react-native-vision-camera';
 import { Camera as CameraModule, useCameraPermission, useMicrophonePermission } from 'react-native-vision-camera';
 import {
   Camera, DetectionEvent, DetectionKind, DetectionZone, ExpandedSections, HistoryFilter, InfoPanel,
-  MaxDuration, OnboardingStep, Period, PermissionOutcome, Permissions, PostRoll, Quality,
+  MaxDuration, OnboardingStep, Period, PermissionOutcome, Permissions, PostRoll, PresenceMode, Quality,
   Retention, Sensitivity, Settings, StorageInfo, Tab, VolumeSpace,
 } from './types';
 import {
@@ -20,6 +20,9 @@ import { confirmedTracksIfChanged, primaryTrack, Track, updateTracks } from '../
 import { trackerOptionsFor } from '../ml/sensitivity';
 import { detectionsInZone } from '../ml/zone';
 import { Clip, useRecorder } from '../recording/useRecorder';
+import { useBufferedRecorder } from '../recording/useBufferedRecorder';
+import { TOLERANCE_OPTIONS, usesBufferedCapture } from '../recording/presenceMode';
+import { STATUS_LABEL, SurveillanceStatus, surveillanceStatusOf } from '../surveillance/status';
 import {
   bytesToReclaim, clipFileName, clipOutcome, eventFiles, eventsToReclaim, expiredEvents, lowSpaceBytes,
   minFreeBytes, nextEventId, periodRange, postRollMs, sameDay, todayCount, totalBytes,
@@ -78,6 +81,7 @@ interface AppStateValue {
   recording: boolean;
   /** Last recording failure, surfaced in the viewfinder instead of being swallowed. */
   recError: string | null;
+  surveillanceStatus: SurveillanceStatus;
   /**
    * Measured cost of a duration-cap cut, this session. Only a device can
    * answer this — see `clipGap.ts` — so the app measures itself.
@@ -130,7 +134,7 @@ interface AppStateValue {
   reportFrameStage: (stage: FrameStage) => void;
   toggleMonitoring: () => void;
   /** Called from the camera frame-processor (JS thread) with this frame's qualifying detections. */
-  reportDetections: (detections: FrameDetection[], frameAspect: number) => void;
+  reportDetections: (detections: FrameDetection[], frameAspect: number, capturedAt?: number) => void;
 
   // history
   events: DetectionEvent[];
@@ -188,6 +192,8 @@ interface AppStateValue {
   setSensitivity: (s: Sensitivity) => void;
   setThreshold: (v: number) => void;
   cyclePost: () => void;
+  setPresenceMode: (mode: PresenceMode) => void;
+  cycleTolerance: () => void;
   cycleMax: () => void;
   cycleQuality: () => void;
   setRetention: (r: Retention) => void;
@@ -306,7 +312,7 @@ function cycle<T>(options: readonly T[], current: T): T {
 }
 
 const CAMERA_OPTIONS: Camera[] = ['Arrière (1×)', 'Arrière (0,5×)', 'Avant'];
-const POST_OPTIONS: PostRoll[] = ['5 s', '10 s', '30 s'];
+const POST_OPTIONS: PostRoll[] = ['0 s', '5 s', '10 s', '30 s'];
 const MAX_OPTIONS: MaxDuration[] = ['1 min', '2 min', '5 min', '10 min', '15 min', '20 min'];
 const QUALITY_OPTIONS: Quality[] = ['720p', '1080p', '4K'];
 
@@ -341,6 +347,7 @@ export function mergeStoredSettings(stored: Partial<Settings>): Settings {
     const value = stored[key];
     if (value !== undefined) (merged as Record<string, unknown>)[key] = value;
   }
+  if (stored.tolerance === undefined && merged.post !== '0 s') merged.tolerance = merged.post;
   return merged;
 }
 
@@ -408,6 +415,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [detToday, setDetToday] = useState(defaultDetToday);
   const [lastDetAt, setLastDetAt] = useState(defaultLastDetAt);
   const [recError, setRecError] = useState<string | null>(null);
+  const [cameraProblem, setCameraProblem] = useState<string | null>(null);
+  const [analysisStalled, setAnalysisStalled] = useState(false);
+  const analysisStalledRef = useRef(false);
+  const lastAnalysisAtRef = useRef<number | null>(null);
+  const [recordingProblem, setRecordingProblem] = useState<string | null>(null);
+  const recordingRecovered = useCallback(() => setRecordingProblem(null), []);
   const [volume, setVolume] = useState<VolumeSpace>({ free: 0, total: 0 });
   /**
    * Asks the OS what is free and publishes it.
@@ -631,9 +644,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
    * so the session survives it and the next clip opens as soon as this one is
    * filed.
    */
-  const pendingRef = useRef<
-    { kind: DetectionKind; dur: number; conf: number; rollover: boolean } | null
-  >(null);
+  type PendingClip = { kind: DetectionKind; dur: number; conf: number; rollover: boolean };
+  const pendingRef = useRef(new Map<number, PendingClip>());
+  const recordingMetaRef = useRef(new Map<number, PendingClip>());
+  const sessionRecordingIdRef = useRef<number | null>(null);
+  const recordingIdRef = useRef<() => number | null>(() => null);
+  const nextRecordingAttemptRef = useRef(0);
+  const lastClosedAtRef = useRef(0);
+  const lastPositiveAtRef = useRef(0);
+  const positiveStartRef = useRef(new Map<number, number>());
   /** Post-roll: keep rolling for a moment after the last subject leaves. */
   const postRollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** When the last detection alert went out, for the cooldown. */
@@ -752,6 +771,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const clearSession = useCallback(() => {
     sessionKindRef.current = null;
     sessionTrackIdRef.current = null;
+    sessionRecordingIdRef.current = null;
     setDet(null);
     viewfinder.current?.setRecSec(0);
   }, []);
@@ -762,6 +782,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     dur: Math.max(1, Math.round((Date.now() - segmentStartRef.current) / 1000)),
     conf: Math.round(sessionMaxConfRef.current * 100),
   }), []);
+
+  const onRecordingStarted = useCallback((id: number) => {
+    sessionRecordingIdRef.current = id;
+    if (sessionKindRef.current != null) recordingMetaRef.current.set(id, { ...sessionMeta(), rollover: false });
+  }, [sessionMeta]);
 
   /**
    * Opens the next clip of a passage the duration cap has just cut.
@@ -777,7 +802,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // hands the next frame back to the ordinary opening path, which is the one
     // place that decides what a refusal looks like.
     if (!hasRoomToRecord()) {
-      setRecError('Espace insuffisant pour enregistrer');
+      setRecordingProblem(t('error.storage'));
       clearSession();
       return false;
     }
@@ -796,10 +821,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
    * be the silent third outcome here.
    */
   const onClip = useCallback((clip: Clip) => {
-    const pending = pendingRef.current;
-    pendingRef.current = null;
-
-    const meta = pending ?? (sessionKindRef.current != null ? sessionMeta() : null);
+    const pending = pendingRef.current.get(clip.recordingId);
+    pendingRef.current.delete(clip.recordingId);
+    const ownsActive = sessionRecordingIdRef.current === clip.recordingId;
+    const meta = pending ?? recordingMetaRef.current.get(clip.recordingId) ?? null;
+    if (!clip.continued) recordingMetaRef.current.delete(clip.recordingId);
+    if (meta && !clip.continued && clip.endedAt != null) lastClosedAtRef.current = Math.max(lastClosedAtRef.current, clip.endedAt);
 
     switch (clipOutcome(meta != null, clip.bytes)) {
       case 'discard':
@@ -811,14 +838,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       case 'event-only':
         // The encoder produced an empty file. Keep the sighting, drop the husk:
         // an unplayable 0-byte row in the history is worse than none.
-        if (!pending) clearSession();
+        if (!pending && ownsActive && !clip.continued) clearSession();
         deleteFiles([clip.path, clip.thumbPath]);
         commitEvent(meta!.kind, meta!.dur, meta!.conf, null);
         return;
 
       case 'attach': {
-        if (!pending) clearSession();
-        const at = Date.now();
+        if (!pending && ownsActive && !clip.continued) clearSession();
+        const at = clip.startedAt ?? Date.now();
         renameRecording(clip.path, clipFileName(meta!.kind, at)).then(path => {
           const id = commitEvent(meta!.kind, meta!.dur, meta!.conf, { ...clip, path }, at);
           // The snapshot taken as the clip opened is the better picture — it is
@@ -836,18 +863,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         });
       }
     }
-  }, [attachThumbnail, clearSession, commitEvent, sessionMeta]);
+  }, [attachThumbnail, clearSession, commitEvent]);
 
   /**
    * The encoder has released the camera. If the cap cut this clip with the
    * subject still in frame, the next one opens here — before the byte count is
    * read back, which is a bridge round trip nobody is being filmed during.
    */
-  const onEncoderFree = useCallback(() => {
-    const pending = pendingRef.current;
+  const onEncoderFree = useCallback((recordingId: number) => {
+    const pending = pendingRef.current.get(recordingId);
     const cutAt = cutAtRef.current;
     cutAtRef.current = null;
-    if (!(pending?.rollover && sessionKindRef.current != null)) return;
+    if (!(pending?.rollover && sessionKindRef.current != null && sessionRecordingIdRef.current === recordingId)) return;
+    if (usesBufferedCapture(settingsRef.current.post) !== (recordingId < 0)) return;
 
     // Both readings are taken around the call itself, so nothing between them
     // is anything but the work being measured.
@@ -858,20 +886,26 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       finalizeMs: freeAt - cutAt,
       restartMs: Date.now() - freeAt,
     }));
-  }, [openNextSegment]);
+  }, [openNextSegment, settingsRef]);
 
   /**
    * The clip a stop was waiting on never arrived — the encoder did not answer
    * within `FINALIZE_TIMEOUT_MS`. Nothing else will write the event that clip
    * was carrying, and if the passage is still running it now has no recording.
    */
-  const onClipAbandoned = useCallback(() => {
-    const pending = pendingRef.current;
-    pendingRef.current = null;
-    if (!pending) return;
-    if (pending.rollover && sessionKindRef.current != null) openNextSegment();
+  const onClipAbandoned = useCallback((recordingId: number) => {
+    recordingMetaRef.current.delete(recordingId);
+    const pending = pendingRef.current.get(recordingId);
+    pendingRef.current.delete(recordingId);
+    if (!pending) {
+      // A mid-recording error must release the presence session for a bounded retry.
+      nextRecordingAttemptRef.current = performance.now() + 1000;
+      return;
+    }
+    if (pending.rollover && sessionKindRef.current != null && sessionRecordingIdRef.current === recordingId &&
+      (usesBufferedCapture(settingsRef.current.post) === (recordingId < 0))) openNextSegment();
     commitEvent(pending.kind, pending.dur, pending.conf, null);
-  }, [commitEvent, openNextSegment]);
+  }, [commitEvent, openNextSegment, settingsRef]);
 
   /**
    * The duration cap has expired with the subject still in frame.
@@ -895,7 +929,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     const cutAt = Date.now();
     if (!stopRecordingRef.current()) return;
     cutAtRef.current = cutAt;
-    pendingRef.current = { ...meta, rollover: true };
+    const id = recordingIdRef.current();
+    if (id != null) pendingRef.current.set(id, { ...meta, rollover: true });
     // The next clip's window starts now. Confidence restarts from whatever is in
     // frame at this instant so each event describes its own clip.
     const primary = primaryTrack(tracksRef.current, primaryIdRef.current);
@@ -903,16 +938,25 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     sessionMaxConfRef.current = primary ? primary.maxConfidence : 0;
   }, [sessionMeta]);
 
-  const recorder = useRecorder({
+  const legacyRecorder = useRecorder({
     cameraRef,
-    enabled: monitoring && perms.cam,
+    enabled: monitoring && perms.cam && !usesBufferedCapture(settings.post),
     max: settings.max,
     onClip,
-    onError: setRecError,
+    onStarted: onRecordingStarted,
+    onError: setRecordingProblem, onRecovered: recordingRecovered,
     onMaxDuration: rollSegment,
     onAbandoned: onClipAbandoned,
     onEncoderFree,
   });
+  const bufferedRecorder = useBufferedRecorder({
+    cameraRef, enabled: monitoring && perms.cam && usesBufferedCapture(settings.post),
+    audio: perms.mic, quality: settings.quality, max: settings.max,
+    onClip, onStarted: onRecordingStarted, onError: setRecordingProblem, onRecovered: recordingRecovered, onAbandoned: onClipAbandoned, onEncoderFree,
+  });
+  const recorder = usesBufferedCapture(settings.post) ? bufferedRecorder : legacyRecorder;
+  const observeRef = useRef(recorder.observe);
+  useEffect(() => { observeRef.current = recorder.observe; }, [recorder.observe]);
   // Depend on the two callbacks rather than the recorder object: it is a fresh
   // literal every render, and `reportDetections` feeds the frame processor's
   // dependency list — an identity that churned every render would rebuild the
@@ -922,6 +966,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // can expire, before the recorder has been started — which needs a commit.
   useEffect(() => { startRecordingRef.current = startRecording; }, [startRecording]);
   useEffect(() => { stopRecordingRef.current = stopRecording; }, [stopRecording]);
+  useEffect(() => { recordingIdRef.current = recorder.currentId; }, [recorder.currentId]);
 
   const cancelPostRoll = useCallback(() => {
     if (postRollRef.current) {
@@ -931,10 +976,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   /** Ends the session now, without waiting out the post-roll. */
-  const endSession = useCallback(() => {
+  const endSession = useCallback((untilAt = lastPositiveAtRef.current) => {
     if (sessionKindRef.current == null) return;
     cancelPostRoll();
     const meta = sessionMeta();
+    const activeId = recordingIdRef.current();
+    const id = activeId ?? sessionRecordingIdRef.current;
     clearSession();
 
     // A cap-driven cut may still be in flight. Its clip already carries an
@@ -942,13 +989,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // would answer false and mint a second, file-less event for a segment that
     // recorded nothing, while the real clip landed to a closed session and was
     // deleted as unclaimed.
-    if (pendingRef.current) {
-      pendingRef.current = { ...pendingRef.current, rollover: false };
+    const pending = id != null ? pendingRef.current.get(id) : undefined;
+    if (id != null && pending) {
+      pendingRef.current.set(id, { ...pending, rollover: false });
       return;
     }
 
-    if (stopRecording()) {
-      pendingRef.current = { ...meta, rollover: false };   // the clip carries the event
+    if (activeId == null && id != null && recordingMetaRef.current.has(id)) {
+      pendingRef.current.set(id, { ...meta, rollover: false });
+      return;
+    }
+    if (stopRecording(untilAt)) {
+      if (id != null) pendingRef.current.set(id, { ...meta, rollover: false });   // the clip carries the event
     } else {
       // Nothing was recording (no permission, disk full, camera gone). The
       // sighting still happened, so keep it — just without a file.
@@ -956,8 +1008,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [cancelPostRoll, clearSession, commitEvent, sessionMeta, stopRecording]);
 
-  const reportDetections = useCallback((detections: FrameDetection[], aspect: number) => {
+  const reportDetections = useCallback((detections: FrameDetection[], aspect: number, capturedAt?: number) => {
     const now = Date.now();
+    const frameAt = capturedAt ?? now;
+    const attemptAt = performance.now();
     /**
      * The viewfinder's state, or nothing when it cannot be seen.
      *
@@ -975,7 +1029,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // The camera also runs while the zone is being drawn, and none of what it
     // sees then is surveillance — tracking it would open a session, and with it
     // a recording, on a screen whose buttons say "Annuler".
-    if (zoneEditingRef.current) return;
+    if (zoneEditingRef.current || !monitoringRef.current) return;
+    lastAnalysisAtRef.current = attemptAt;
+    if (analysisStalledRef.current) {
+      analysisStalledRef.current = false;
+      setAnalysisStalled(false);
+    }
     // Through a ref so this stays a once-per-session write: `setSawFrame` is a
     // stable setter, so arming the resume flag costs the frame path nothing and
     // leaves this callback's identity — and the worklet's — untouched.
@@ -988,6 +1047,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (recoveryRef.current.health !== 'healthy') {
       recoveryRef.current = cameraDeliveredFrame(recoveryRef.current);
       setRecovery(recoveryRef.current);
+      setCameraProblem(null);
     }
     // What "Sensibilité" asked for is a target; this is what the device manages.
     const measured = countFrame(frameWindowRef.current, now);
@@ -1043,33 +1103,48 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // `confirmAfter` and the start score as well as the cadence — otherwise it
     // buys frames and pays for them in corroboration it can no longer afford.
     const running = tunedSettings(settingsRef.current, autoTuneRef.current);
-    const next = updateTracks(tracksRef.current, watched, now,
+    const next = updateTracks(tracksRef.current, watched, frameAt,
       trackerOptionsFor(running.sens, running.threshold));
     tracksRef.current = next;
     // Keep the previous array when nothing moved: every other setter here
     // already bails on `Object.is`, so this is what makes a still scene free.
     shown?.setTracks(prev => confirmedTracksIfChanged(prev, next));
 
-    const primary = primaryTrack(next, primaryIdRef.current);
+    for (const track of next) {
+      if (track.misses === 0 && !positiveStartRef.current.has(track.id)) positiveStartRef.current.set(track.id, frameAt);
+      if (track.misses !== 0) positiveStartRef.current.delete(track.id);
+    }
+    const liveIds = new Set(next.map(track => track.id));
+    for (const id of positiveStartRef.current.keys()) if (!liveIds.has(id)) positiveStartRef.current.delete(id);
+    const observed = usesBufferedCapture(settingsRef.current.post) ? next.filter(track => track.misses === 0) : next;
+    const primary = primaryTrack(observed, primaryIdRef.current);
     primaryIdRef.current = primary ? primary.id : null;
     shown?.setPrimaryTrackId(primaryIdRef.current);
 
+    // A delayed positive after the tolerance expired belongs to a new interval.
+    const toleranceMs = postRollMs(settingsRef.current.post);
+    if (usesBufferedCapture(settingsRef.current.post) && postRollRef.current != null &&
+      frameAt >= lastPositiveAtRef.current + toleranceMs) {
+      endSession(lastPositiveAtRef.current + toleranceMs);
+    }
     if (primary) {
+      lastPositiveAtRef.current = frameAt;
       cancelPostRoll();
       if (sessionKindRef.current == null) {
+        if (attemptAt < nextRecordingAttemptRef.current) return;
         sessionKindRef.current = primary.kind;
         sessionTrackIdRef.current = primary.id;
-        sessionStartRef.current = now;
-        segmentStartRef.current = now;
+        sessionStartRef.current = Math.max(positiveStartRef.current.get(primary.id) ?? frameAt, lastClosedAtRef.current);
+        segmentStartRef.current = sessionStartRef.current;
         sessionMaxConfRef.current = primary.maxConfidence;
         shown?.setRecSec(0);
         // Refuse to start on a nearly full volume rather than letting the
         // encoder fail mid-clip and lose the whole passage.
         if (!hasRoomToRecord()) {
-          setRecError('Espace insuffisant pour enregistrer');
-        } else {
-          setRecError(null);
-          startRecording();
+          setRecordingProblem(t('error.storage'));
+          nextRecordingAttemptRef.current = attemptAt + 1000;
+        } else if (!startRecording(sessionStartRef.current)) {
+          nextRecordingAttemptRef.current = attemptAt + 1000;
         }
 
         // Alert on the *opening* of a session, not on the event written when it
@@ -1081,6 +1156,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           notifyDetection(title, body);
         }
       } else {
+        if (recordingIdRef.current() == null && attemptAt >= nextRecordingAttemptRef.current) {
+          nextRecordingAttemptRef.current = attemptAt + 1000;
+          if (hasRoomToRecord()) startRecording(sessionStartRef.current);
+          else setRecordingProblem(t('error.storage'));
+        }
         // A subject the detector first read as an animal and then, on the next
         // looks, as a person is one the tracker relabels — and the label a
         // session opened with is the one the notification used and the one the
@@ -1091,7 +1171,28 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         sessionMaxConfRef.current = Math.max(sessionMaxConfRef.current, primary.maxConfidence);
         shown?.setRecSec(Math.floor((now - sessionStartRef.current) / 1000));
       }
+      const recordingId = recordingIdRef.current();
+      if (recordingId != null && sessionKindRef.current != null) {
+        recordingMetaRef.current.set(recordingId, { ...sessionMeta(), rollover: false });
+      }
+      observeRef.current?.(frameAt);
       setDet(primary.kind);
+      return;
+    }
+
+    if (settingsRef.current.post === '0 s') {
+      lastClosedAtRef.current = frameAt;
+      endSession();
+      return;
+    }
+
+    if (usesBufferedCapture(settingsRef.current.post) && sessionKindRef.current != null) {
+      const deadline = lastPositiveAtRef.current + toleranceMs;
+      observeRef.current?.(Math.min(frameAt, deadline));
+      if (frameAt >= deadline) { endSession(deadline); return; }
+      if (postRollRef.current == null) {
+        postRollRef.current = setTimeout(() => { postRollRef.current = null; endSession(deadline); }, deadline - frameAt);
+      }
       return;
     }
 
@@ -1104,7 +1205,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         endSession();
       }, postRollMs(settingsRef.current.post));
     }
-  }, [cancelPostRoll, endSession, foregroundRef, hasRoomToRecord, settingsRef, startRecording, zoneEditingRef]);
+  }, [cancelPostRoll, endSession, foregroundRef, hasRoomToRecord, monitoringRef, sessionMeta, settingsRef, startRecording, zoneEditingRef]);
 
   const toggleMonitoring = useCallback(() => {
     // Felt, not just seen: this is the action a phone is propped up and left
@@ -1122,6 +1223,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       viewfinder.current?.setTracks(() => []);
       sawFrameRef.current = false;
       setSawFrame(false);
+      lastAnalysisAtRef.current = null;
+      analysisStalledRef.current = false;
+      setAnalysisStalled(false);
       recoveryRef.current = HEALTHY_CAMERA;
       setRecovery(HEALTHY_CAMERA);
       setCameraActive(true);
@@ -1155,10 +1259,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     setRecError(null);
+    setRecordingProblem(null);
     setMonitoring(true);
   }, [cameraPermission, endSession, monitoring]);
 
   useEffect(() => cancelPostRoll, [cancelPostRoll]);
+  // No delivered analysis is a fault, never evidence of an empty room.
+  useEffect(() => {
+    if (!monitoring) return undefined;
+    const timer = setInterval(() => {
+      const lastAnalysisAt = lastAnalysisAtRef.current;
+      if (lastAnalysisAt != null && performance.now() - lastAnalysisAt > 3000) {
+        analysisStalledRef.current = true;
+        setAnalysisStalled(true);
+        endSession();
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [endSession, monitoring, settings.post]);
 
   // The foreground service is what lets the camera keep running once the app
   // leaves the screen; without it Android cuts capture and may kill the process.
@@ -1194,13 +1312,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!monitoring) return undefined;
     if (recovery.health === 'healthy') {
-      // Back to the standing text. Called on every recovery rather than only
-      // after an interruption: `startForegroundService` is what rewrites the
-      // notification, and it is idempotent.
-      startForegroundService();
+      // The shared status effect owns the standing notification.
       return undefined;
     }
-    startForegroundService(t('notif.interrupted'));
+
     if (cameraActive) return undefined;
     const retry = setTimeout(() => {
       recoveryRef.current = cameraRetried(recoveryRef.current);
@@ -1381,6 +1496,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const cycleCamera = useCallback(() => patchSettings({ camera: cycle(CAMERA_OPTIONS, settings.camera) }), [patchSettings, settings.camera]);
   const cyclePost = useCallback(() => patchSettings({ post: cycle(POST_OPTIONS, settings.post) }), [patchSettings, settings.post]);
+  const setPresenceMode = useCallback((mode: PresenceMode) => {
+    const post = mode === 'strict' ? '0 s' : settings.tolerance;
+    if (post === settings.post) return;
+    endSession();
+    positiveStartRef.current.clear();
+    patchSettings({ post });
+  }, [endSession, patchSettings, settings.post, settings.tolerance]);
+  const cycleTolerance = useCallback(() => {
+    const tolerance = cycle(TOLERANCE_OPTIONS, settings.tolerance);
+    endSession();
+    positiveStartRef.current.clear();
+    patchSettings({ tolerance, ...(settings.post === '0 s' ? {} : { post: tolerance }) });
+  }, [endSession, patchSettings, settings.post, settings.tolerance]);
   const cycleMax = useCallback(() => patchSettings({ max: cycle(MAX_OPTIONS, settings.max) }), [patchSettings, settings.max]);
   const cycleQuality = useCallback(() => patchSettings({ quality: cycle(QUALITY_OPTIONS, settings.quality) }), [patchSettings, settings.quality]);
 
@@ -1549,7 +1677,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const reportCameraProblem = useCallback((message: string | null) => {
     // Only clears what it set: a camera that recovers must not wipe an unrelated
     // recording or foreground-service message.
-    setRecError(prev => (message ?? (prev && CAMERA_OWNED_ERROR.test(prev) ? null : prev)));
+    setCameraProblem(message);
+    if (message == null) setRecError(prev => (prev && CAMERA_OWNED_ERROR.test(prev) ? null : prev));
   }, []);
 
   /**
@@ -1563,7 +1692,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
    * is the whole answer.
    */
   const reportCameraError = useCallback((message: string) => {
-    setRecError(message);
+    setCameraProblem(message);
     if (!monitoringRef.current) return;
     recoveryRef.current = cameraFailed(recoveryRef.current);
     setRecovery(recoveryRef.current);
@@ -1645,29 +1774,40 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (outcome === 'blocked') openAppSettings();
   }, [cameraPermission, microphonePermission]);
 
+  const surveillanceStatus = surveillanceStatusOf({
+    monitoring, recording: isRecording, cameraPermission: perms.cam, cameraHealth: recovery.health,
+    analysisProblem: cameraProblem ?? (analysisStalled ? t('error.analysisStalled') : null), recordingProblem, otherProblem: recError,
+    lowStorage: volume.total > 0 && volume.free < minFreeBytes(settings.quality, settings.max),
+    hasFrame: sawFrame, ready: recorder.isReady ?? true,
+  });
+  const visibleError = cameraProblem ?? (analysisStalled ? t('error.analysisStalled') : null) ?? recordingProblem ?? recError;
+  useEffect(() => {
+    if (monitoring) startForegroundService(t(STATUS_LABEL[surveillanceStatus]));
+  }, [monitoring, surveillanceStatus]);
+
   const value = useMemo<AppStateValue>(() => ({
     hydrated,
     tab, setTab,
     monitoring, det, detToday, lastDetAt,
-    recording: isRecording, recError, clipGap, autoTune, autoTuneLog: autoTuneLogRef, deviceLoad: deviceLoadRef, storage: store, cameraRef, foreground, reportCameraProblem, reportCameraError, cameraHealth: recovery.health, cameraActive, reportFrameStage,
+    recording: isRecording, recError: visibleError, surveillanceStatus, clipGap, autoTune, autoTuneLog: autoTuneLogRef, deviceLoad: deviceLoadRef, storage: store, cameraRef, foreground, reportCameraProblem, reportCameraError, cameraHealth: recovery.health, cameraActive, reportFrameStage,
     toggleMonitoring, reportDetections,
     events, filter, setFilter, period, setPeriod, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent, historyLocked, unlockHistory, identityAvailable,
     confirmDelete, askDelete, cancelDelete, doDelete,
     confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
-    setSensitivity, setThreshold, cyclePost, cycleMax, cycleQuality, setRetention,
+    setSensitivity, setThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
     toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo,
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
     hydrated, tab, monitoring, det, detToday, lastDetAt,
-    isRecording, recError, clipGap, autoTune, autoTuneLogRef, deviceLoadRef, store, cameraRef, foreground, reportCameraProblem, reportCameraError, recovery, cameraActive, reportFrameStage, toggleMonitoring, reportDetections,
+    isRecording, visibleError, surveillanceStatus, clipGap, autoTune, autoTuneLogRef, deviceLoadRef, store, cameraRef, foreground, reportCameraProblem, reportCameraError, recovery, cameraActive, reportFrameStage, toggleMonitoring, reportDetections,
     events, filter, period, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent, historyLocked, unlockHistory, identityAvailable,
     confirmDelete, askDelete, cancelDelete, doDelete, confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
-    setSensitivity, setThreshold, cyclePost, cycleMax, cycleQuality, setRetention,
+    setSensitivity, setThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
     toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo, onb, perms, onbNext, onbFinish, grantPermission,
   ]);

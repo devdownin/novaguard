@@ -39,6 +39,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Native presence window policy
+        run: scripts/test-presence-native.sh
+
       - name: Tests
         run: npm test -- --ci
 

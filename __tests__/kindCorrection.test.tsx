@@ -16,18 +16,17 @@ import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCameraPermission } from 'react-native-vision-camera';
 import * as fs from '@dr.pogodin/react-native-fs';
-import { mountProvider } from '../testing/mountProvider';
+import { mountLegacyProvider as mountProvider } from '../testing/mountProvider';
 import { postRollMs } from '../src/recording/library';
 import { DetectionKind } from '../src/state/types';
 import { FrameDetection } from '../src/ml/types';
-import { defaultSettings } from '../src/state/defaults';
 
 jest.mock('../src/surveillance/foregroundService');
 
 const mockFs = fs as jest.Mocked<typeof fs>;
 const permission = useCameraPermission as jest.Mock;
 
-const POST_ROLL_MS = postRollMs(defaultSettings.post);
+const POST_ROLL_MS = postRollMs('10 s');
 const FRAME_MS = 1000;
 
 /** The same subject, in the same place, read as one kind or the other. */

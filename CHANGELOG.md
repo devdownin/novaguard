@@ -12,6 +12,19 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 - Refus GPU mémorisé par modèle ; chargement limité à 20 secondes et trois tentatives CPU au maximum, espacées de 1 puis 3 secondes. Le diagnostic reste visible jusqu’à une reprise réussie.
 - Tests asynchrones avec le vrai chargeur JavaScript de la bibliothèque, et nettoyage du test d’historique qui retenait des timers après la suite.
 
+### Présences détectées
+- Deux modes explicites : **Présence stricte** et **Avec tolérance**. Marges courtes 1/2/3 s sur le backend tamponné, durée mémorisée au retour au mode strict et anciens délais 5/10/30 s préservés.
+- États partagés entre le viseur, l’écran de surveillance et la notification : démarrage, surveillance, enregistrement, caméra indisponible, détection indisponible et stockage insuffisant. Les erreurs de capture et de détection se rétablissent indépendamment.
+- Analyse sans réponse signalée après plus de trois secondes, même lorsqu’aucune présence n’a été détectée ; fermeture du clip courant et récupération sur une nouvelle analyse.
+- Mode strict **0 s** par défaut sur une nouvelle installation : tampon H.264/AAC en mémoire, horodatages des images et segmentation native sans arrêt de l’encodeur. Les préférences existantes et les modes avec post-roll sont conservés.
+- Reprise bornée après un démarrage refusé ou une erreur d’encodeur pendant une présence.
+- Métadonnées et callbacks isolés par identifiant d’enregistrement : la finalisation d’un clip ne pilote plus le suivant.
+- Vignette propre à chaque clip, attente bornée et nettoyage des réponses tardives.
+- Zoom limité à l’aperçu ; le champ détecté et enregistré reste intégral.
+- Fin du mode strict à la dernière observation positive, sans ajouter la tolérance du tracker ; les images résiduelles après arrêt utilisateur sont ignorées.
+- Tests de transitions, de présences multiples, de tampon avant confirmation et de partitions natives ; procédure de validation sur appareil dans `docs/PRESENCE_RECORDING.md`.
+
+
 ### Sécurité
 - **Un jeton MCP ne se compare plus caractère par caractère, et n'est plus détenu en clair.** `token === expectedToken` rend la main dès que deux octets diffèrent : le temps de la comparaison est fonction du préfixe commun, et qui sait le mesurer reconstitue le jeton octet par octet. Les jetons sont désormais stockés et comparés par empreinte SHA-256 — `timingSafeEqual` sur deux tampons de 32 octets, donc jamais de fuite par la longueur non plus — et la table des jetons enregistrés est indexée par empreinte, si bien que le processus ne détient plus un identifiant qu'un vidage mémoire, un log ou une sérialisation accidentelle pourraient rendre.
 - **Un nom loopback est enfin vérifié, et la connexion va à l'adresse vérifiée.** Le contrôle DNS se lisait `!loopbackHost && records.some(isBlocked)` : le seul nom d'hôte que la liste d'autorisation laisse passer — `localhost` — était précisément celui que rien ne regardait, donc un `localhost` pointé sur une adresse du réseau local par un fichier `hosts` ou un résolveur était contacté sans examen. Chaque nom doit maintenant résoudre là où sa catégorie le dit, un seul mauvais enregistrement suffit à refuser, et l'URL est réécrite sur l'adresse qui vient d'être validée — résoudre à nouveau au moment de se connecter, c'est une seconde interrogation qui peut répondre autrement, et c'est exactement la fenêtre de *rebinding* que la validation laissait ouverte.

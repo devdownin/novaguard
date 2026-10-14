@@ -276,7 +276,7 @@ it('pulls back to a wider shot than the close one, without zooming out past 1x',
  * file — and it is a centre crop with no pan, which is what makes this delicate
  * rather than a one-line change.
  */
-describe('the zoom that reaches the recording', () => {
+describe('preview zoom preserves the full recording field', () => {
   it('leaves the capture alone while the move is still running', () => {
     const h = mount({ maxCameraZoom: 8 });
     seePerson(h, PERSON_CENTRED);
@@ -286,14 +286,14 @@ describe('the zoom that reaches the recording', () => {
     expect(h.zoom.cameraZoom).toBe(1);
   });
 
-  it('hands the magnification to the sensor once the preview has arrived', () => {
+  it('keeps sensor capture wide once the preview has arrived', () => {
     const h = mount({ maxCameraZoom: 8 });
     seePerson(h, PERSON_CENTRED);
     wait(CLOSE_ZOOM_IN_MS);
 
     // Without this the close shot exists only on screen, which is the whole
     // complaint this answers.
-    expect(h.zoom.cameraZoom).toBeGreaterThan(1);
+    expect(h.zoom.cameraZoom).toBe(1);
   });
 
   it('gives back exactly what it took, so the preview does not jump', () => {
@@ -306,8 +306,8 @@ describe('the zoom that reaches the recording', () => {
     // Read off the value rather than the animation: the hand-over is a `setValue`
     // in the same commit as the zoom, deliberately not an animation — there is
     // nothing to animate, since the product must not change at all.
-    const residual = (h.zoom.scale as unknown as { __getValue: () => number }).__getValue();
-    expect(h.zoom.cameraZoom).toBeGreaterThan(1);
+    const residual = h.moves().at(-1)!.scale;
+    expect(h.zoom.cameraZoom).toBe(1);
     // The product is what the viewer sees. The transform shrinks by exactly the
     // factor the sensor gained, so the screen shows nothing happen.
     expect(residual * h.zoom.cameraZoom).toBeCloseTo(asked, 3);
@@ -326,7 +326,7 @@ describe('the zoom that reaches the recording', () => {
     expect(h.moves()[0].scale).toBeGreaterThan(1);
   });
 
-  it('never stops watching more than half the room', () => {
+  it('never narrows the surveillance field', () => {
     const h = mount({ maxCameraZoom: 8 });
     seePerson(h, PERSON_CENTRED);
     wait(CLOSE_ZOOM_IN_MS);
@@ -335,7 +335,7 @@ describe('the zoom that reaches the recording', () => {
     // of the room is unwatched than watched, and someone walking in from the
     // side during the hold is neither filmed nor seen.
     expect(h.zoom.cameraZoom).toBeLessThanOrEqual(CAPTURE_ZOOM_CEILING);
-    expect(h.zoom.cameraZoom).toBeGreaterThan(1);
+    expect(h.zoom.cameraZoom).toBe(1);
   });
 
   it('never asks for more than the device can do', () => {
@@ -359,7 +359,7 @@ describe('the zoom that reaches the recording', () => {
     const h = mount({ maxCameraZoom: 8 });
     seePerson(h, PERSON_CENTRED);
     wait(CLOSE_ZOOM_IN_MS);
-    expect(h.zoom.cameraZoom).toBeGreaterThan(1);
+    expect(h.zoom.cameraZoom).toBe(1);
 
     report(h, 400, [], []);
     wait(CLOSE_HOLD_MS);
@@ -401,7 +401,7 @@ describe('the zoom that reaches the recording', () => {
     const h = mount({ maxCameraZoom: 8 }) as Harness & { setEnabled: (on: boolean) => void };
     seePerson(h, PERSON_CENTRED);
     wait(CLOSE_ZOOM_IN_MS);
-    expect(h.zoom.cameraZoom).toBeGreaterThan(1);
+    expect(h.zoom.cameraZoom).toBe(1);
 
     h.setEnabled(false);
 
