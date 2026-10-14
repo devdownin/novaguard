@@ -127,13 +127,14 @@ export function CameraFeed({
   const { resize } = useResizePlugin();
   const streamPlugin = useMemo(() => VisionCameraProxy?.initFrameProcessorPlugin('novaguardStream', {}), []);
   const precise = settings.preciseDetection;
+  const inputSize = precise ? PRECISE_INPUT_SIZE : STANDARD_INPUT_SIZE;
   // `failed` used to be computed and thrown away, so a model both delegates
   // refused looked exactly like a working camera that never sees anything.
   const { model, failed: modelFailed } = useDetectionModel(
     precise ? MODEL_PRECISE : MODEL_STANDARD,
     settings.forceCpu,
+    inputSize,
   );
-  const inputSize = precise ? PRECISE_INPUT_SIZE : STANDARD_INPUT_SIZE;
 
   useEffect(() => {
     if (!onProblem) return;

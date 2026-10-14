@@ -15,6 +15,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 - Fin du mode strict à la dernière observation positive, sans ajouter la tolérance du tracker ; les images résiduelles après arrêt utilisateur sont ignorées.
 - Tests de transitions, de présences multiples, de tampon avant confirmation et de partitions natives ; procédure de validation sur appareil dans `docs/PRESENCE_RECORDING.md`.
 
+### Initialisation TFLite
+- Les chargements de modèles sont isolés par source, choix CPU et dimensions : une réponse périmée ne peut plus remplacer le modèle actif, même pendant le premier rendu d’un changement.
+- Validation des entrées RGB uint8 et des quatre sorties float32 avant exposition au processeur d’images.
+- Refus GPU mémorisé par modèle ; chargement limité à 20 secondes et trois tentatives CPU au maximum, espacées de 1 puis 3 secondes. Le diagnostic reste visible jusqu’à une reprise réussie.
+- Tests asynchrones avec le vrai chargeur JavaScript de la bibliothèque, et nettoyage du test d’historique qui retenait des timers après la suite.
 
 ### Sécurité
 - **Un jeton MCP ne se compare plus caractère par caractère, et n'est plus détenu en clair.** `token === expectedToken` rend la main dès que deux octets diffèrent : le temps de la comparaison est fonction du préfixe commun, et qui sait le mesurer reconstitue le jeton octet par octet. Les jetons sont désormais stockés et comparés par empreinte SHA-256 — `timingSafeEqual` sur deux tampons de 32 octets, donc jamais de fuite par la longueur non plus — et la table des jetons enregistrés est indexée par empreinte, si bien que le processus ne détient plus un identifiant qu'un vidage mémoire, un log ou une sérialisation accidentelle pourraient rendre.
