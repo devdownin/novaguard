@@ -14,6 +14,7 @@ import com.novaguard.surveillance.PresenceFramePlugin
 import com.novaguard.surveillance.StreamFramePlugin
 import com.mrousavy.camera.frameprocessors.FrameProcessorPluginRegistry
 
+// Verification-only touch: forces the default CodeQL setup to exercise Java/Kotlin.
 class MainApplication : Application(), ReactApplication {
 
   override val reactNativeHost: ReactNativeHost =
