@@ -16,6 +16,7 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 ### Initialisation TFLite
 - Les chargements de modèles sont isolés par source, choix CPU et dimensions : une réponse périmée ne peut plus remplacer le modèle actif, même pendant le premier rendu d’un changement.
 - Validation des entrées RGB uint8 et des quatre sorties float32 avant exposition au processeur d’images.
+- Un modèle chargé sur GPU qui échoue à l’inférence (« Failed to run TFLite Model ») est rechargé sur CPU au lieu d’afficher l’erreur à chaque image ; le refus est mémorisé. Un échec sur CPU reste signalé.
 - Refus GPU mémorisé par modèle ; chargement limité à 20 secondes et trois tentatives CPU au maximum, espacées de 1 puis 3 secondes. Le diagnostic reste visible jusqu’à une reprise réussie.
 - Tests asynchrones avec le vrai chargeur JavaScript de la bibliothèque, et nettoyage du test d’historique qui retenait des timers après la suite.
 

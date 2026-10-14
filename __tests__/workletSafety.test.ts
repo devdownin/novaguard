@@ -248,6 +248,7 @@ describe('the compiled analysis worklet', () => {
       onJsFrame: jest.fn(),
       uprightAspect: () => 9 / 16,
       onFrameError: jest.fn(),
+      onInferenceError: jest.fn(),
       onFrameStage: jest.fn(),
       ...overrides,
     };
@@ -429,13 +430,18 @@ describe('the compiled analysis worklet', () => {
     expect(closure.onJsFrame).not.toHaveBeenCalled();
   });
 
-  it('reports a failure from the model too, not just the resize', () => {
+  it('routes a model failure to the delegate fallback, not the generic frame error', () => {
+    // "Failed to run TFLite Model!": a GPU delegate that loaded can refuse
+    // every Invoke on the analyser thread. JS decides whether that is a
+    // delegate to drop or a problem to show; the frame stops there either way.
     const closure = closureFor({
       model: { runSync: () => { throw new Error('delegate produced nothing'); } },
     });
 
     expect(() => runAnalysis(closure)).not.toThrow();
-    expect(closure.onFrameError).toHaveBeenCalledWith('delegate produced nothing');
+    expect(closure.onInferenceError).toHaveBeenCalledWith('delegate produced nothing');
+    expect(closure.onFrameError).not.toHaveBeenCalled();
+    expect(closure.onJsFrame).not.toHaveBeenCalled();
   });
 
   it('still says something when what was thrown carries no message', () => {

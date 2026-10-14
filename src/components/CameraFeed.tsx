@@ -131,7 +131,7 @@ export function CameraFeed({
   const inputSize = precise ? PRECISE_INPUT_SIZE : STANDARD_INPUT_SIZE;
   // `failed` used to be computed and thrown away, so a model both delegates
   // refused looked exactly like a working camera that never sees anything.
-  const { model, failed: modelFailed } = useDetectionModel(
+  const { model, failed: modelFailed, refuseRunningDelegate } = useDetectionModel(
     precise ? MODEL_PRECISE : MODEL_STANDARD,
     settings.forceCpu,
     inputSize,
@@ -208,6 +208,12 @@ export function CameraFeed({
   const onFrameError = useRunOnJS((message: string) => {
     onProblem?.(frameErrorMessage(message));
   }, [onProblem]);
+
+  // A GPU model that loaded can still refuse every `Invoke` on the analyser
+  // thread; that is a delegate to drop, not a camera problem to show.
+  const onInferenceError = useRunOnJS((message: string) => {
+    if (!refuseRunningDelegate()) onProblem?.(frameErrorMessage(message));
+  }, [refuseRunningDelegate, onProblem]);
 
   // Deliberately unconditional, and deliberately not gated on a flag the
   // worklet reads. A flag would have to be a captured value — which the
@@ -333,7 +339,14 @@ export function CameraFeed({
         const input = letterboxInto(resized, inner, inputSize, MODEL_INPUT_CHANNELS);
         onFrameStage('inference');
         // The model's 4 outputs are always float32 (see interpretDetections' doc comment).
-        const outputs = model.runSync([input]) as Float32Array[];
+        let outputs: Float32Array[];
+        try {
+          outputs = model.runSync([input]) as Float32Array[];
+        } catch (e) {
+          const failure = e as { message?: string } | undefined;
+          onInferenceError(failure?.message ?? 'erreur inconnue');
+          return;
+        }
         const detections = interpretDetections(outputs, {
           detectPerson,
           detectAnimal,
@@ -391,7 +404,7 @@ export function CameraFeed({
         onFrameError(failure?.message ?? 'erreur inconnue');
       }
     });
-  }, [model, inputSize, resize, onJsFrame, onFrameError, onFrameStage, detectFaces, autoZoom, viewW, viewH, targetFps, detectPerson, detectAnimal, streamEnabled, streamPlugin, strictPresence, presencePlugin]);
+  }, [model, inputSize, resize, onJsFrame, onFrameError, onInferenceError, onFrameStage, detectFaces, autoZoom, viewW, viewH, targetFps, detectPerson, detectAnimal, streamEnabled, streamPlugin, strictPresence, presencePlugin]);
 
   if (!perms.cam || device == null) return null;
 
