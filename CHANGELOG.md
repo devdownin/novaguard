@@ -13,6 +13,10 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 - Seuil de confiance distinct pour les animaux (Réglages → Avancé), et une détection de quelques pixels ne peut plus ouvrir un enregistrement ; un sujet déjà suivi reste suivi en s’éloignant.
 
 ### Interface
+- Une couleur par état, partout où il se lit : vert quand la caméra veille, corail pendant un enregistrement, ambre sur une panne, gris à l’arrêt — pastille de statut, contour du viseur, onglet Caméra et bouton Arrêter.
+- La pastille de statut respire lentement en veille et bat pendant un enregistrement ; l’animation s’arrête si « Supprimer les animations » est activé dans Android.
+- Accent violet plus saturé, fond en dégradé avec un léger halo en haut, panneau de statut en relief.
+- « Démarrer la surveillance » est un bouton plein en dégradé, libellé blanc.
 - Détail d’une vidéo : les boutons Lire, Partager, Conserver, Supprimer et Fermer portent une icône ; dans la rangée d’actions, l’icône est au-dessus du libellé, comme dans la barre d’onglets.
 - « Conserver » sur un passage : ses vidéos échappent à la durée de conservation et à la suppression automatique ; seul un geste explicite les efface. Mention « Conservé » dans l’historique.
 - Historique : appui long pour sélectionner plusieurs passages, puis « Supprimer » (avec confirmation) efface toutes leurs vidéos d’un coup.

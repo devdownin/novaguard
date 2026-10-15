@@ -39,3 +39,19 @@ describe('serviceNotice', () => {
     expect(serviceNotice('camera-unavailable', null, at)).toBe('Caméra indisponible');
   });
 });
+
+describe('statusColor', () => {
+  it('gives each family of states its own colour', () => {
+    const { color } = require('../src/theme');
+    const { statusColor } = require('../src/surveillance/status');
+    expect(statusColor('active')).toBe(color.watching);
+    expect(statusColor('recording')).toBe(color.recording);
+    expect(statusColor('inactive')).toBe(color.neutral400);
+    expect(statusColor('starting')).toBe(color.accent);
+    for (const fault of ['camera-unavailable', 'storage-insufficient', 'analysis-unavailable', 'recording-error']) {
+      expect(statusColor(fault)).toBe(color.warning);
+    }
+    // A fault must never read as "filming" or "all well", whatever else is true.
+    expect(new Set([color.watching, color.recording, color.warning, color.neutral400]).size).toBe(4);
+  });
+});

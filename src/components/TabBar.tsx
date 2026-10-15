@@ -131,11 +131,12 @@ const styles = StyleSheet.create({
     height: 7,
     borderRadius: 3.5,
     borderWidth: 1,
-    borderColor: color.accent,
+    borderColor: color.watching,
     backgroundColor: 'transparent',
   },
   liveDotOn: {
-    backgroundColor: color.accent,
+    borderColor: color.recording,
+    backgroundColor: color.recording,
   },
   label: {
     fontFamily: font.regular,

@@ -1,11 +1,12 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAppState } from '../state/AppStateContext';
-import { STATUS_LABEL, statusIsFault } from '../surveillance/status';
+import { STATUS_LABEL, statusColor, statusIsFault } from '../surveillance/status';
 import { color, font, MAX_FONT_SCALE } from '../theme';
 import { presenceModeFor } from '../recording/presenceMode';
 import { PrimaryOutlineButton } from './OutlineButton';
 import { t } from '../i18n';
+import { PulseDot } from './PulseDot';
 
 export function SurveillanceStatusPanel() {
   const {
@@ -19,13 +20,7 @@ export function SurveillanceStatusPanel() {
     openStorageSettings,
   } = useAppState();
   const fault = statusIsFault(status);
-  const tint = fault
-    ? color.warning
-    : status === 'recording'
-    ? color.recording
-    : status === 'active'
-    ? color.accent300
-    : color.neutral400;
+  const tint = statusColor(status);
   const mode = presenceModeFor(settings.post);
   const label = t(STATUS_LABEL[status]);
   const action = !perms.cam
@@ -47,7 +42,11 @@ export function SurveillanceStatusPanel() {
         accessibilityLabel={label}
         style={styles.statusRow}
       >
-        <View style={[styles.dot, { backgroundColor: tint }]} />
+        <PulseDot
+          color={tint}
+          size={12}
+          pulse={status === 'recording' ? 'beat' : status === 'active' ? 'breathe' : 'none'}
+        />
         <Text
           style={[styles.statusLabel, { color: tint }]}
           maxFontSizeMultiplier={MAX_FONT_SCALE}
@@ -102,9 +101,13 @@ const styles = StyleSheet.create({
     gap: 5,
     backgroundColor: color.surface,
     borderRadius: 12,
+    borderWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.07)',
+    borderLeftColor: 'rgba(255,255,255,0.03)',
+    borderRightColor: 'rgba(255,255,255,0.03)',
+    borderBottomColor: 'transparent',
   },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  dot: { width: 12, height: 12, borderRadius: 6 },
   statusLabel: {
     fontFamily: font.semibold,
     fontSize: 23,
