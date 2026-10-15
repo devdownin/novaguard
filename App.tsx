@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import { initialWindowMetrics, SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { color } from './src/theme';
 import { AppStateProvider, useAppState } from './src/state/AppStateContext';
@@ -44,6 +45,19 @@ function AppShell() {
   // bar stops eating the short axis. Order in the tree is order on screen.
   return (
     <View style={[styles.root, landscape && styles.rootLandscape]}>
+      <LinearGradient
+        testID="app-backdrop"
+        colors={[color.bgTop, color.bg, color.bgBottom]}
+        locations={[0, 0.4, 1]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+      {/* A faint accent light from the top, so the ground is not a flat slab. */}
+      <LinearGradient
+        colors={['rgba(155,140,255,0.10)', 'rgba(155,140,255,0)']}
+        style={styles.halo}
+        pointerEvents="none"
+      />
       {landscape && <TabBar />}
       <View style={styles.screenArea}>
         {tab === 'cam' && <SurveillanceScreen />}
@@ -109,13 +123,21 @@ function App() {
 }
 
 const styles = StyleSheet.create({
+  // The strip behind the status bar continues the backdrop's top colour.
   safeArea: {
     flex: 1,
-    backgroundColor: color.bg,
+    backgroundColor: color.bgTop,
   },
   root: {
     flex: 1,
     backgroundColor: color.bg,
+  },
+  halo: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 220,
   },
   rootLandscape: {
     flexDirection: 'row',

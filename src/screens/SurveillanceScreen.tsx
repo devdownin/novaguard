@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import { color, font, MAX_FONT_SCALE } from '../theme';
 import { useAppState } from '../state/AppStateContext';
 import { formatBytes } from '../recording/library';
@@ -8,6 +9,7 @@ import { useLandscape } from '../utils/useLandscape';
 import { t } from '../i18n';
 import { Viewfinder } from '../components/Viewfinder';
 import { SurveillanceStatusPanel } from '../components/SurveillanceStatusPanel';
+import { statusColor } from '../surveillance/status';
 
 /**
  * The camera screen, in the two shapes a surveillance phone is actually left in.
@@ -22,7 +24,7 @@ import { SurveillanceStatusPanel } from '../components/SurveillanceStatusPanel';
 export function SurveillanceScreen() {
   const {
     monitoring, toggleMonitoring, lastDetAt, detToday, storage: store,
-    events, selectEvent, setTab, setFilter, setPeriod,
+    events, selectEvent, setTab, setFilter, setPeriod, surveillanceStatus,
   } = useAppState();
   const landscape = useLandscape();
 
@@ -48,17 +50,28 @@ export function SurveillanceScreen() {
 
   const statusPill = <SurveillanceStatusPanel />;
 
+  // Starting is the reason the app exists, so it is the one filled control on
+  // screen; stopping is drawn in the state's own colour, quieter.
   const cta = (
     <Pressable
+      testID="surveillance-cta"
       onPress={toggleMonitoring}
       accessibilityRole="button"
       accessibilityState={{ selected: monitoring }}
       style={({ pressed }) => [
         styles.cta,
-        monitoring ? styles.ctaMonitoring : styles.ctaIdle,
+        monitoring ? [styles.ctaMonitoring, { borderColor: statusColor(surveillanceStatus) }] : styles.ctaIdle,
         pressed && styles.ctaPressed,
       ]}
     >
+      {!monitoring && (
+        <LinearGradient
+          testID="cta-fill"
+          colors={[color.ctaTop, color.ctaBottom]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+      )}
       <Text style={[styles.ctaLabel, monitoring ? styles.ctaLabelMonitoring : styles.ctaLabelIdle]}>
         {t(monitoring ? 'surv.cta.stop' : 'surv.cta.start')}
       </Text>
@@ -219,11 +232,19 @@ const styles = StyleSheet.create({
     color: color.neutral500,
     marginTop: 1,
   },
-  ctaMonitoring: { backgroundColor: 'transparent', borderColor: color.neutral700 },
-  ctaIdle: { backgroundColor: color.accent900, borderColor: color.accent },
+  ctaMonitoring: { backgroundColor: 'transparent', borderWidth: 1.5 },
+  ctaIdle: {
+    backgroundColor: color.ctaBottom,
+    borderColor: 'rgba(255,255,255,0.14)',
+    shadowColor: color.ctaTop,
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
   ctaPressed: { opacity: 0.72, transform: [{ scale: 0.985 }] },
   ctaLabelMonitoring: { color: color.neutral200 },
-  ctaLabelIdle: { color: color.accent200 },
+  ctaLabelIdle: { color: '#ffffff' },
   controls: {
     paddingHorizontal: 14,
     paddingTop: 14,
@@ -236,6 +257,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
+    overflow: 'hidden',
   },
   ctaLabel: {
     fontFamily: font.semibold,

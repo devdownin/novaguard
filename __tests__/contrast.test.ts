@@ -68,7 +68,13 @@ describe('text', () => {
     ['tertiary text on a card', color.neutral600, color.surface],
     ['the standby message over the viewfinder', color.neutral500, STANDBY],
     ['the accent, used for values and active labels', color.accent, color.bg],
-    ['the CTA label on its own fill', color.accent200, color.accent900],
+    // The idle button is a gradient: the label must clear AA on both ends.
+    ['the CTA label on the top of its fill', '#ffffff', color.ctaTop],
+    ['the CTA label on the bottom of its fill', '#ffffff', color.ctaBottom],
+    ['watching status on its panel', color.watching, color.surface],
+    // The backdrop runs from `bgTop` to `bgBottom`; `bgTop` is the lighter end.
+    ['tertiary text at the top of the backdrop', color.neutral600, color.bgTop],
+    ['the accent at the top of the backdrop', color.accent, color.bgTop],
   ];
 
   it.each(cases)('clears AA: %s', (_name, foreground, background) => {
@@ -85,6 +91,9 @@ describe('controls and edges', () => {
     ['the sheet handle', color.neutral700, color.surface],
     ['an active tab icon', color.accent, color.bg],
     ['an inactive tab icon', color.neutral600, color.bg],
+    ['a live dot while watching', color.watching, color.bg],
+    ['a live dot while recording', color.recording, color.bg],
+    ['the viewfinder edge while watching, on the standby ground', color.watching, STANDBY],
   ];
 
   it.each(cases)('clears AA for non-text: %s', (_name, foreground, background) => {

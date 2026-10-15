@@ -11,12 +11,23 @@
 
 export const color = {
   bg: '#161826',
+  // The two ends of the app's backdrop gradient; `bg` stays the flat ground
+  // of the splash, sheets and dialogs that sit above it.
+  bgTop: '#1c1e33',
+  bgBottom: '#10111a',
   surface: '#232532',
   text: '#e9e9ed',
-  accent: '#9184d9',
+  // #9184d9 in the source: so close to the neutrals that the one colour of the
+  // app read as grey. Same hue, more saturation.
+  accent: '#9b8cff',
   accent2: '#a7a1db',
   warning: '#f5b36b',
   recording: '#ff9292',
+  /** The camera is watching and healthy. */
+  watching: '#5fd3a8',
+  /** The primary button's fill, top to bottom; white text clears AA on both. */
+  ctaTop: '#6b5ce7',
+  ctaBottom: '#4f41c2',
   divider: 'rgba(233,233,237,0.16)',
 
   neutral100: '#f3f5fe',

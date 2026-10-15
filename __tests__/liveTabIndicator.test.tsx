@@ -128,6 +128,6 @@ it('fills the mark while a passage is being recorded', async () => {
   await bar.watch();
   await bar.see();
 
-  expect(dot(bar)?.backgroundColor).toBe(color.accent);
+  expect(dot(bar)?.backgroundColor).toBe(color.recording);
   expect(cameraTabLabel(bar)).toBe(t('a11y.tab.recording', { name: t('tab.cam') }));
 });

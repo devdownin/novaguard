@@ -12,7 +12,7 @@ import { DetectionOverlay } from './DetectionOverlay';
 import { ZoneLayer } from './ZoneLayer';
 import { LiveClock } from './LiveClock';
 import { t } from '../i18n';
-import { STATUS_LABEL, statusIsFault } from '../surveillance/status';
+import { STATUS_LABEL, statusColor, statusIsFault } from '../surveillance/status';
 
 const BEAM_HEIGHT = 70;
 
@@ -131,9 +131,12 @@ export function Viewfinder() {
       ? t(recording ? det === 'Personne' ? 'view.overlay.person' : 'view.overlay.animal' : det === 'Personne' ? 'view.detected.person' : 'view.detected.animal')
       : t(monitoring ? 'view.overlay.none' : 'view.overlay.idle');
   const overlayDotColor = fault ? color.warning : det ? color.accent : color.neutral600;
+  // The frame's edge carries the state: green while watching, coral while
+  // filming, amber on a fault — readable from across the room.
+  const edge = monitoring || recording ? statusColor(surveillanceStatus) : null;
 
   return (
-    <View style={[styles.frame, det ? styles.frameGlowActive : styles.frameGlowIdle]} onLayout={onLayout}>
+    <View style={[styles.frame, edge ? [styles.frameGlowActive, { borderColor: edge }] : styles.frameGlowIdle]} onLayout={onLayout}>
       {/* Standby background — only visible where the real camera isn't covering it. */}
       <LinearGradient
         colors={['#20232f', '#14161f', '#0c0e15']}

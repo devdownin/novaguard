@@ -2,6 +2,7 @@ import { CameraHealth } from '../camera/cameraHealth';
 import { StringKey } from '../i18n/fr';
 import { t } from '../i18n';
 import { formatTimeOfDay } from '../utils/date';
+import { color } from '../theme';
 
 export type SurveillanceStatus = 'inactive' | 'starting' | 'active' | 'recording' |
   'camera-unavailable' | 'storage-insufficient' | 'analysis-unavailable' | 'recording-error';
@@ -28,6 +29,21 @@ export const STATUS_LABEL: Record<SurveillanceStatus, StringKey> = {
 };
 export const statusIsFault = (status: SurveillanceStatus): boolean =>
   ['camera-unavailable', 'storage-insufficient', 'analysis-unavailable', 'recording-error'].includes(status);
+
+/**
+ * The one colour each state is drawn in — status dot, viewfinder edge, camera
+ * tab, stop button. A propped-up phone is read from across a room, where a
+ * label is too small and a colour is not.
+ */
+export function statusColor(status: SurveillanceStatus): string {
+  if (statusIsFault(status)) return color.warning;
+  switch (status) {
+    case 'recording': return color.recording;
+    case 'active': return color.watching;
+    case 'starting': return color.accent;
+    default: return color.neutral400;
+  }
+}
 
 /**
  * What the persistent notification says. With the screen off it is the only
