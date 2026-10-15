@@ -341,6 +341,12 @@ sur le trottoir. Et la zone est stockée en espace-cadre, jamais en espace-vue :
 ce qui a été tracé l'a été sur un viseur d'une certaine taille, et un téléphone
 tourné en a un autre — `viewBoxToUprightBox` convertit une fois, à l'entrée.
 
+**Une zone réduit aussi ce que le modèle regarde.** Avec une zone, seul son voisinage est passé au détecteur (`analysisCrop.ts`) : la zone, une marge latérale et de la place au-dessus pour le corps dont les pieds y sont — le test de zone porte sur le point bas, donc rien de ce qui compte n'est coupé. Le gain est la résolution sur la cible, à calcul constant. Deux pièges : le plugin **recadre avant de tourner**, donc le rectangle choisi en espace redressé passe par `cropInBuffer`, et `interpretDetections` remet les boîtes en fractions du cadre entier (`cropX…`). Pendant l'édition d'une zone, l'image entière est analysée.
+
+**Ce qui ne bouge jamais n'est pas un visiteur.** Un manteau sur une patère est lu comme une personne à chaque regard, avec un score stable : rien dans la confiance ne le distingue. Chaque piste porte donc l'`anchor` où elle se tient ; au-delà de `SCENERY_AFTER_MS` sans le quitter (`STILL_IOU`), elle est du décor (`scenery.ts`) : elle n'ouvre ni ne prolonge une session et n'est pas dessinée, mais reste suivie — le premier vrai mouvement en refait un sujet. Le décor est mémorisé par emplacement (`SCENERY_FORGET_MS`), sinon chaque piste perdue puis recréée au même endroit refilmait trois minutes. Le prix assumé : quelqu'un de réellement immobile pendant trois minutes.
+
+**Une image sombre est éclaircie pour le modèle, jamais pour le fichier.** `liftShadows` (`lowLight.ts`) applique une courbe gamma à l'entrée du modèle quand sa luminance moyenne passe sous `DARK_MEAN`, et rien sous `MIN_MEAN` : amplifier du bruit en formes, c'est une pièce noire qui se met à filmer.
+
 **Dessiner la zone fait tourner la caméra sans que ce soit de la surveillance.**
 L'éditeur a besoin de l'image à laquelle la zone s'applique, donc `active` vaut
 aussi vrai pour lui. Deux gardes vont avec, et aucune n'est optionnelle :

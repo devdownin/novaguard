@@ -15,6 +15,7 @@ import { useDetectionModel } from '../camera/useDetectionModel';
 import { interpretDetections } from '../ml/interpretDetections';
 import { letterboxFor, letterboxInto } from '../ml/letterbox';
 import { analysisCropFor, cropInBuffer } from '../ml/analysisCrop';
+import { liftShadows } from '../ml/lowLight';
 import { SENSITIVITY_PROFILES } from '../ml/sensitivity';
 import { tunedSettings } from '../camera/autoTune';
 import { frameErrorMessage } from '../camera/frameErrors';
@@ -357,6 +358,9 @@ export function CameraFeed({
           dataType: 'uint8',
         });
         const input = letterboxInto(resized, inner, inputSize, MODEL_INPUT_CHANNELS);
+        // A dark frame is brightened for the model only, never for the file
+        // (see `lowLight.ts`); a daylight one costs a sampling pass.
+        liftShadows(input, inner.width, inner.height, inputSize, MODEL_INPUT_CHANNELS);
         onFrameStage('inference');
         // The model's 4 outputs are always float32 (see interpretDetections' doc comment).
         let outputs: Float32Array[];

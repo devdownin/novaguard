@@ -6,6 +6,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ## [Non publié]
 
+### Détection
+- Un sujet qui ne bouge pas pendant 3 minutes (manteau, affiche, statue) est traité comme du décor : il n’ouvre plus d’enregistrement et n’est plus affiché, jusqu’à son premier mouvement. L’emplacement est mémorisé 10 minutes.
+- Avec une zone de détection, seul son voisinage est analysé : plus de résolution sur les sujets de la zone, sans calcul supplémentaire.
+- Les images sombres sont éclaircies (courbe gamma) avant la détection ; la vidéo enregistrée n’est pas modifiée.
+
 ### Interface
 - Détail d’une vidéo : les boutons Lire, Partager, Conserver, Supprimer et Fermer portent une icône ; dans la rangée d’actions, l’icône est au-dessus du libellé, comme dans la barre d’onglets.
 - « Conserver » sur un passage : ses vidéos échappent à la durée de conservation et à la suppression automatique ; seul un geste explicite les efface. Mention « Conservé » dans l’historique.
