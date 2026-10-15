@@ -7,6 +7,7 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 ## [Non publié]
 
 ### Serveur MCP
+- Page « Services MCP » (Réglages → Serveur MCP → « Voir les services MCP ») : chaque outil de lecture et de pilotage, les prompts, les ressources et ce qu’aucun agent ne peut faire, avec l’état du serveur et ce qui empêche le pilotage le cas échéant (serveur arrêté, non autorisé, sans jeton, jeton expiré).
 - Jeton de pilotage à durée limitée (1 h, 24 h par défaut, ou sans limite), appliquée par le serveur : expiré, il n’ouvre plus rien. Tant qu’un agent peut piloter, la notification de surveillance propose « Couper le pilotage », qui le révoque d’un geste, écran verrouillé compris.
 - Le serveur s’annonce sur le Wi-Fi (DNS-SD `_novaguard-mcp._tcp`) : un client retrouve le téléphone quand son adresse change. La configuration du client s’affiche aussi en QR code dans Réglages.
 - Nouvel outil `get_diagnostics` : trou entre deux clips, réglages abandonnés par l’auto-réglage et cadence mesurée, état de la session caméra, étape d’analyse d’un plantage précédent, état thermique et batterie.

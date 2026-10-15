@@ -16,6 +16,7 @@ import { TabBar } from './src/components/TabBar';
 import { VideoDetailSheet } from './src/components/VideoDetailSheet';
 import { InfoSheet } from './src/components/InfoSheet';
 import { AutoTuneSheet } from './src/components/AutoTuneSheet';
+import { McpServicesSheet } from './src/components/McpServicesSheet';
 import { OnboardingModal } from './src/components/OnboardingModal';
 import { ConfirmDialog } from './src/components/ConfirmDialog';
 import { SplashScreen, SPLASH_MIN_DURATION_MS } from './src/components/SplashScreen';
@@ -69,6 +70,7 @@ function AppShell() {
       <VideoDetailSheet />
       <InfoSheet />
       <AutoTuneSheet />
+      <McpServicesSheet />
       <OnboardingModal />
 
       <ConfirmDialog

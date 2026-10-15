@@ -219,7 +219,7 @@ export interface Settings {
  * others, and two competing "which panel is up" states would be a way for both
  * to be up at once.
  */
-export type InfoPanel = 'perms' | 'data' | 'licenses' | 'autotune' | null;
+export type InfoPanel = 'perms' | 'data' | 'licenses' | 'autotune' | 'mcp' | null;
 export type OnboardingStep = 'intro' | 'perms' | null;
 
 /** Daily detection counter — the day is stored so it can reset at midnight. */

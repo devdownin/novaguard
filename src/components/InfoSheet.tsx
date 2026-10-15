@@ -18,12 +18,12 @@ const TITLES: Record<'perms' | 'data' | 'licenses', StringKey> = {
 export function InfoSheet() {
   const { info, closeInfo, perms, events, storage: store, storedSize, grantPermission } = useAppState();
   /**
-   * `autotune` rides the same "which panel is up" state but is a screen of its
-   * own (`AutoTuneSheet`), not a list of rows. Filtered out here rather than
+   * `autotune` and `mcp` ride the same "which panel is up" state but are screens
+   * of their own (`AutoTuneSheet`, `McpServicesSheet`), not lists of rows. Filtered out here rather than
    * allowed to fall through to the data rows, which is what it would otherwise
    * draw under the wrong title.
    */
-  const panel = info === 'autotune' ? null : info;
+  const panel = info === 'autotune' || info === 'mcp' ? null : info;
 
   const clipCount = events.filter(e => e.path != null).length;
 

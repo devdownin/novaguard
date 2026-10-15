@@ -427,6 +427,10 @@ export function SetupScreen() {
             />
           </SettingRow>
 
+          <View style={styles.subBlock}>
+            <PrimaryOutlineButton label={t('setup.mcpServices')} onPress={() => s.openInfo('mcp')} />
+          </View>
+
           <SettingRow label={t('setup.mcpMode')}>
             <StaticValue label={t(controlActive ? 'setup.mcpMode.control' : 'setup.mcpMode.readOnly')} />
           </SettingRow>

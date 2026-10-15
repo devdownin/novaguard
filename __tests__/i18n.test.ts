@@ -49,6 +49,8 @@ describe('the two catalogues', () => {
       'info.perm.mic',
       'info.perm.notif',
       'info.perms',
+      // The MCP term, used as is in French.
+      'mcpService.section.prompts',
       // Placeholders and separators only.
       'setup.agentLog.entry',
       'setup.license',
