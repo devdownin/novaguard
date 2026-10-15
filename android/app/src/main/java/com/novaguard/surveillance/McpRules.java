@@ -121,6 +121,40 @@ public final class McpRules {
     return times;
   }
 
+  /** The sample whose time is nearest `atMs`, or -1 when there is none. */
+  public static int nearestSample(long[] timesMs, long atMs) {
+    int best = -1;
+    long bestGap = Long.MAX_VALUE;
+    for (int i = 0; i < timesMs.length; i++) {
+      long gap = Math.abs(timesMs[i] - atMs);
+      if (gap < bestGap) { best = i; bestGap = gap; }
+    }
+    return best;
+  }
+
+  /** Half the box again on every side. */
+  public static final double CROP_PAD = 0.5;
+  /** Never tighter than this share of the frame, on either axis. */
+  public static final double MIN_CROP_SIDE = 0.35;
+
+  /**
+   * Where to crop a still around a subject box, as `{left, top, width, height}`
+   * fractions of the frame.
+   *
+   * Generous by design. The box is a sample up to a second from the frame it
+   * crops, decoded from the nearest point the codec can seek to, and a crop
+   * that cuts off the hands is the face-only zoom this app already gave up. So
+   * the box grows by {@link #CROP_PAD} on every side, never below
+   * {@link #MIN_CROP_SIDE}, and is shifted — not shrunk — to stay in frame.
+   */
+  public static double[] subjectCrop(double x, double y, double w, double h) {
+    double width = Math.min(1, Math.max(MIN_CROP_SIDE, w * (1 + 2 * CROP_PAD)));
+    double height = Math.min(1, Math.max(MIN_CROP_SIDE, h * (1 + 2 * CROP_PAD)));
+    double left = Math.max(0, Math.min(1 - width, x + w / 2 - width / 2));
+    double top = Math.max(0, Math.min(1 - height, y + h / 2 - height / 2));
+    return new double[] {left, top, width, height};
+  }
+
   /**
    * Admission for connections, before anything is read from them.
    *

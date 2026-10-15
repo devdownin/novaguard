@@ -28,7 +28,10 @@ internal data class McpEvent(
   /** Clips of one visit share it; null on clips written before passages existed. */
   val passageId: String?,
   val kinds: List<String>,
-  val kept: Boolean
+  val kept: Boolean,
+  /** Where the subject was, for framing "subject"; held here, never returned as is. */
+  val subject: List<SubjectBox> = emptyList(),
+  val agentNote: AgentNote? = null
 ) {
   val hasVideo: Boolean get() = !videoPath.isNullOrEmpty() && sizeBytes > 0
 
@@ -45,7 +48,19 @@ internal data class McpEvent(
     .put("passageId", passageId ?: JSONObject.NULL)
     .put("kinds", JSONArray(kinds))
     .put("kept", kept)
+    .put("subjectTracked", subject.isNotEmpty())
+    .put(
+      "agentNote",
+      agentNote?.let {
+        JSONObject().put("verdict", it.verdict).put("text", it.text).put("at", McpServerModule.isoOf(it.atMs))
+      } ?: JSONObject.NULL
+    )
 }
+
+/** One sample of `DetectionEvent.subject`: `tMs` into the clip, a box in frame fractions. */
+internal data class SubjectBox(val tMs: Long, val x: Double, val y: Double, val w: Double, val h: Double)
+
+internal data class AgentNote(val verdict: String, val text: String, val atMs: Long)
 
 /**
  * Everything the server can answer from, as of the last push from JavaScript.
@@ -326,7 +341,11 @@ internal class Snapshot private constructor(
             passageId = e.optString("passageId").takeIf { it.isNotEmpty() && !e.isNull("passageId") },
             kinds = e.optJSONArray("kinds")?.let { list -> (0 until list.length()).map { list.optString(it) } }
               ?: listOf(e.optString("kind")),
-            kept = e.optBoolean("kept")
+            kept = e.optBoolean("kept"),
+            subject = parseSubject(e.optJSONArray("subject")),
+            agentNote = e.optJSONObject("agentNote")?.let { n ->
+              AgentNote(n.optString("verdict"), n.optString("text"), n.optLong("at"))
+            }
           )
         )
       }
@@ -346,6 +365,14 @@ internal class Snapshot private constructor(
         diagnostics = sanitizeDiagnostics(json.optJSONObject("diagnostics") ?: JSONObject()),
         events = events
       )
+    }
+
+    private fun parseSubject(raw: JSONArray?): List<SubjectBox> {
+      if (raw == null) return emptyList()
+      return (0 until raw.length()).mapNotNull { i ->
+        val s = raw.optJSONObject(i) ?: return@mapNotNull null
+        SubjectBox(s.optLong("t"), s.optDouble("x", 0.0), s.optDouble("y", 0.0), s.optDouble("w", 1.0), s.optDouble("h", 1.0))
+      }
     }
 
     /** Rebuilt from named keys for the same reason as the configuration. */

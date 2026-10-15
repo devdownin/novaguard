@@ -761,7 +761,10 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     val frames: List<McpFrame>
     val source: String
     if (video != null) {
-      frames = McpFrames.fromVideo(video, count, maxEdge)
+      // Framing "subject" without a recorded trail (an older clip) falls back to
+      // whole frames, and the summary says which the caller got.
+      val subject = if (args.optString("framing") == "subject") event.subject else emptyList()
+      frames = McpFrames.fromVideo(video, count, maxEdge, subject)
       source = "video"
     } else {
       val still = mediaFile(event.thumbPath, MAX_THUMBNAIL_BYTES, idText)
@@ -776,7 +779,9 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       .put("eventId", event.id)
       .put("source", source)
       .put("frames", JSONArray().apply {
-        frames.forEachIndexed { i, f -> put(JSONObject().put("index", i).put("offsetSeconds", f.offsetMs / 1000.0)) }
+        frames.forEachIndexed { i, f ->
+          put(JSONObject().put("index", i).put("offsetSeconds", f.offsetMs / 1000.0).put("cropped", f.cropped))
+        }
       })
     val content = JSONArray().put(JSONObject().put("type", "text").put("text", summary.toString()))
     frames.forEach { content.put(JSONObject().put("type", "image").put("mimeType", "image/jpeg").put("data", it.jpegBase64)) }

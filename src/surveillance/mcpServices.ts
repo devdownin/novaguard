@@ -17,6 +17,7 @@ export const READ_TOOLS = [
 
 export const CONTROL_TOOLS = [
   'start_surveillance', 'stop_surveillance', 'set_sensitivity', 'set_thresholds', 'keep_event', 'acknowledge_alert',
+  'annotate_event',
 ] as const;
 
 export const PROMPTS = ['night_report', 'review_alerts', 'diagnose_camera'] as const;

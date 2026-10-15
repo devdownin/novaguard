@@ -358,12 +358,15 @@ Input:
   "properties":{
     "eventId":{"type":"integer","minimum":0,"maximum":999999999999999},
     "count":{"type":"integer","minimum":1,"maximum":8},
-    "maxEdge":{"type":"integer","minimum":160,"maximum":1280}
+    "maxEdge":{"type":"integer","minimum":160,"maximum":1280},
+    "framing":{"type":"string","enum":["full","subject"]}
   }
 }
 ```
 
-Output: a `text` block `{"eventId","source":"video"|"thumbnail","frames":[{"index","offsetSeconds"}]}`, then one `image/jpeg` block per frame. Frames sit at the middle of `count` equal slices of the clip (default 4, longest side default 768 px), decoded already scaled, one extraction at a time. Without a clip, the event's thumbnail is returned; without either, the result carries `isError` and `NOVAGUARD_MEDIA_UNAVAILABLE`.
+Output: a `text` block `{"eventId","source":"video"|"thumbnail","frames":[{"index","offsetSeconds","cropped"}]}`, then one `image/jpeg` block per frame. Frames sit at the middle of `count` equal slices of the clip (default 4, longest side default 768 px), decoded already scaled, one extraction at a time. Without a clip, the event's thumbnail is returned; without either, the result carries `isError` and `NOVAGUARD_MEDIA_UNAVAILABLE`.
+
+`framing: "subject"` crops each still around where the subject was at that moment — the box recorded with the event (`subjectTracked: true`, one sample a second at most), grown by half on every side, never under 35 % of the frame, decoded larger first so the crop keeps detail (at most 1920 px). An event without a recorded subject (older clips) gets whole frames, each marked `cropped: false`.
 
 ## 8.10 `novaguard.wait_for_event`
 
@@ -379,6 +382,7 @@ Long poll: returns as soon as an event newer than `afterEventId` is recorded (de
 | `set_thresholds` | `person`, `animal` ∈ [0.5, 0.95], at least one | Entry thresholds per kind. |
 | `keep_event` | `eventId`, `kept` | Keeps or releases the event's whole passage (exempt from retention and automatic deletion). |
 | `acknowledge_alert` | — | Acknowledges `camera-moved`; `camera-obstructed` cannot be acknowledged, it clears when the camera sees again. |
+| `annotate_event` | `eventId`, `verdict`: `false_alarm`/`expected`/`attention`/`note`, `note` (≤ 280 characters) | Leaves the agent's verdict on the event, shown in Historique (card and sheet). Replaces the previous one; the owner can clear it. Read back as `agentNote` on the event. |
 
 Every control tool is idempotent and returns `changed`. A call with a read token is a JSON-RPC error `NOVAGUARD_AUTH_FORBIDDEN` (HTTP 403); a refusal by the app (no permission, background, unknown event) is a result carrying `isError`.
 
@@ -521,7 +525,7 @@ Errors MUST NOT leak filesystem paths, stack traces, tokens or credentials.
 
 ## Control guarantee
 
-The server cannot modify NovaGuard state by itself. Control is a request the app carries out with its own callbacks and the six commands of §8.11 only; everything in §19 is unreachable by construction and refused by name.
+The server cannot modify NovaGuard state by itself. Control is a request the app carries out with its own callbacks and the seven commands of §8.11 only; everything in §19 is unreachable by construction and refused by name.
 
 ## Authentication
 

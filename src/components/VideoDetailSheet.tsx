@@ -20,7 +20,7 @@ function KeptIcon(props: IconProps) {
 }
 
 export function VideoDetailSheet() {
-  const { selected, selectedEvent, events, selectEvent, askDelete, toggleKeep } = useAppState();
+  const { selected, selectedEvent, events, selectEvent, askDelete, toggleKeep, setAgentNote } = useAppState();
   const [playback, setPlayback] = useState<{ root: number; clip: number; all: boolean; running: boolean } | null>(null);
   const active = useRef<typeof playback>(null);
   const [playFailed, setPlayFailed] = useState(false);
@@ -78,6 +78,8 @@ export function VideoDetailSheet() {
   }, [path]);
 
   const hasClip = !!path;
+  /** The clip of the passage an agent annotated, if any: it looked at one, the note is about the visit. */
+  const noted = useMemo(() => clips.find(clip => clip.agentNote), [clips]);
   const kept = useMemo(() => selected != null && keptEventIds(events).has(selected), [events, selected]);
 
   /**
@@ -193,6 +195,15 @@ export function VideoDetailSheet() {
           )}
           {exportFailed && <Text style={styles.shareError} accessibilityLiveRegion="polite">{t('detail.exportError')}</Text>}
           {kept && <Text style={styles.keptNote} maxFontSizeMultiplier={MAX_FONT_SCALE}>{t('detail.kept')}</Text>}
+          {noted?.agentNote && (
+            <View style={styles.agentNote} testID="agent-note">
+              <Text style={styles.agentNoteTitle}>
+                {t('detail.agentNote', { verdict: tValue(`value.verdict.${noted.agentNote.verdict}`), time: formatWhen(noted.agentNote.at) })}
+              </Text>
+              {noted.agentNote.text ? <Text style={styles.agentNoteText}>{noted.agentNote.text}</Text> : null}
+              <TextButton label={t('detail.agentNote.clear')} onPress={() => setAgentNote(noted.id, null)} />
+            </View>
+          )}
 
           <View style={styles.actions}>
             {hasClip && (
@@ -231,6 +242,11 @@ function StatCell({ label, value, accent, small }: StatCellProps) {
 const styles = StyleSheet.create({
   passageControls: { gap: 8, marginTop: 12 },
   export: { marginTop: 14, gap: 6 },
+  agentNote: {
+    marginTop: 12, padding: 10, gap: 4, borderRadius: 10, borderWidth: 1, borderColor: color.divider, backgroundColor: color.surface,
+  },
+  agentNoteTitle: { color: color.text, fontFamily: font.medium, fontSize: 12 },
+  agentNoteText: { color: color.neutral400, fontFamily: font.regular, fontSize: 12, lineHeight: 17 },
   exportNote: { color: color.neutral500, fontFamily: font.regular, fontSize: 11, lineHeight: 15 },
   keptNote: { color: color.accent, fontFamily: font.regular, fontSize: 12, marginTop: 10 },
   playError: { color: color.warning, fontFamily: font.regular, fontSize: 12, marginTop: 10 },

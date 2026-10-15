@@ -12,6 +12,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 - « Ce qu’un assistant IA peut voir et faire » (Réglages, bloc confidentialité) ouvre la page « Services MCP » même serveur éteint.
 
 ### Serveur MCP
+- Nouvel outil de pilotage `annotate_event` : l’agent laisse son verdict (fausse alerte, attendu, à regarder) et une courte note sur un évènement ; ils s’affichent sur la carte de l’Historique et dans la fiche, où « Effacer la note » les retire.
+- `get_event_frames` peut recadrer chaque image sur le sujet (`framing: "subject"`) : chaque évènement garde désormais où se trouvait le sujet pendant le clip, un point par seconde au plus.
 - Page « Services MCP » (Réglages → Serveur MCP → « Voir les services MCP ») : chaque outil de lecture et de pilotage, les prompts, les ressources et ce qu’aucun agent ne peut faire, avec l’état du serveur et ce qui empêche le pilotage le cas échéant (serveur arrêté, non autorisé, sans jeton, jeton expiré).
 - Jeton de pilotage à durée limitée (1 h, 24 h par défaut, ou sans limite), appliquée par le serveur : expiré, il n’ouvre plus rien. Tant qu’un agent peut piloter, la notification de surveillance propose « Couper le pilotage », qui le révoque d’un geste, écran verrouillé compris.
 - Le serveur s’annonce sur le Wi-Fi (DNS-SD `_novaguard-mcp._tcp`) : un client retrouve le téléphone quand son adresse change. La configuration du client s’affiche aussi en QR code dans Réglages.

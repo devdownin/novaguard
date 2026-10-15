@@ -45,6 +45,9 @@ tool() {  # tool <jeton> <outil sans préfixe> [arguments JSON]
 - [ ] Clip supprimé à la main : repli sur la vignette (`"source":"thumbnail"`).
 - [ ] 9 connexions ouvertes en parallèle (`nc $PHONE 8081` ×9) → la 9ᵉ reçoit `503` ;
       une connexion qui envoie un octet par seconde est coupée après 15 s.
+- [ ] `get_event_frames` avec `"framing":"subject"` sur une personne au fond de la pièce :
+      les images sont centrées sur elle, mains et objets dans le cadre, `cropped: true`.
+      Même chose caméra **avant** (miroir) et téléphone en paysage.
 - [ ] `get_diagnostics` après un passage plus long que la durée maximale :
       `clipGap.samples ≥ 1`, `device.thermalStatus` renseigné.
 
@@ -55,6 +58,8 @@ tool() {  # tool <jeton> <outil sans préfixe> [arguments JSON]
 - [ ] Allumé : `tool $TOKEN stop_surveillance` → `403` `NOVAGUARD_AUTH_FORBIDDEN`.
 - [ ] `tool $CONTROL stop_surveillance` arrête la surveillance comme le bouton
       (son, vibration), et l'action apparaît dans « Actions de l'agent ».
+- [ ] `tool $CONTROL annotate_event '{"eventId":<id>,"verdict":"attention","note":"…"}'` :
+      « Agent : À regarder » sur la carte, la note dans la fiche, « Effacer la note » la retire.
 - [ ] Application en arrière-plan : `start_surveillance` refusé avec la raison ;
       au premier plan, accepté.
 - [ ] `tool $TOKEN wait_for_event '{"timeoutSeconds":25}'` rend la main dès

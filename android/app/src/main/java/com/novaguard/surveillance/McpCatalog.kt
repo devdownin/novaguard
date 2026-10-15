@@ -63,6 +63,15 @@ internal object McpCatalog {
       required = listOf("eventId", "kept")
     ),
     tool(
+      "annotate_event",
+      "Leaves your verdict on an event, shown to the owner in the history: false_alarm, expected, attention (worth the owner's look) or note, with an optional short note. Needs the control token. Replaces your previous note on that event; the owner can clear it. Look at the frames first.",
+      JSONObject()
+        .put("eventId", longProp(0, McpRules.MAX_EVENT_ID, "Identifier of the event you looked at."))
+        .put("verdict", enumProp(VERDICTS, "false_alarm, expected, attention or note."))
+        .put("note", JSONObject().put("type", "string").put("maxLength", NOTE_MAX).put("description", "What you saw, in one or two sentences, in the owner's language.")),
+      required = listOf("eventId", "verdict")
+    ),
+    tool(
       "acknowledge_alert",
       "Acknowledges a camera-moved alert: the current view becomes the one watched. Needs the control token. A black-picture alert cannot be acknowledged; it clears when the camera sees again.",
       JSONObject()
@@ -123,11 +132,12 @@ internal object McpCatalog {
     .put(
       tool(
         "get_event_frames",
-        "Returns JPEG stills sampled across an event's clip, as images you can look at: use it to see who or what was filmed. Frames are taken at the middle of equal slices of the clip. Falls back to the event's thumbnail when the clip is gone. Prefer this over the video resource, which most clients cannot read.",
+        "Returns JPEG stills sampled across an event's clip, as images you can look at: use it to see who or what was filmed. Frames are taken at the middle of equal slices of the clip. Falls back to the event's thumbnail when the clip is gone. Prefer this over the video resource, which most clients cannot read. framing \"subject\" crops each still around where the subject was (with context), when the event recorded it (subjectTracked); otherwise whole frames are returned and each frame says cropped false.",
         JSONObject()
           .put("eventId", longProp(0, McpRules.MAX_EVENT_ID, "Identifier of the event, as returned by the other tools."))
           .put("count", intProp(1, McpRules.MAX_FRAMES, "How many frames. Defaults to ${McpRules.DEFAULT_FRAMES}."))
-          .put("maxEdge", intProp(160, 1280, "Longest side of each frame, in pixels. Defaults to ${McpFrames.DEFAULT_MAX_EDGE}.")),
+          .put("maxEdge", intProp(160, 1280, "Longest side of each frame, in pixels. Defaults to ${McpFrames.DEFAULT_MAX_EDGE}."))
+          .put("framing", enumProp(FRAMINGS, "full (default) or subject.")),
         required = listOf("eventId")
       )
     )
@@ -205,6 +215,7 @@ internal object McpCatalog {
   /** Tools that change the device, and so need the control token. */
   val CONTROL_TOOLS = setOf(
     "start_surveillance", "stop_surveillance", "set_sensitivity", "set_thresholds", "keep_event", "acknowledge_alert",
+    "annotate_event",
   )
 
   /**
@@ -239,6 +250,13 @@ internal object McpCatalog {
     if (allowed != null && !allowed.contains(value)) invalid(key, "must be one of ${allowed.joinToString(", ")}")
   }
 
+  /** Free text, possibly empty, at most `max` characters. */
+  private fun textRule(max: Int): (JSONObject, String) -> Unit = { args, key ->
+    val value = args.opt(key)
+    if (value !is String) invalid(key, "must be a string")
+    if (value.length > max) invalid(key, "must be at most $max characters")
+  }
+
   private fun intRule(min: Int, max: Int): (JSONObject, String) -> Unit = { args, key ->
     val value = args.opt(key)
     if (value !is Int && value !is Long) invalid(key, "must be an integer")
@@ -268,6 +286,10 @@ internal object McpCatalog {
   private val SORTS = listOf("timestamp_desc", "timestamp_asc")
   private val GROUPS = listOf("hour", "day", "kind")
   private val SENSITIVITIES = listOf("Basse", "Moyenne", "Haute")
+  private val FRAMINGS = listOf("full", "subject")
+  private val VERDICTS = listOf("false_alarm", "expected", "attention", "note")
+  /** Same bound as `AGENT_NOTE_MAX` in `mcpCommands.ts`. */
+  private const val NOTE_MAX = 280
 
   private val ARGUMENT_SPECS: Map<String, Map<String, (JSONObject, String) -> Unit>> = mapOf(
     "get_status" to emptyMap(),
@@ -280,7 +302,8 @@ internal object McpCatalog {
     "get_event_frames" to mapOf(
       "eventId" to longRule(0, McpRules.MAX_EVENT_ID),
       "count" to intRule(1, McpRules.MAX_FRAMES),
-      "maxEdge" to intRule(160, 1280)
+      "maxEdge" to intRule(160, 1280),
+      "framing" to stringRule(FRAMINGS)
     ),
     "wait_for_event" to mapOf(
       "afterEventId" to longRule(0, McpRules.MAX_EVENT_ID),
@@ -293,6 +316,9 @@ internal object McpCatalog {
     "set_thresholds" to mapOf("person" to numberRule(0.5, 0.95), "animal" to numberRule(0.5, 0.95)),
     "keep_event" to mapOf("eventId" to longRule(0, McpRules.MAX_EVENT_ID), "kept" to boolRule),
     "acknowledge_alert" to emptyMap(),
+    "annotate_event" to mapOf(
+      "eventId" to longRule(0, McpRules.MAX_EVENT_ID), "verdict" to stringRule(VERDICTS), "note" to textRule(NOTE_MAX)
+    ),
     "get_latest_events" to mapOf("kind" to stringRule(KINDS), "limit" to intRule(1, 20)),
     "get_statistics" to mapOf(
       "from" to stringRule(), "to" to stringRule(), "groupBy" to stringRule(GROUPS)
@@ -309,6 +335,7 @@ internal object McpCatalog {
     "get_event_frames" to listOf("eventId"),
     "set_sensitivity" to listOf("sensitivity"),
     "keep_event" to listOf("eventId", "kept"),
+    "annotate_event" to listOf("eventId", "verdict"),
     "get_statistics" to listOf("from", "to")
   )
 

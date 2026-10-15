@@ -242,6 +242,21 @@ describe('the snapshot handed to the native server', () => {
     expect(DIAGNOSTICS.crashedStage).toBeNull();
   });
 
+  it('carries where the subject was and the agent’s note, for framing and read-back', () => {
+    const raw = JSON.parse(buildMcpSnapshot({
+      surveillanceActive: true, settings: defaultSettings, storage: { used: 0, free: 0, total: 0 },
+      events: [
+        event({ id: 1, subject: [{ t: 0, x: 0.1, y: 0.2, w: 0.3, h: 0.4 }], agentNote: { verdict: 'expected', text: 'Postman', at: 5 } }),
+        event({ id: 2 }),
+      ],
+      detectionsToday: 0, status: 'active', diagnostics: DIAGNOSTICS,
+    }));
+    expect(raw.events[0].subject).toEqual([{ t: 0, x: 0.1, y: 0.2, w: 0.3, h: 0.4 }]);
+    expect(raw.events[0].agentNote).toEqual({ verdict: 'expected', text: 'Postman', at: 5 });
+    expect(raw.events[1].subject).toEqual([]);
+    expect(raw.events[1].agentNote).toBeNull();
+  });
+
   it('carries the passage, the kinds seen in it, and whether it is kept', () => {
     const raw = JSON.parse(buildMcpSnapshot({
       surveillanceActive: true, settings: defaultSettings, storage: { used: 0, free: 0, total: 0 },

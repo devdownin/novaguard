@@ -174,6 +174,9 @@ export function buildMcpSnapshot(input: McpSnapshotInput): string {
       path: e.path,
       bytes: e.bytes,
       thumbPath: e.thumbPath,
+      // Where to crop for `get_event_frames` framing "subject"; never returned as is.
+      subject: e.subject ?? [],
+      agentNote: e.agentNote ?? null,
     })),
   });
 }

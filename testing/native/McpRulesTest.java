@@ -6,6 +6,10 @@ public final class McpRulesTest {
     if (!condition) throw new AssertionError(message);
   }
 
+  private static boolean near(double a, double b) {
+    return Math.abs(a - b) < 1e-9;
+  }
+
   public static void main(String[] args) {
     // A real id: what nextEventId mints today is epoch milliseconds.
     long today = 1_760_000_000_000L;
@@ -68,6 +72,21 @@ public final class McpRulesTest {
     check(McpRules.waitBudgetMs(10) == 10_000L, "budget in ms");
     check(McpRules.waitBudgetMs(600) == McpRules.MAX_WAIT_SECONDS * 1000L, "a long wait is capped");
     check(McpRules.waitBudgetMs(0) == 1_000L, "and a zero one raised");
+
+    check(McpRules.nearestSample(new long[] {0, 1000, 2000}, 1400) == 1, "nearest sample in time");
+    check(McpRules.nearestSample(new long[] {0, 1000, 2000}, 9000) == 2, "past the end: the last one");
+    check(McpRules.nearestSample(new long[] {}, 10) == -1, "no sample, no crop");
+
+    double[] centred = McpRules.subjectCrop(0.4, 0.3, 0.2, 0.4);
+    check(near(centred[2], 0.4) && near(centred[3], 0.8), "the box grows by half of itself on every side");
+    check(near(centred[0], 0.3) && near(centred[1], 0.1), "around the same centre");
+    double[] tiny = McpRules.subjectCrop(0.5, 0.5, 0.02, 0.05);
+    check(near(tiny[2], McpRules.MIN_CROP_SIDE) && near(tiny[3], McpRules.MIN_CROP_SIDE), "a far subject still gets context");
+    double[] corner = McpRules.subjectCrop(0.9, 0.85, 0.1, 0.15);
+    check(near(corner[0] + corner[2], 1) && near(corner[1] + corner[3], 1), "shifted to stay in frame");
+    check(near(corner[2], McpRules.MIN_CROP_SIDE), "shifted, not shrunk");
+    double[] huge = McpRules.subjectCrop(0, 0, 0.9, 0.9);
+    check(near(huge[0], 0) && near(huge[2], 1) && near(huge[3], 1), "never more than the frame");
 
     System.out.println("McpRulesTest passed");
   }
