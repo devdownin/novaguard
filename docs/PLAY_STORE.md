@@ -144,9 +144,10 @@ Réponses, toutes vérifiables dans le code :
   la désinstallation efface tout.
 
 Justification à garder sous la main : les vidéos et l'historique sont écrits
-dans le stockage privé de l'application ; le seul chemin sortant est le bouton
-« Partager », déclenché par l'utilisateur, via un `FileProvider` qui n'accorde
-qu'une URI temporaire sur un fichier.
+dans le stockage privé de l'application. Ils n'en sortent que par un geste de
+l'utilisateur : « Partager » ou « Exporter comme preuve », via un
+`FileProvider` qui n'accorde qu'une URI temporaire par fichier, ou un assistant
+IA qu'il a connecté au serveur MCP local, éteint par défaut.
 
 ## Déclaration des services de premier plan
 
@@ -227,8 +228,9 @@ notification permanente indiquant que l'enregistrement est possible.
 
 HISTORIQUE ET STOCKAGE
 Les évènements sont filtrables par type et par période, avec relecture de la
-vidéo. Rétention configurable de 1 à 90 jours, suppression automatique des plus
-anciens clips quand l'espace manque.
+vidéo. Un passage s'exporte comme preuve : tous ses clips et un rapport avec
+l'empreinte SHA-256 de chaque fichier. Rétention configurable de 1 à 90 jours,
+suppression automatique des plus anciens clips quand l'espace manque.
 
 CONFIDENTIALITÉ PAR CONCEPTION
 Les vidéos sont écrites dans le stockage privé de l'application : aucune autre
@@ -236,8 +238,8 @@ application ne peut les lire, rien n'apparaît dans la galerie partagée, et tou
 disparaît à la désinstallation. NovaGuard n'ouvre aucune
 connexion vers Internet : ni compte, ni télémétrie, ni cloud. Le direct Wi-Fi et
 le serveur pour assistant IA sont éteints par défaut et ne répondent qu'au
-réseau local. Le seul moyen de faire sortir une vidéo est le bouton « Partager », que
-vous seul déclenchez.
+réseau local. Une vidéo ne sort que par un geste de votre part : « Partager »,
+« Exporter comme preuve », ou un assistant IA que vous avez vous-même connecté.
 
 Code source complet, sous licence GPL-3.0 :
 https://github.com/devdownin/novaguard
@@ -280,7 +282,8 @@ ongoing notification showing that recording is possible.
 
 HISTORY AND STORAGE
 Events can be filtered by type and by period, and each one plays back in place.
-Retention is configurable from 1 to 90 days, and the oldest clips are deleted
+A passage can be exported as evidence: all its clips and a report with the
+SHA-256 fingerprint of each file. Retention is configurable from 1 to 90 days, and the oldest clips are deleted
 automatically when space runs short.
 
 PRIVACY BY DESIGN
@@ -288,8 +291,8 @@ Videos are written to the app's private storage: no other app can read them,
 nothing shows up in the shared gallery, and everything disappears when the app
 is uninstalled. NovaGuard never connects to the internet: no account, no
 telemetry, no cloud. Wi-Fi live view and the AI-assistant server are off by
-default and answer only the local network. The only way a video ever
-leaves is the Share button, which only you press.
+default and answer only the local network. A video only leaves on your own
+gesture: Share, Export as evidence, or an AI assistant you connected yourself.
 
 Full source code, under the GPL-3.0 licence:
 https://github.com/devdownin/novaguard
