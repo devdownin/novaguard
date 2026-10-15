@@ -5,16 +5,20 @@ import { formatTimeOfDay } from '../utils/date';
 import { color } from '../theme';
 
 export type SurveillanceStatus = 'inactive' | 'starting' | 'active' | 'recording' |
-  'camera-unavailable' | 'storage-insufficient' | 'analysis-unavailable' | 'recording-error';
+  'camera-unavailable' | 'camera-obstructed' | 'camera-moved' | 'storage-insufficient' | 'analysis-unavailable' | 'recording-error';
 
 export function surveillanceStatusOf(input: {
   monitoring: boolean; recording: boolean; cameraPermission: boolean; cameraHealth: CameraHealth;
   analysisProblem: string | null; recordingProblem: string | null; otherProblem: string | null;
   lowStorage: boolean; hasFrame: boolean; ready: boolean;
+  /** From the tamper watch (`tamper.ts`); absent means not watched. */
+  obstructed?: boolean; moved?: boolean;
 }): SurveillanceStatus {
   if (!input.monitoring) return input.recording ? 'recording' : 'inactive';
   if (!input.cameraPermission || input.cameraHealth === 'interrupted') return 'camera-unavailable';
   if (input.analysisProblem) return 'analysis-unavailable';
+  if (input.obstructed) return 'camera-obstructed';
+  if (input.moved) return 'camera-moved';
   if (input.lowStorage || (input.recordingProblem && /Espace insuffisant|ENOSPC|no.space|insufficient.space/i.test(input.recordingProblem))) return 'storage-insufficient';
   if (input.recordingProblem || input.otherProblem) return 'recording-error';
   if (!input.hasFrame || !input.ready) return 'starting';
@@ -24,11 +28,12 @@ export function surveillanceStatusOf(input: {
 export const STATUS_LABEL: Record<SurveillanceStatus, StringKey> = {
   inactive: 'surv.status.off', starting: 'surv.status.starting', active: 'surv.status.on',
   recording: 'surv.status.recording', 'camera-unavailable': 'surv.status.cameraUnavailable',
+  'camera-obstructed': 'surv.status.obstructed', 'camera-moved': 'surv.status.moved',
   'storage-insufficient': 'surv.status.storage', 'analysis-unavailable': 'surv.status.analysis',
   'recording-error': 'surv.status.recordingError',
 };
 export const statusIsFault = (status: SurveillanceStatus): boolean =>
-  ['camera-unavailable', 'storage-insufficient', 'analysis-unavailable', 'recording-error'].includes(status);
+  ['camera-unavailable', 'camera-obstructed', 'camera-moved', 'storage-insufficient', 'analysis-unavailable', 'recording-error'].includes(status);
 
 /**
  * The one colour each state is drawn in — status dot, viewfinder edge, camera

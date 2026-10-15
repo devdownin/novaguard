@@ -7,6 +7,7 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 ## [Non publié]
 
 ### Détection
+- Alerte de sabotage : une image restée noire 5 s (objectif masqué, pièce sans lumière) passe la surveillance en « Image noire », et une scène qui change sans personne suivi pendant 8 s en « Champ de vue modifié » (caméra déplacée ou tournée), à confirmer par « C’est voulu ». Les deux s’affichent sur la notification persistante avec leur heure.
 - Mode calibrage (Réglages → Avancé) : le viseur montre aussi, en pointillés, ce que le détecteur voit sans le suivre — pistes en attente de confirmation, décor immobile, détections sous le seuil — avec leur confiance, et rappelle les deux seuils actifs. Pour régler les seuils sur l’appareil.
 - Un sujet qui ne bouge pas pendant 3 minutes (manteau, affiche, statue) est traité comme du décor : il n’ouvre plus d’enregistrement et n’est plus affiché, jusqu’à son premier mouvement. L’emplacement est mémorisé 10 minutes.
 - Avec une zone de détection, seul son voisinage est analysé : plus de résolution sur les sujets de la zone, sans calcul supplémentaire.
