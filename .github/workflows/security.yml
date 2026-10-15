@@ -30,5 +30,7 @@ jobs:
       - name: TypeScript typecheck
         run: npm run typecheck
 
-      - name: Jest security tests
-        run: npx jest novaguard-mcp/__tests__/security.protocol.test.ts --runInBand
+      # The MCP server is Kotlin; what a PR can run of it is the snapshot JS
+      # hands it (no PIN, no secret) and its pure rules (scripts/test-presence-native.sh).
+      - name: Jest MCP privacy tests
+        run: npx jest __tests__/mcpWiring.test.tsx --runInBand

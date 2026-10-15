@@ -130,7 +130,6 @@ assets/fonts/   police Inter embarquée
 assets/models/  modèle de détection TensorFlow Lite embarqué
 assets/splash/  illustration de l'écran de démarrage
 assets/store/   icône source et icône 512×512 pour les fiches store
-novaguard-mcp/  serveur MCP (Model Context Protocol) en lecture seule
 ```
 
 ## Feuille de route

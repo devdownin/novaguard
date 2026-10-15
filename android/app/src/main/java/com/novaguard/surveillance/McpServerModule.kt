@@ -31,8 +31,8 @@ import java.util.concurrent.atomic.AtomicLong
 /**
  * NovaGuard's MCP server, on the device.
  *
- * The TypeScript server under `novaguard-mcp/` is Node: it imports `http`,
- * `dns` and `net` and allocates `Buffer`s, none of which exist in Hermes. It
+ * A TypeScript server once lived under `novaguard-mcp/`. It was Node: it imported `http`,
+ * `dns` and `net` and allocated `Buffer`s, none of which exist in Hermes. It
  * could therefore never be what the Setup toggle started, and for a while the
  * toggle started nothing at all — it wrote a setting no code read, which is
  * the inert-section failure this repository has already shipped once.
