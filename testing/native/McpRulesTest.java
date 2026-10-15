@@ -88,6 +88,11 @@ public final class McpRulesTest {
     double[] huge = McpRules.subjectCrop(0, 0, 0.9, 0.9);
     check(near(huge[0], 0) && near(huge[2], 1) && near(huge[3], 1), "never more than the frame");
 
+    check(McpRules.sampleSizeFor(3840, 2160, 768) == 4, "4K to 768: decode at a quarter, 960 px, then scale");
+    check(McpRules.sampleSizeFor(1280, 720, 768) == 1, "already close: no reduction");
+    check(McpRules.sampleSizeFor(720, 1280, 320) == 4, "portrait counts its longest side");
+    check(McpRules.sampleSizeFor(1920, 1080, 0) == 1, "no edge, no reduction");
+
     System.out.println("McpRulesTest passed");
   }
 }

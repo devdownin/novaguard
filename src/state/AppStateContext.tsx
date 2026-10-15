@@ -235,6 +235,7 @@ interface AppStateValue {
   generateMcpControlToken: () => void;
   clearMcpControlToken: () => void;
   cycleMcpControlTtl: () => void;
+  toggleMcpLiveFrame: () => void;
   /** Control calls made by agents, newest first (`agentLog.ts`). */
   agentLog: AgentAction[];
   /** Live state of the native MCP server, or MCP_SERVER_STOPPED when it is off. */
@@ -1834,6 +1835,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     });
   }, [patchSettings, settings.mcpControlTtl, settings.mcpControlToken]);
 
+  const toggleMcpLiveFrame = useCallback(() => {
+    patchSettings({ mcpLiveFrameEnabled: !settings.mcpLiveFrameEnabled });
+  }, [patchSettings, settings.mcpLiveFrameEnabled]);
+
   /**
    * "Couper le pilotage" on the notification. The native server has already
    * dropped the token by the time this runs; switching the setting off is what
@@ -2110,7 +2115,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo,
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
@@ -2122,7 +2127,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo, onb, perms, onbNext, onbFinish, grantPermission,
   ]);
 

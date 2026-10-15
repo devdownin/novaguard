@@ -48,6 +48,9 @@ tool() {  # tool <jeton> <outil sans préfixe> [arguments JSON]
 - [ ] `get_event_frames` avec `"framing":"subject"` sur une personne au fond de la pièce :
       les images sont centrées sur elle, mains et objets dans le cadre, `cropped: true`.
       Même chose caméra **avant** (miroir) et téléphone en paysage.
+- [ ] « Vue en direct pour l'agent » activée, surveillance en cours : `tool $TOKEN get_live_frame`
+      rend une image **droite** (portrait et paysage, caméra arrière et avant) en moins de 3 s ;
+      la cadence d'analyse du viseur ne bouge pas. Interrupteur éteint : l'outil disparaît de `tools/list`.
 - [ ] `get_diagnostics` après un passage plus long que la durée maximale :
       `clipGap.samples ≥ 1`, `device.thermalStatus` renseigné.
 

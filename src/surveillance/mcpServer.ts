@@ -132,6 +132,8 @@ export function buildMcpSnapshot(input: McpSnapshotInput): string {
     lastDetectionAt: events.length ? Math.max(...events.map(e => e.timestamp)) : null,
     detectionsToday,
     streamEnabled: settings.localStreamEnabled,
+    // What the server advertises `get_live_frame` on; the frame processor reads the same setting.
+    liveFrameAllowed: settings.mcpLiveFrameEnabled,
     diagnostics,
     storage: { used: storage.used, free: storage.free, total: storage.total },
     configuration: {

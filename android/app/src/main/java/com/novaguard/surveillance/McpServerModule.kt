@@ -514,7 +514,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       when (method) {
         "initialize" -> successResponse(id, initializeResult(params))
         "ping" -> successResponse(id, JSONObject())
-        "tools/list" -> successResponse(id, JSONObject().put("tools", McpCatalog.tools(controlAvailable())))
+        "tools/list" -> successResponse(id, JSONObject().put("tools", McpCatalog.tools(controlAvailable(), snapshot.liveFrameAllowed)))
         "tools/call" -> successResponse(id, callToolReportingFailures(params, principal))
         "resources/list" -> successResponse(id, JSONObject().put("resources", McpCatalog.resources(snapshot)))
         "resources/templates/list" -> successResponse(id, JSONObject().put("resourceTemplates", McpCatalog.resourceTemplates()))
@@ -551,7 +551,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     // it rather than becoming a result the model is invited to work around.
     val rawName = params.optString("name")
     assertNotForbidden(rawName)
-    if (!McpCatalog.isKnownTool(rawName, controlAvailable())) {
+    if (!McpCatalog.isKnownTool(rawName, controlAvailable(), snapshot.liveFrameAllowed)) {
       throw McpException("NOVAGUARD_INVALID_ARGUMENT", "Unknown tool: '$rawName'", -32602)
     }
     // Refused before anything runs, like an unknown tool: no argument would
@@ -614,6 +614,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     McpCatalog.validateArguments(name, args)
     if (name == "get_event_frames") return eventFrames(args)
     if (name == "wait_for_event") return toolResult(waitForEvent(args))
+    if (name == McpCatalog.LIVE_TOOL) return liveFrame(args)
     if (name in McpCatalog.CONTROL_TOOLS) return toolResult(runCommand(name, args))
 
     val payload: Any = when (name) {
@@ -785,6 +786,25 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       })
     val content = JSONArray().put(JSONObject().put("type", "text").put("text", summary.toString()))
     frames.forEach { content.put(JSONObject().put("type", "image").put("mimeType", "image/jpeg").put("data", it.jpegBase64)) }
+    return JSONObject().put("content", content).put("isError", false).put("structuredContent", summary)
+  }
+
+  /**
+   * The scene now, as an image. Refused rather than attempted when surveillance
+   * is stopped: the frame processor is what hands the still over, and it only
+   * runs with the camera.
+   */
+  private fun liveFrame(args: JSONObject): JSONObject {
+    if (!snapshot.isSurveillanceActive()) {
+      throw McpException("NOVAGUARD_DEVICE_UNAVAILABLE", "Surveillance is stopped: there is no camera feed to look at", -32603)
+    }
+    val edge = McpFrames.clampEdge(args.optInt("maxEdge", McpFrames.DEFAULT_MAX_EDGE))
+    val (jpeg, at) = McpLiveFrame.capture(edge, LIVE_FRAME_TIMEOUT_MS)
+      ?: throw McpException("NOVAGUARD_TIMEOUT", "No camera frame arrived in time; the camera may be interrupted", -32603)
+    val summary = JSONObject().put("capturedAt", isoOf(at)).put("status", snapshot.statusJson())
+    val content = JSONArray()
+      .put(JSONObject().put("type", "text").put("text", summary.toString()))
+      .put(JSONObject().put("type", "image").put("mimeType", "image/jpeg").put("data", jpeg))
     return JSONObject().put("content", content).put("isError", false).put("structuredContent", summary)
   }
 
@@ -1005,6 +1025,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     private const val MAX_CONNECTIONS = 8
     private const val COMMAND_EVENT = "McpCommand"
     private const val COMMAND_TIMEOUT_MS = 5_000L
+    /** Twice a second at the frame processor, and a JPEG after: 3 s is several chances. */
+    private const val LIVE_FRAME_TIMEOUT_MS = 3_000L
     private const val REVOKED_EVENT = "McpControlRevoked"
     private const val REVOKED_OUTCOME = "{\"ok\":false,\"code\":\"NOVAGUARD_AUTH_FORBIDDEN\",\"message\":\"Control was revoked on the device\"}"
     private const val SERVICE_NAME = "NovaGuard"

@@ -12,7 +12,7 @@ import { controlLive } from './mcpControl';
  */
 export const READ_TOOLS = [
   'get_status', 'get_diagnostics', 'search_events', 'get_latest_events', 'get_event', 'get_event_frames',
-  'wait_for_event', 'get_statistics', 'get_storage', 'get_configuration', 'get_camera_info',
+  'wait_for_event', 'get_live_frame', 'get_statistics', 'get_storage', 'get_configuration', 'get_camera_info',
 ] as const;
 
 export const CONTROL_TOOLS = [

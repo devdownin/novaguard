@@ -38,3 +38,12 @@ export function agentControlLive(settings: Settings, now: number): boolean {
     && settings.mcpControlToken.length > 0
     && controlLive(settings.mcpControlExpiresAt, now);
 }
+
+/**
+ * Whether the frame processor offers frames to the live view. Only while
+ * monitoring — the zone editor's preview is not the surveillance camera — and
+ * only with the server on and the owner's switch on.
+ */
+export function liveFrameWanted(settings: Settings, monitoring: boolean): boolean {
+  return monitoring && settings.mcpEnabled && settings.mcpLiveFrameEnabled;
+}

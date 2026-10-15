@@ -16,6 +16,7 @@ import { interpretDetections } from '../ml/interpretDetections';
 import { letterboxFor, letterboxInto } from '../ml/letterbox';
 import { analysisCropFor, cropInBuffer } from '../ml/analysisCrop';
 import { liftShadows, sceneSample } from '../ml/lowLight';
+import { liveFrameWanted } from '../surveillance/mcpControl';
 import { SENSITIVITY_PROFILES } from '../ml/sensitivity';
 import { tunedSettings } from '../camera/autoTune';
 import { frameErrorMessage } from '../camera/frameErrors';
@@ -129,6 +130,10 @@ export function CameraFeed({
 
   const { resize } = useResizePlugin();
   const streamPlugin = useMemo(() => VisionCameraProxy?.initFrameProcessorPlugin('novaguardStream', {}), []);
+  const livePlugin = useMemo(() => {
+    try { return VisionCameraProxy.initFrameProcessorPlugin('novaguardLive', {}); }
+    catch { return undefined; }
+  }, []);
   const precise = settings.preciseDetection;
   const inputSize = precise ? PRECISE_INPUT_SIZE : STANDARD_INPUT_SIZE;
   // `failed` used to be computed and thrown away, so a model both delegates
@@ -248,6 +253,7 @@ export function CameraFeed({
   const cropWidth = crop.width;
   const cropHeight = crop.height;
   const streamEnabled = chosen.localStreamEnabled;
+  const liveFrameEnabled = liveFrameWanted(chosen, monitoring);
   const viewW = viewWidth || 1;
   const viewH = viewHeight || 1;
 
@@ -293,6 +299,19 @@ export function CameraFeed({
         } catch (e) {
           const failure = e as { message?: string } | undefined;
           onFrameError(failure?.message ?? 'erreur diffusion');
+        }
+      });
+    }
+    if (liveFrameEnabled) {
+      // A volatile read on the native side until an agent asks for a still
+      // (`McpLiveFrame`): the copy and the JPEG are paid only for a request.
+      runAtTargetFps(2, () => {
+        'worklet';
+        try {
+          livePlugin?.call(frame);
+        } catch (e) {
+          const failure = e as { message?: string } | undefined;
+          onFrameError(failure?.message ?? 'erreur vue en direct');
         }
       });
     }
@@ -436,7 +455,7 @@ export function CameraFeed({
         onFrameError(failure?.message ?? 'erreur inconnue');
       }
     });
-  }, [model, inputSize, cropX, cropY, cropWidth, cropHeight, resize, onJsFrame, onFrameError, onInferenceError, onFrameStage, detectFaces, autoZoom, viewW, viewH, targetFps, detectPerson, detectAnimal, streamEnabled, streamPlugin, strictPresence, presencePlugin]);
+  }, [model, inputSize, cropX, cropY, cropWidth, cropHeight, resize, onJsFrame, onFrameError, onInferenceError, onFrameStage, detectFaces, autoZoom, viewW, viewH, targetFps, detectPerson, detectAnimal, streamEnabled, streamPlugin, liveFrameEnabled, livePlugin, strictPresence, presencePlugin]);
 
   if (!perms.cam || device == null) return null;
 

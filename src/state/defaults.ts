@@ -52,6 +52,8 @@ export const defaultSettings: Settings = {
   // A night, not forever: a token copied into a client config outlives the reason it was copied.
   mcpControlTtl: '24 h',
   mcpControlExpiresAt: 0,
+  // Seeing the room on demand is more than reviewing what was filmed: asked for, not assumed.
+  mcpLiveFrameEnabled: false,
   exp: { surv: true, det: false, rec: false, sto: false, not: false, stream: false, mcp: false, adv: false, about: false },
 };
 

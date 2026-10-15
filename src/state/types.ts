@@ -223,6 +223,8 @@ export interface Settings {
   mcpControlEnabled: boolean;
   mcpControlToken: string;
   mcpControlTtl: ControlLifetime;
+  /** Lets an agent ask for what the camera sees now (`get_live_frame`). Off by default. */
+  mcpLiveFrameEnabled: boolean;
   /** Epoch ms the control token stops working; 0 for never. Set when it is issued. */
   mcpControlExpiresAt: number;
   exp: ExpandedSections;

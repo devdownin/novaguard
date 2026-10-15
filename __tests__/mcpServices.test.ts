@@ -10,6 +10,7 @@ import {
   CONTROL_TOOLS, controlAvailability, PROMPTS, READ_TOOLS, RESOURCE_URIS,
 } from '../src/surveillance/mcpServices';
 import { defaultSettings } from '../src/state/defaults';
+import { liveFrameWanted } from '../src/surveillance/mcpControl';
 import { fr } from '../src/i18n/fr';
 
 const native = (file: string) =>
@@ -57,5 +58,21 @@ describe('control availability', () => {
     expect(controlAvailability({ ...on, mcpControlExpiresAt: 10 }, 10)).toBe('expired');
     expect(controlAvailability({ ...on, mcpControlExpiresAt: 10 }, 9)).toBe('available');
     expect(controlAvailability({ ...on, mcpControlExpiresAt: 0 }, 9e12)).toBe('available');
+  });
+});
+
+describe('live view', () => {
+  const allowed = { ...defaultSettings, mcpEnabled: true, mcpLiveFrameEnabled: true };
+  it('offers frames only while monitoring, with the server and the owner’s switch on', () => {
+    expect(liveFrameWanted(allowed, true)).toBe(true);
+    expect(liveFrameWanted(allowed, false)).toBe(false);
+    expect(liveFrameWanted({ ...allowed, mcpEnabled: false }, true)).toBe(false);
+    expect(liveFrameWanted({ ...allowed, mcpLiveFrameEnabled: false }, true)).toBe(false);
+    expect(defaultSettings.mcpLiveFrameEnabled).toBe(false);
+  });
+
+  it('is advertised by the server only behind the same switch', () => {
+    expect(catalog).toMatch(/if \(liveEnabled\) list\.put\(liveTool\(\)\)/);
+    expect(catalog).toMatch(/if \(operation == LIVE_TOOL\) return liveEnabled/);
   });
 });

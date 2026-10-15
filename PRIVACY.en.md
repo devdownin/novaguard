@@ -44,7 +44,15 @@ There is therefore:
 
 ### MCP Server (Optional)
 
-If you choose to enable the MCP (*Model Context Protocol*) server in the settings, NovaGuard provides a token-secured, read-only consultation interface on the local network (port 8081 by default). When an external AI assistant queries the MCP server, surveillance metadata and explicitly requested videos are transmitted to the user's selected AI client. The MCP server is strictly read-only and cannot alter the surveillance state or mutate your data.
+If you turn on the MCP (*Model Context Protocol*) server in the settings, an AI assistant of your choice can query NovaGuard from this device or, with an access token, from the local network (port 8081 by default). It receives the surveillance metadata, stills and videos **it explicitly asks for**; if that assistant relies on a remote model, this data then leaves the device for the service you chose — never for NovaGuard.
+
+Two further capabilities are off by default and are turned on separately:
+
+- **live view**: the assistant can ask for a picture of what the camera sees during surveillance; nothing is recorded;
+- **control**: with a separate control token, time-limited and revocable from the notification, the assistant can start or stop surveillance, set the sensitivity and thresholds, keep a passage, acknowledge an alert and leave a note on an event. It can **delete nothing**, nor change the zone, retention or a token. Every action is logged in the settings.
+
+The “What an AI assistant can see and do” page (Settings) lists it all.
+
 
 ## Who can open the history
 

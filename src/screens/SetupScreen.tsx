@@ -435,6 +435,14 @@ export function SetupScreen() {
             <StaticValue label={t(controlActive ? 'setup.mcpMode.control' : 'setup.mcpMode.readOnly')} />
           </SettingRow>
 
+          <SettingRow label={t('setup.mcpLiveFrame')} subtitle={t('setup.mcpLiveFrame.sub')}>
+            <Switch
+              value={settings.mcpLiveFrameEnabled}
+              onValueChange={s.toggleMcpLiveFrame}
+              accessibilityLabel={t('setup.mcpLiveFrame')}
+            />
+          </SettingRow>
+
           <SettingRow label={t('setup.mcpControl')} subtitle={t('setup.mcpControl.sub')}>
             <Switch
               value={settings.mcpControlEnabled}

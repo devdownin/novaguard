@@ -28,11 +28,19 @@ internal object McpCatalog {
   private const val PREFIX = "novaguard_"
 
   /** Control tools are advertised only while the device allows control. */
-  fun tools(controlEnabled: Boolean): JSONArray {
+  /** Control tools only while the device allows control; the live view only while the owner allows it. */
+  fun tools(controlEnabled: Boolean, liveEnabled: Boolean): JSONArray {
     val list = readTools()
+    if (liveEnabled) list.put(liveTool())
     if (controlEnabled) controlTools().forEach { list.put(it) }
     return list
   }
+
+  private fun liveTool(): JSONObject = tool(
+    "get_live_frame",
+    "Returns what the camera sees right now, as one JPEG image: use it to check the camera is not covered or turned, or to look at the scene after an alert. Only while surveillance is running, and only if the owner allowed the live view on the device. Nothing is recorded.",
+    JSONObject().put("maxEdge", intProp(160, 1280, "Longest side, in pixels. Defaults to ${McpFrames.DEFAULT_MAX_EDGE}."))
+  )
 
   private fun controlTools(): List<JSONObject> = listOf(
     tool(
@@ -204,13 +212,16 @@ internal object McpCatalog {
   internal val TOOL_PREFIXES = listOf("novaguard_", "novaguard.")
 
   /** Whether the catalogue advertises this name, under either prefix, given the device's control switch. */
-  fun isKnownTool(rawName: String, controlEnabled: Boolean): Boolean {
+  fun isKnownTool(rawName: String, controlEnabled: Boolean, liveEnabled: Boolean): Boolean {
     val operation = TOOL_PREFIXES.firstNotNullOfOrNull { prefix ->
       if (rawName.startsWith(prefix)) rawName.removePrefix(prefix) else null
     } ?: return false
     if (operation in CONTROL_TOOLS) return controlEnabled
+    if (operation == LIVE_TOOL) return liveEnabled
     return ARGUMENT_SPECS.containsKey(operation)
   }
+
+  const val LIVE_TOOL = "get_live_frame"
 
   /** Tools that change the device, and so need the control token. */
   val CONTROL_TOOLS = setOf(
@@ -297,6 +308,7 @@ internal object McpCatalog {
     "get_configuration" to emptyMap(),
     "get_camera_info" to emptyMap(),
     "get_diagnostics" to emptyMap(),
+    "get_live_frame" to mapOf("maxEdge" to intRule(160, 1280)),
     // Ids are epoch milliseconds: an Int bound refused every event ever recorded.
     "get_event" to mapOf("eventId" to longRule(0, McpRules.MAX_EVENT_ID)),
     "get_event_frames" to mapOf(

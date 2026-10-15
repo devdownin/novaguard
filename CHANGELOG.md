@@ -7,11 +7,13 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 ## [Non publié]
 
 ### Confidentialité
+- La politique de confidentialité décrivait le serveur MCP comme « strictement en lecture seule » ; elle décrit désormais la lecture, la vue en direct et le pilotage, chacun avec son interrupteur.
 - « Exporter comme preuve » (fiche d’un évènement) : tous les clips du passage et un rapport texte — horaires, genres vus, segments manquants, empreinte SHA-256 de chaque fichier avec la commande pour la vérifier — partagés en une seule fois.
 - La politique de confidentialité, la fiche Play et la réponse au formulaire *Data safety* disent enfin vrai : la permission `INTERNET` est déclarée, pour les deux serveurs locaux optionnels (direct Wi-Fi, serveur MCP), éteints par défaut ; l’application n’ouvre aucune connexion sortante, et un test le vérifie dans tout le code.
 - « Ce qu’un assistant IA peut voir et faire » (Réglages, bloc confidentialité) ouvre la page « Services MCP » même serveur éteint.
 
 ### Serveur MCP
+- Vue en direct pour l’agent (Réglages → Serveur MCP, éteinte par défaut) : nouvel outil `get_live_frame`, une image de ce que voit la caméra pendant la surveillance, sans rien enregistrer.
 - Nouvel outil de pilotage `annotate_event` : l’agent laisse son verdict (fausse alerte, attendu, à regarder) et une courte note sur un évènement ; ils s’affichent sur la carte de l’Historique et dans la fiche, où « Effacer la note » les retire.
 - `get_event_frames` peut recadrer chaque image sur le sujet (`framing: "subject"`) : chaque évènement garde désormais où se trouvait le sujet pendant le clip, un point par seconde au plus.
 - Page « Services MCP » (Réglages → Serveur MCP → « Voir les services MCP ») : chaque outil de lecture et de pilotage, les prompts, les ressources et ce qu’aucun agent ne peut faire, avec l’état du serveur et ce qui empêche le pilotage le cas échéant (serveur arrêté, non autorisé, sans jeton, jeton expiré).

@@ -131,7 +131,7 @@ Control tools appear in `tools/list` only while control is enabled on the device
 
 # 8. MCP Tools
 
-§8.1–§8.10 and §8.12 are read tools. §8.11 lists the control tools.
+§8.1–§8.10, §8.12 and §8.13 are read tools. §8.11 lists the control tools.
 
 ## 8.1 `novaguard.get_status`
 
@@ -401,6 +401,10 @@ Why the camera may miss or cut passages. No arguments.
 ```
 
 `clipGap` is the time between two clips of one passage (`finalize` the encoder's, `restart` the app's); `null` until measured. `autoTune.given` are the settings the app gave up to keep its analysis rate, in order; `measuredFps`/`targetFps` are the figures of its last decision. `crashedStage` names the analysis step a previous launch never returned from (`camera`, `resize`, `inference`, `faces`, `report`). `device` is read at call time: `thermalStatus` is Android's `PowerManager` scale (0 none … 6 shutdown, -1 unknown).
+
+## 8.13 `novaguard.get_live_frame`
+
+What the camera sees now, as one `image/jpeg` block after a `text` block `{"capturedAt","status"}`. Argument: `maxEdge` (160–1280, default 768). Advertised only while the owner's switch "Vue en direct pour l'agent" is on (off by default), answered only while surveillance runs; otherwise `NOVAGUARD_DEVICE_UNAVAILABLE`, and `NOVAGUARD_TIMEOUT` if no frame arrives within 3 s (camera interrupted). Nothing is recorded. The frame processor offers a frame twice a second to a native plugin that does nothing until a request is pending; the YUV copy, JPEG encoding, downscale and rotation happen only then, off the camera thread except for the copy.
 
 # 9. MCP Resources
 

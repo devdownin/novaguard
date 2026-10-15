@@ -257,6 +257,11 @@ describe('the snapshot handed to the native server', () => {
     expect(raw.events[1].agentNote).toBeNull();
   });
 
+  it('tells the server whether the owner allows the live view', () => {
+    expect(build().liveFrameAllowed).toBe(false);
+    expect(build({ mcpLiveFrameEnabled: true }).liveFrameAllowed).toBe(true);
+  });
+
   it('carries the passage, the kinds seen in it, and whether it is kept', () => {
     const raw = JSON.parse(buildMcpSnapshot({
       surveillanceActive: true, settings: defaultSettings, storage: { used: 0, free: 0, total: 0 },

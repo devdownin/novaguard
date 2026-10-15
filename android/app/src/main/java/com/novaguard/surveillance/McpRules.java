@@ -132,6 +132,17 @@ public final class McpRules {
     return best;
   }
 
+  /**
+   * The largest power-of-two decode reduction that still leaves the longest
+   * side at or above `maxEdge`; the exact size is reached by scaling after.
+   */
+  public static int sampleSizeFor(int width, int height, int maxEdge) {
+    int longest = Math.max(width, height);
+    int sample = 1;
+    while (maxEdge > 0 && longest / (sample * 2) >= maxEdge) sample *= 2;
+    return sample;
+  }
+
   /** Half the box again on every side. */
   public static final double CROP_PAD = 0.5;
   /** Never tighter than this share of the frame, on either axis. */

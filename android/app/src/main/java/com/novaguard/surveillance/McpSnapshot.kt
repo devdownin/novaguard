@@ -78,6 +78,8 @@ internal class Snapshot private constructor(
   private val lastDetectionAtMs: Long?,
   private val detectionsToday: Int,
   private val streamEnabled: Boolean,
+  /** The owner's "vue en direct" switch, as last pushed. */
+  val liveFrameAllowed: Boolean,
   private val usedBytes: Long,
   private val freeBytes: Long,
   private val totalBytes: Long,
@@ -117,6 +119,8 @@ internal class Snapshot private constructor(
     .put("active", surveillanceActive)
     .put("status", status)
     .put("streamEnabled", streamEnabled)
+
+  fun isSurveillanceActive(): Boolean = surveillanceActive
 
   fun latestEventId(): Long = events.maxOfOrNull { it.id } ?: 0L
 
@@ -313,7 +317,7 @@ internal class Snapshot private constructor(
 
     fun empty() = Snapshot(
       surveillanceActive = false, status = "inactive", statusSinceMs = 0, camera = "", lastDetectionAtMs = null, detectionsToday = 0,
-      streamEnabled = false, usedBytes = 0, freeBytes = 0, totalBytes = 0,
+      streamEnabled = false, liveFrameAllowed = false, usedBytes = 0, freeBytes = 0, totalBytes = 0,
       configuration = JSONObject(), diagnostics = sanitizeDiagnostics(JSONObject()), events = emptyList()
     )
 
@@ -358,6 +362,7 @@ internal class Snapshot private constructor(
         lastDetectionAtMs = if (json.isNull("lastDetectionAt")) null else json.optLong("lastDetectionAt"),
         detectionsToday = json.optInt("detectionsToday"),
         streamEnabled = json.optBoolean("streamEnabled"),
+        liveFrameAllowed = json.optBoolean("liveFrameAllowed"),
         usedBytes = storage.optLong("used"),
         freeBytes = storage.optLong("free"),
         totalBytes = storage.optLong("total"),
