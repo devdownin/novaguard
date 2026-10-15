@@ -13,6 +13,7 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 - « Ce qu’un assistant IA peut voir et faire » (Réglages, bloc confidentialité) ouvre la page « Services MCP » même serveur éteint.
 
 ### Serveur MCP
+- Réglages s’ouvre sur une carte « Assistant IA (MCP) » : état du serveur, ce qui empêche le pilotage le cas échéant, et « Voir les services MCP ». La page était deux sections plus bas, où personne ne la trouvait.
 - HTTPS (Réglages → Serveur MCP → « Chiffrer les connexions », éteint par défaut) : une autorité propre au téléphone, dont la clé reste dans l’Android Keystore, émet le certificat du serveur pour son adresse du moment ; on installe une fois son certificat sur l’ordinateur de l’agent et on compare l’empreinte affichée. Un changement d’adresse IP ne casse plus la connexion.
 - Vue en direct pour l’agent (Réglages → Serveur MCP, éteinte par défaut) : nouvel outil `get_live_frame`, une image de ce que voit la caméra pendant la surveillance, sans rien enregistrer.
 - Nouvel outil de pilotage `annotate_event` : l’agent laisse son verdict (fausse alerte, attendu, à regarder) et une courte note sur un évènement ; ils s’affichent sur la carte de l’Historique et dans la fiche, où « Effacer la note » les retire.

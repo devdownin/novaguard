@@ -20,6 +20,7 @@ import { PrimaryOutlineButton, SecondaryOutlineButton } from '../components/Outl
 import { getMcpCaCertificate } from '../surveillance/mcpServer';
 import { QrCode } from '../components/QrCode';
 import { controlLive } from '../surveillance/mcpControl';
+import { controlAvailability } from '../surveillance/mcpServices';
 import { ShieldCheckIcon } from '../components/icons';
 import { StringKey, t, tValue } from '../i18n';
 import { useLandscape } from '../utils/useLandscape';
@@ -98,6 +99,8 @@ export function SetupScreen() {
   };
   const getMcpJsonConfig = () => JSON.stringify(mcpClientConfig, null, 2);
 
+  const mcpAvailability = controlAvailability(settings, Date.now());
+
   const controlExpiry = !settings.mcpControlToken ? null
     : settings.mcpControlExpiresAt <= 0 ? t('setup.mcpControlToken.forever')
     : controlLive(settings.mcpControlExpiresAt, Date.now())
@@ -119,6 +122,20 @@ export function SetupScreen() {
         contentContainerStyle={[styles.list, landscape && styles.listCentered]}
         showsVerticalScrollIndicator={false}
       >
+        {/* First thing on the screen: an agent is one of the app's two jobs, and
+            the page was two folds down where nobody found it. */}
+        <View style={styles.mcpCard} testID="mcp-card">
+          <Text style={styles.privacyTitle}>{t('setup.mcpCard.title')}</Text>
+          <Text style={[styles.mcpCardStatus, s.mcpStatus.running ? styles.mcpCardOn : null]}>
+            {settings.mcpEnabled && s.mcpStatus.running && s.mcpStatus.url
+              ? t('setup.mcpCard.on', { url: s.mcpStatus.url })
+              : t('setup.mcpCard.off')}
+          </Text>
+          {settings.mcpEnabled ? (
+            <Text style={styles.privacyText}>{t(`mcpService.control.${mcpAvailability}`)}</Text>
+          ) : null}
+          <PrimaryOutlineButton label={t('setup.mcpServices')} onPress={() => s.openInfo('mcp')} style={styles.mcpCardButton} />
+        </View>
 
         <CollapsibleSection title={t('setup.section.surv')} expanded={settings.exp.surv} onToggle={() => s.toggleSection('surv')}>
           <SettingRow label={t('setup.camera')}>
@@ -434,10 +451,6 @@ export function SetupScreen() {
               accessibilityLabel={t('setup.mcpEnabled')}
             />
           </SettingRow>
-
-          <View style={styles.subBlock}>
-            <PrimaryOutlineButton label={t('setup.mcpServices')} onPress={() => s.openInfo('mcp')} />
-          </View>
 
           <SettingRow label={t('setup.mcpMode')}>
             <StaticValue label={t(controlActive ? 'setup.mcpMode.control' : 'setup.mcpMode.readOnly')} />
@@ -786,6 +799,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
+  },
+  mcpCard: {
+    borderRadius: radius.lg - 3,
+    borderWidth: 1,
+    borderColor: color.accent800,
+    backgroundColor: color.surface,
+    padding: 14,
+    marginBottom: 12,
+    gap: 4,
+  },
+  mcpCardStatus: {
+    fontFamily: font.medium,
+    fontSize: 13,
+    color: color.neutral400,
+  },
+  mcpCardOn: {
+    color: color.accent,
+  },
+  mcpCardButton: {
+    marginTop: 8,
   },
   privacyCard: {
     borderRadius: radius.lg - 3,
