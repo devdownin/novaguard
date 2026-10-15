@@ -7,6 +7,7 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 ## [Non publié]
 
 ### Serveur MCP
+- Nouvel outil `get_event_frames` : jusqu’à 8 images JPEG prises au milieu de tranches égales du clip, renvoyées comme images qu’un agent peut regarder (repli sur la vignette si le clip a disparu). Décodées directement à la taille demandée, une extraction à la fois.
 - `get_event` accepte enfin les identifiants réels (millisecondes, 13 chiffres) ; il refusait tout évènement enregistré.
 - Confiance des évènements et seuils (personnes, animaux) exprimés sur `[0,1]` comme le contrat l’annonce ; `minConfidence` filtre réellement.
 - `get_status` donne le statut affiché par l’appareil (dont « Image noire » et « Champ de vue modifié »), depuis quand, et `healthy`.

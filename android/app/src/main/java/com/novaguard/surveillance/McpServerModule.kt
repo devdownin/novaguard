@@ -495,6 +495,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     if (name == null) throw McpException("NOVAGUARD_NOT_FOUND", "Unknown tool: '$rawName'", -32601)
     val args = params.optJSONObject("arguments") ?: JSONObject()
     McpCatalog.validateArguments(name, args)
+    if (name == "get_event_frames") return eventFrames(args)
 
     val payload: Any = when (name) {
       "get_status" -> snapshot.statusJson()
@@ -516,6 +517,45 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     // handing a client a shape the schema does not allow.
     if (payload is JSONObject) result.put("structuredContent", payload)
     return result
+  }
+
+  /**
+   * Stills from an event's clip as image content — the form a model looks at.
+   *
+   * A text block first, saying where in the clip each image was taken, so the
+   * model can tell "at 3 s" from "at 40 s" without guessing from the order.
+   */
+  private fun eventFrames(args: JSONObject): JSONObject {
+    val event = snapshot.requireEvent(args.optLong("eventId", -1))
+    val count = args.optInt("count", McpRules.DEFAULT_FRAMES)
+    val maxEdge = args.optInt("maxEdge", McpFrames.DEFAULT_MAX_EDGE)
+    val idText = event.id.toString()
+
+    // No size cap on the clip: it is decoded in place, never loaded or encoded.
+    val video = event.videoPath?.let { path -> runCatching { mediaFile(path, Long.MAX_VALUE, idText) }.getOrNull() }
+    val frames: List<McpFrame>
+    val source: String
+    if (video != null) {
+      frames = McpFrames.fromVideo(video, count, maxEdge)
+      source = "video"
+    } else {
+      val still = mediaFile(event.thumbPath, MAX_THUMBNAIL_BYTES, idText)
+      frames = listOf(McpFrame(0, android.util.Base64.encodeToString(still.readBytes(), android.util.Base64.NO_WRAP)))
+      source = "thumbnail"
+    }
+    if (frames.isEmpty()) {
+      throw McpException("NOVAGUARD_MEDIA_UNAVAILABLE", "No frame could be decoded for event $idText", -32603)
+    }
+
+    val summary = JSONObject()
+      .put("eventId", event.id)
+      .put("source", source)
+      .put("frames", JSONArray().apply {
+        frames.forEachIndexed { i, f -> put(JSONObject().put("index", i).put("offsetSeconds", f.offsetMs / 1000.0)) }
+      })
+    val content = JSONArray().put(JSONObject().put("type", "text").put("text", summary.toString()))
+    frames.forEach { content.put(JSONObject().put("type", "image").put("mimeType", "image/jpeg").put("data", it.jpegBase64)) }
+    return JSONObject().put("content", content).put("isError", false).put("structuredContent", summary)
   }
 
   /**
@@ -567,6 +607,12 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
    * second lock, for a snapshot that went wrong.
    */
   private fun readMediaBase64(path: String?, maxBytes: Long, eventId: String): String {
+    val bytes = mediaFile(path, maxBytes, eventId).readBytes()
+    return android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+  }
+
+  /** The recorded file behind `path`, checked: present, under `filesDir`, within `maxBytes`. */
+  private fun mediaFile(path: String?, maxBytes: Long, eventId: String): File {
     if (path.isNullOrEmpty()) {
       throw McpException("NOVAGUARD_MEDIA_UNAVAILABLE", "Media for event $eventId unavailable", -32603)
     }
@@ -586,8 +632,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     if (canonical.length() > maxBytes) {
       throw McpException("NOVAGUARD_MEDIA_TOO_LARGE", "Media exceeds the ${maxBytes} byte maximum", -32603)
     }
-    val bytes = canonical.readBytes()
-    return android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+    return canonical
   }
 
   // ------------------------------------------------------------------ plumbing
