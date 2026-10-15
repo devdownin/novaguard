@@ -13,6 +13,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 - Seuil de confiance distinct pour les animaux (Réglages → Avancé), et une détection de quelques pixels ne peut plus ouvrir un enregistrement ; un sujet déjà suivi reste suivi en s’éloignant.
 
 ### Interface
+- Historique : une carte « Aujourd’hui » en tête — nombre de passages, heure du dernier, histogramme par heure (l’heure en cours en vert). La toucher filtre la liste sur aujourd’hui.
+- Les cartes de l’historique apparaissent en fondu, en cascade ; le compteur « Aujourd’hui » de l’écran Caméra défile jusqu’à sa nouvelle valeur. Les deux respectent « Supprimer les animations ».
 - Une couleur par état, partout où il se lit : vert quand la caméra veille, corail pendant un enregistrement, ambre sur une panne, gris à l’arrêt — pastille de statut, contour du viseur, onglet Caméra et bouton Arrêter.
 - La pastille de statut respire lentement en veille et bat pendant un enregistrement ; l’animation s’arrête si « Supprimer les animations » est activé dans Android.
 - Accent violet plus saturé, fond en dégradé avec un léger halo en haut, panneau de statut en relief.
