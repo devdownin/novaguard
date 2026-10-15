@@ -76,6 +76,17 @@ internal object McpCatalog {
         required = listOf("from", "to")
       )
     )
+    .put(
+      tool(
+        "get_event_frames",
+        "Returns JPEG stills sampled across an event's clip, as images you can look at: use it to see who or what was filmed. Frames are taken at the middle of equal slices of the clip. Falls back to the event's thumbnail when the clip is gone. Prefer this over the video resource, which most clients cannot read.",
+        JSONObject()
+          .put("eventId", longProp(0, McpRules.MAX_EVENT_ID, "Identifier of the event, as returned by the other tools."))
+          .put("count", intProp(1, McpRules.MAX_FRAMES, "How many frames. Defaults to ${McpRules.DEFAULT_FRAMES}."))
+          .put("maxEdge", intProp(160, 1280, "Longest side of each frame, in pixels. Defaults to ${McpFrames.DEFAULT_MAX_EDGE}.")),
+        required = listOf("eventId")
+      )
+    )
     .put(tool("get_storage", "Returns used, free and total bytes, plus event and clip counts.", JSONObject()))
     .put(
       tool(
@@ -197,6 +208,11 @@ internal object McpCatalog {
     "get_camera_info" to emptyMap(),
     // Ids are epoch milliseconds: an Int bound refused every event ever recorded.
     "get_event" to mapOf("eventId" to longRule(0, McpRules.MAX_EVENT_ID)),
+    "get_event_frames" to mapOf(
+      "eventId" to longRule(0, McpRules.MAX_EVENT_ID),
+      "count" to intRule(1, McpRules.MAX_FRAMES),
+      "maxEdge" to intRule(160, 1280)
+    ),
     "get_latest_events" to mapOf("kind" to stringRule(KINDS), "limit" to intRule(1, 20)),
     "get_statistics" to mapOf(
       "from" to stringRule(), "to" to stringRule(), "groupBy" to stringRule(GROUPS)
@@ -210,6 +226,7 @@ internal object McpCatalog {
 
   private val REQUIRED_ARGUMENTS: Map<String, List<String>> = mapOf(
     "get_event" to listOf("eventId"),
+    "get_event_frames" to listOf("eventId"),
     "get_statistics" to listOf("from", "to")
   )
 
@@ -235,7 +252,7 @@ internal object McpCatalog {
         list.put(resource("novaguard://thumbnail/${event.id}", "Thumbnail ${event.id}", "Still from event ${event.id}", "image/jpeg"))
       }
       if (event.hasVideo) {
-        list.put(resource("novaguard://video/${event.id}", "Video ${event.id}", "Clip recorded for event ${event.id}", "video/mp4"))
+        list.put(resource("novaguard://video/${event.id}", "Video ${event.id}", "Clip recorded for event ${event.id}; to look at it, call novaguard_get_event_frames", "video/mp4"))
       }
     }
     return list

@@ -42,6 +42,15 @@ public final class McpRulesTest {
     check(deadline.remainingMs(1_200) == 300 && !deadline.expired(1_499), "within budget");
     check(deadline.expired(1_500) && deadline.remainingMs(2_000) == 0, "past budget");
 
+    long[] four = McpRules.frameTimesUs(8_000, 4);
+    check(four.length == 4, "one time per frame asked");
+    check(four[0] == 1_000_000L && four[3] == 7_000_000L, "slice centres, in microseconds, never the very ends");
+    for (int i = 1; i < four.length; i++) check(four[i] > four[i - 1], "times increase");
+    check(McpRules.frameTimesUs(8_000, 50).length == McpRules.MAX_FRAMES, "count is capped");
+    check(McpRules.frameTimesUs(8_000, 0).length == 1, "at least one frame");
+    long[] unknown = McpRules.frameTimesUs(0, 4);
+    check(unknown.length == 1 && unknown[0] == 0L, "unknown duration: the first frame only");
+
     System.out.println("McpRulesTest passed");
   }
 }

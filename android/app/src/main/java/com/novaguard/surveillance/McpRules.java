@@ -66,6 +66,28 @@ public final class McpRules {
     }
   }
 
+  /** Frames one `get_event_frames` call may return, and the default. */
+  public static final int MAX_FRAMES = 8;
+  public static final int DEFAULT_FRAMES = 4;
+
+  /**
+   * Where to sample `count` frames in a clip of `durationMs`, in microseconds.
+   *
+   * The middle of each of `count` equal slices rather than the ends: a clip
+   * starts on the first sighting and stops on the last, so its first and last
+   * frames are the ones where the subject is least in view. A clip whose
+   * duration is unknown (0) gets one frame at its start, which always decodes.
+   */
+  public static long[] frameTimesUs(long durationMs, int count) {
+    int n = Math.max(1, Math.min(MAX_FRAMES, count));
+    if (durationMs <= 0) return new long[] {0L};
+    long[] times = new long[n];
+    for (int i = 0; i < n; i++) {
+      times[i] = (long) ((i + 0.5) * durationMs * 1000L / n);
+    }
+    return times;
+  }
+
   /**
    * Admission for connections, before anything is read from them.
    *

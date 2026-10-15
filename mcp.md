@@ -366,6 +366,27 @@ Returns safe camera diagnostics only:
 
 No camera-control operation exists.
 
+## 8.9 `novaguard.get_event_frames`
+
+Returns stills sampled across an event's clip, as MCP `image` content — the form a model actually looks at.
+
+Input:
+
+```json
+{
+  "type":"object",
+  "additionalProperties":false,
+  "required":["eventId"],
+  "properties":{
+    "eventId":{"type":"integer","minimum":0,"maximum":999999999999999},
+    "count":{"type":"integer","minimum":1,"maximum":8},
+    "maxEdge":{"type":"integer","minimum":160,"maximum":1280}
+  }
+}
+```
+
+Output: a `text` block `{"eventId","source":"video"|"thumbnail","frames":[{"index","offsetSeconds"}]}`, then one `image/jpeg` block per frame. Frames sit at the middle of `count` equal slices of the clip (default 4, longest side default 768 px), decoded already scaled, one extraction at a time. Without a clip, the event's thumbnail is returned; without either, the result carries `isError` and `NOVAGUARD_MEDIA_UNAVAILABLE`.
+
 # 9. MCP Resources
 
 URI scheme:
@@ -426,10 +447,12 @@ get_event
       ↓
 metadata + resource URI
       ↓
-client explicitly requests media
+get_event_frames to look at it   (images in the tool result)
       ↓
-video/thumbnail fetched
+video resource only to hand the file on
 ```
+
+The video resource carries the whole MP4 as base64 and is capped at 20 MB on the device; most clients cannot read it. Analysis goes through `get_event_frames`.
 
 A video resource MUST:
 
