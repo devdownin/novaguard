@@ -24,6 +24,14 @@ tool() {  # tool <jeton> <outil sans préfixe> [arguments JSON]
 }
 ```
 
+## Historique
+
+- [ ] « Exporter comme preuve » sur un passage de plusieurs clips : le sélecteur propose
+      tous les clips et `NovaGuard_AAAA-MM-JJ_HH-MM.txt` ; envoyés à soi-même (Gmail, Fichiers),
+      `sha256sum` de chaque clip reçu donne l'empreinte du rapport.
+- [ ] Relancer l'application après un export : le rapport n'a pas été supprimé par le balayage
+      (il vit dans `recordings/exports/`), et le passage est intact.
+
 ## Surveillance
 
 - [ ] **Image noire** : masquer l'objectif 5 s → statut « Image noire » au viseur
