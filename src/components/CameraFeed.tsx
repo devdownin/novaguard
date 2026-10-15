@@ -15,7 +15,7 @@ import { useDetectionModel } from '../camera/useDetectionModel';
 import { interpretDetections } from '../ml/interpretDetections';
 import { letterboxFor, letterboxInto } from '../ml/letterbox';
 import { analysisCropFor, cropInBuffer } from '../ml/analysisCrop';
-import { liftShadows } from '../ml/lowLight';
+import { liftShadows, sceneSample } from '../ml/lowLight';
 import { SENSITIVITY_PROFILES } from '../ml/sensitivity';
 import { tunedSettings } from '../camera/autoTune';
 import { frameErrorMessage } from '../camera/frameErrors';
@@ -196,8 +196,9 @@ export function CameraFeed({
     faces: DetectionBox[],
     frameAspect: number,
     capturedAt?: number,
+    scene?: number[],
   ) => {
-    reportDetections(detections, frameAspect, capturedAt);
+    reportDetections(detections, frameAspect, capturedAt, scene);
     if (!onFrame) return;
     const persons = detections
       .filter(d => d.kind === 'Personne')
@@ -358,6 +359,9 @@ export function CameraFeed({
           dataType: 'uint8',
         });
         const input = letterboxInto(resized, inner, inputSize, MODEL_INPUT_CHANNELS);
+        // Sampled before brightening: the tamper watch needs the frame as the
+        // sensor gave it, a black one included (see `tamper.ts`).
+        const scene = sceneSample(input, inner.width, inner.height, inputSize, MODEL_INPUT_CHANNELS);
         // A dark frame is brightened for the model only, never for the file
         // (see `lowLight.ts`); a daylight one costs a sampling pass.
         liftShadows(input, inner.width, inner.height, inputSize, MODEL_INPUT_CHANNELS);
@@ -423,7 +427,7 @@ export function CameraFeed({
         }
 
         onFrameStage('report');
-        onJsFrame(detections, faces, aspect, capturedAt);
+        onJsFrame(detections, faces, aspect, capturedAt, scene);
 
       } catch (e) {
         // Plain property access, no `instanceof`: the worklet runtime is not

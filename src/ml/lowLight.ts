@@ -70,3 +70,37 @@ export function liftShadows(input: Uint8Array, width: number, height: number, si
   }
   return gamma;
 }
+
+/** Cells per side of the scene signature handed to the tamper watch. */
+export const SCENE_GRID = 8;
+
+/**
+ * The scene as the JS side watches it: `[mean luma, ...SCENE_GRID² cell means]`,
+ * taken from the model input *before* it is brightened. A flat array of
+ * numbers, because that is what crosses back from the worklet runtime intact.
+ */
+export function sceneSample(input: Uint8Array, width: number, height: number, size: number, channels: number): number[] {
+  'worklet';
+  const cells = SCENE_GRID * SCENE_GRID;
+  const sums: number[] = [];
+  const counts: number[] = [];
+  for (let i = 0; i < cells; i++) { sums.push(0); counts.push(0); }
+  let total = 0;
+  let n = 0;
+  for (let y = 0; y < height; y += SAMPLE_STEP) {
+    const row = y * size * channels;
+    const cellRow = Math.floor((y * SCENE_GRID) / height) * SCENE_GRID;
+    for (let x = 0; x < width; x += SAMPLE_STEP) {
+      const i = row + x * channels;
+      const v = 0.299 * input[i] + 0.587 * input[i + 1] + 0.114 * input[i + 2];
+      const cell = cellRow + Math.floor((x * SCENE_GRID) / width);
+      sums[cell] += v;
+      counts[cell]++;
+      total += v;
+      n++;
+    }
+  }
+  const out: number[] = [n > 0 ? total / n : 0];
+  for (let i = 0; i < cells; i++) out.push(counts[i] > 0 ? sums[i] / counts[i] : 0);
+  return out;
+}

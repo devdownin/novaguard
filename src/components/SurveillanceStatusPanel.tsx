@@ -15,6 +15,7 @@ export function SurveillanceStatusPanel() {
     perms,
     monitoring,
     retryCapture,
+    acknowledgeMove,
     grantPermission,
     openCaptureSettings,
     openStorageSettings,
@@ -30,6 +31,11 @@ export function SurveillanceStatusPanel() {
       }
     : status === 'storage-insufficient'
     ? { label: t('surv.action.storage'), press: openStorageSettings }
+    : status === 'camera-moved'
+    ? { label: t('surv.action.moved'), press: acknowledgeMove }
+    // Nothing to retry: the camera works, it just sees nothing.
+    : status === 'camera-obstructed'
+    ? null
     : fault && monitoring
     ? { label: t('surv.action.retry'), press: retryCapture }
     : null;
@@ -80,6 +86,10 @@ export function SurveillanceStatusPanel() {
               ? 'surv.recovery.camera'
               : status === 'storage-insufficient'
               ? 'surv.recovery.storage'
+              : status === 'camera-obstructed'
+              ? 'surv.recovery.obstructed'
+              : status === 'camera-moved'
+              ? 'surv.recovery.moved'
               : 'surv.recovery.retry',
           )}
         </Text>

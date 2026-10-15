@@ -347,6 +347,8 @@ tourné en a un autre — `viewBoxToUprightBox` convertit une fois, à l'entrée
 
 **Une image sombre est éclaircie pour le modèle, jamais pour le fichier.** `liftShadows` (`lowLight.ts`) applique une courbe gamma à l'entrée du modèle quand sa luminance moyenne passe sous `DARK_MEAN`, et rien sous `MIN_MEAN` : amplifier du bruit en formes, c'est une pièce noire qui se met à filmer.
 
+**Une caméra masquée ressemble à une pièce vide.** Rien n'est détecté dans les deux cas, et c'est précisément ce que l'application affiche quand tout va bien. `tamper.ts` lit l'échantillon de scène que l'analyse prend **avant** l'éclaircissement (`sceneSample` : luminance moyenne et grille 8×8) : noir sous `MIN_MEAN` pendant 5 s, c'est « Image noire » — une pièce éteinte est le même angle mort, et nommée comme tel ; une grille qui cesse d'être corrélée à la référence pendant 8 s **sans piste confirmée**, c'est « Champ de vue modifié ». Corrélation et non différence, et référence qui dérive lentement, pour que le crépuscule ne compte pas ; personne suivi, parce qu'un visiteur change la scène en étant là. Le changement est verrouillé jusqu'à « C'est voulu » ou une relance : un téléphone tourné l'est encore après l'alerte. Les deux ont leur propre propriétaire, comme capture et détection, et aucun « Réessayer » : la caméra marche, elle ne voit rien.
+
 **Dessiner la zone fait tourner la caméra sans que ce soit de la surveillance.**
 L'éditeur a besoin de l'image à laquelle la zone s'applique, donc `active` vaut
 aussi vrai pour lui. Deux gardes vont avec, et aucune n'est optionnelle :

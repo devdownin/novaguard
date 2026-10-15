@@ -6,6 +6,7 @@ import { useAppState } from '../state/AppStateContext';
 import { Permissions } from '../state/types';
 import { SolidAccentButton } from './OutlineButton';
 import { StringKey, t } from '../i18n';
+import { ShieldLogo } from './ShieldLogo';
 
 const STEPS: { n: string; title: StringKey; body: StringKey }[] = [
   { n: '1', title: 'onb.step1', body: 'onb.step1.body' },
@@ -48,6 +49,7 @@ export function OnboardingModal() {
         >
           {onb === 'intro' && (
             <View>
+              <View style={styles.logo}><ShieldLogo size={44} /></View>
               <Text style={styles.kicker}>{t('onb.welcome')}</Text>
               <Text style={styles.headline}>{t('onb.headline')}</Text>
               <View style={styles.stepsContainer}>
@@ -151,6 +153,7 @@ const styles = StyleSheet.create({
     backgroundColor: color.surface,
     ...shadow.lg,
   },
+  logo: { marginBottom: 12 },
   kicker: {
     fontFamily: font.regular,
     fontSize: 11,

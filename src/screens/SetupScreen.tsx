@@ -341,6 +341,9 @@ export function SetupScreen() {
           >
             <Switch value={settings.forceCpu} onValueChange={s.toggleForceCpu} accessibilityLabel={t('setup.forceCpu')} />
           </SettingRow>
+          <SettingRow label={t('setup.calibration')} subtitle={t('setup.calibration.sub')}>
+            <Switch value={settings.calibration} onValueChange={s.toggleCalibration} accessibilityLabel={t('setup.calibration')} />
+          </SettingRow>
           <SettingRow label={t('setup.autoTuneSwitch')} subtitle={t('setup.autoTuneSwitch.sub')}>
             <Switch
               value={settings.autoTune}

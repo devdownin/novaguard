@@ -3,6 +3,14 @@ import { StyleSheet, Text, View } from 'react-native';
 import { color, font, MAX_FONT_SCALE } from '../theme';
 import { useViewfinderState } from '../state/AppStateContext';
 import { uprightBoxToViewBox } from '../camera/framing';
+import { ProbeState } from '../ml/calibration';
+import { StringKey, t } from '../i18n';
+
+const PROBE_LABEL: Record<ProbeState, StringKey> = {
+  pending: 'calib.pending',
+  scenery: 'calib.scenery',
+  below: 'calib.below',
+};
 
 /**
  * The per-frame half of the viewfinder: one box per confirmed subject.
@@ -13,12 +21,33 @@ import { uprightBoxToViewBox } from '../camera/framing';
  * touches.
  */
 export function DetectionOverlay({ viewWidth, viewHeight }: { viewWidth: number; viewHeight: number }) {
-  const { tracks, primaryTrackId, frameAspect } = useViewfinderState();
+  const { tracks, probes, primaryTrackId, frameAspect } = useViewfinderState();
 
   if (viewWidth <= 0) return null;
 
   return (
     <>
+      {probes.map(probe => {
+        const viewBox = uprightBoxToViewBox(probe.box, frameAspect, viewWidth, viewHeight);
+        return (
+          <View
+            key={probe.key}
+            testID={`probe-${probe.state}`}
+            pointerEvents="none"
+            style={[styles.detBox, styles.probeBox, {
+              left: `${viewBox.x * 100}%`,
+              top: `${viewBox.y * 100}%`,
+              width: `${viewBox.width * 100}%`,
+              height: `${viewBox.height * 100}%`,
+            }]}
+          >
+            <View style={[styles.detLabelChip, styles.probeChip]}>
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.probeText}>{t(PROBE_LABEL[probe.state])}</Text>
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.detConfText}>{Math.round(probe.confidence * 100)} %</Text>
+            </View>
+          </View>
+        );
+      })}
       {tracks.map(track => {
         const viewBox = uprightBoxToViewBox(track.box, frameAspect, viewWidth, viewHeight);
         const isPrimary = track.id === primaryTrackId;
@@ -75,6 +104,20 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(22,24,38,0.82)',
     borderWidth: 1,
     borderColor: color.accent700,
+  },
+  // Dashed and neutral: seen by the detector, not followed by the app.
+  probeBox: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: color.neutral500,
+  },
+  probeChip: {
+    borderColor: color.neutral700,
+  },
+  probeText: {
+    fontFamily: font.medium,
+    fontSize: 10.5,
+    color: color.neutral300,
   },
   detLabelChipSecondary: {
     opacity: 0.75,

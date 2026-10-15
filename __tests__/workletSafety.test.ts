@@ -186,6 +186,7 @@ describe('worklet closures', () => {
       ['liftShadows', lowLight.liftShadows],
       ['meanLuma', lowLight.meanLuma],
       ['gammaFor', lowLight.gammaFor],
+      ['sceneSample', lowLight.sceneSample],
     ] as const) {
       expect(`${name}: ${typeof fn.__workletHash}`).toBe(`${name}: number`);
     }
@@ -254,6 +255,7 @@ describe('the compiled analysis worklet', () => {
       letterboxFor: () => inner,
       cropInBuffer: (x: number, y: number, width: number, height: number) => ({ x, y, width, height }),
       liftShadows: () => 1,
+      sceneSample: () => [],
       cropX: 0,
       cropY: 0,
       cropWidth: 1,

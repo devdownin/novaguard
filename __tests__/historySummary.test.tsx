@@ -9,6 +9,8 @@ import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppStateProvider, useAppState } from '../src/state/AppStateContext';
 import { DaySummaryCard } from '../src/components/DaySummaryCard';
+import { QuietNightIllustration } from '../src/components/QuietNightIllustration';
+import { t } from '../src/i18n';
 import { HistoryScreen } from '../src/screens/HistoryScreen';
 import { DetectionEvent } from '../src/state/types';
 
@@ -57,7 +59,18 @@ it('summarises the whole day whatever the filter, and narrows the list to today 
   expect(state.filter).toBe('Toutes');
 });
 
-it('is not shown before anything was ever filmed', async () => {
+it('is not shown before anything was ever filmed; the illustrated empty state leads to the camera', async () => {
   await show([]);
   expect(cards()).toHaveLength(0);
+  expect(renderer.root.findAllByType(QuietNightIllustration)).toHaveLength(1);
+  const open = renderer.root.findAll(node => node.props.accessibilityRole === 'button' && typeof node.props.onPress === 'function'
+    && node.findAll(child => child.props.children === t('hist.empty.never.action')).length > 0)[0];
+  await ReactTestRenderer.act(async () => { open.props.onPress(); });
+  expect(state.tab).toBe('cam');
+});
+
+it('keeps the illustration for a history that was never filmed, not for a filter that hides it', async () => {
+  await show([clip(1, new Date(2026, 9, 15, 9, 0).getTime(), 'Animal')]);
+  await ReactTestRenderer.act(async () => { state.setFilter('Personnes'); });
+  expect(renderer.root.findAllByType(QuietNightIllustration)).toHaveLength(0);
 });
