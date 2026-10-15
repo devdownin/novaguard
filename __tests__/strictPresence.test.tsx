@@ -132,8 +132,10 @@ it('recovers from the first sighting, before confirmation, and closes at the las
   await frame(h, 333, [person]);
   expect(native.begin).toHaveBeenCalledWith(expect.any(Number), T0, 120_000);
   await frame(h, 666, []);
+  expect(native.end).not.toHaveBeenCalled();
+  await frame(h, 1600, []);
+  // The tracker's grace decides when the subject is gone, never where the file ends.
   expect(native.end).toHaveBeenCalledWith(currentId(), T0 + 333);
-  // No grace period or post-roll is required before the stop request.
   expect(h.state.det).toBeNull();
   await clip(false);
   expect(h.state.events).toHaveLength(1);
@@ -146,6 +148,8 @@ it('continues until the last of several persons or animals disappears', async ()
   expect(native.end).not.toHaveBeenCalled();
   expect(native.observe).toHaveBeenLastCalledWith(currentId(), T0 + 666);
   await frame(h, 999, []);
+  expect(native.end).not.toHaveBeenCalled();
+  await frame(h, 2000, []);
   expect(native.end).toHaveBeenCalledWith(currentId(), T0 + 666);
 });
 it('files native segments without restarting or stopping the encoder', async () => {
@@ -164,13 +168,26 @@ it('retries an asynchronous native start failure with the presence still visible
   await frame(h, 1400, [person]);
   expect(native.begin).toHaveBeenCalledTimes(2);
 });
-it('does not include an absence when an existing track reappears', async () => {
+it('bridges a missed look while the tracker still holds the subject, in one recording', async () => {
   const h = await watch();
   await frame(h, 0, [person]); await frame(h, 333, [person]);
-  await frame(h, 666, []); await clip(false);
+  await frame(h, 666, []);
   await frame(h, 900, [person]);
-  expect(native.begin).toHaveBeenLastCalledWith(expect.any(Number), T0 + 900, 120_000);
-  expect(currentId()).not.toBe(native.begin.mock.calls[0][0]);
+  expect(native.end).not.toHaveBeenCalled();
+  expect(native.begin).toHaveBeenCalledTimes(1);
+  expect(native.observe).toHaveBeenLastCalledWith(currentId(), T0 + 900);
+  expect(h.state.det).toBe('Personne');
+});
+it('does not include an absence once the tracker has let the subject go', async () => {
+  const h = await watch();
+  await frame(h, 0, [person]); await frame(h, 333, [person]);
+  const firstId = currentId();
+  await frame(h, 666, []); await frame(h, 1600, []);
+  expect(native.end).toHaveBeenCalledWith(firstId, T0 + 333);
+  await clip(false);
+  await frame(h, 2000, [person]); await frame(h, 2333, [person]);
+  expect(native.begin).toHaveBeenLastCalledWith(expect.any(Number), T0 + 2000, 120_000);
+  expect(currentId()).not.toBe(firstId);
 });
 it('ignores residual detections after the user stops surveillance', async () => {
   const h = await watch();
@@ -205,8 +222,8 @@ it('opens the next presence while the previous file is still finalising', async 
   const h = await watch();
   await frame(h, 0, [person]); await frame(h, 333, [person]);
   const firstId = currentId();
-  await frame(h, 666, []);
-  await frame(h, 900, [person]);
+  await frame(h, 666, []); await frame(h, 1600, []);
+  await frame(h, 1700, [person]); await frame(h, 2000, [person]);
   const secondId = currentId();
   expect(secondId).not.toBe(firstId);
   expect(native.begin).toHaveBeenCalledTimes(2);
@@ -246,8 +263,8 @@ it('persists one passage identity across native segments and a different one for
   expect(first).toBeTruthy();
   expect(h.state.events[1].passageId).toBe(first);
   expect(h.state.events[0].kinds).toEqual(['Personne', 'Animal']);
-  await frame(h, 666, []); await clip(false, '/clips/C.mp4');
-  await frame(h, 999, [person]); await frame(h, 1333, [person]);
+  await frame(h, 666, []); await frame(h, 1600, []); await clip(false, '/clips/C.mp4');
+  await frame(h, 2000, [person]); await frame(h, 2333, [person]);
   await clip(true, '/clips/D.mp4');
   expect(h.state.events[0].passageId).not.toBe(first);
   const saved = JSON.parse((await AsyncStorage.getItem('@novaguard:events:v2'))!);

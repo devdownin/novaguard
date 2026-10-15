@@ -30,7 +30,7 @@ export const fr = {
   'setup.presenceMode': 'Mode de capture',
   'setup.mode.strict': 'Présence stricte',
   'setup.mode.tolerant': 'Avec tolérance',
-  'setup.mode.strict.sub': 'Coupe dès que la présence n’est plus détectée.',
+  'setup.mode.strict.sub': 'Coupe à la dernière détection, dès que le sujet est parti.',
   'setup.mode.tolerant.sub': 'Évite les coupures lors d’une brève détection manquée. Inclut des images sans présence pendant la marge.',
   'setup.post.legacy': 'Ancien délai conservé : cette marge commence après la disparition du suivi (jusqu’à 1,2 s supplémentaires).',
   'error.storage': 'Espace insuffisant pour enregistrer',
