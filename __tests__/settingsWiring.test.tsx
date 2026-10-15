@@ -106,6 +106,7 @@ it('writes each control back to disk', async () => {
     state.toggleAutoTune();
     state.toggleForceCpu();
     state.toggleCalibration();
+    state.toggleMcpControl();
     state.toggleAutoDel();
     state.toggleNotif();
     state.toggleNotifDet();
@@ -130,6 +131,7 @@ it('writes each control back to disk', async () => {
     autoTune: !defaultSettings.autoTune,
     forceCpu: !defaultSettings.forceCpu,
     calibration: !defaultSettings.calibration,
+    mcpControlEnabled: !defaultSettings.mcpControlEnabled,
     autoDel: !defaultSettings.autoDel,
     notif: !defaultSettings.notif,
     notifDet: !defaultSettings.notifDet,

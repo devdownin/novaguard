@@ -1,4 +1,4 @@
-import { NativeModules } from 'react-native';
+import { NativeEventEmitter, NativeModules } from 'react-native';
 import type { DetectionEvent, Settings, StorageInfo } from '../state/types';
 import type { SurveillanceStatus } from './status';
 import { keptEventIds } from '../recording/library';
@@ -120,10 +120,39 @@ export function buildMcpSnapshot(input: McpSnapshotInput): string {
   });
 }
 
-export async function startMcpServer(port: number, token: string): Promise<McpServerStatus> {
+/**
+ * `controlToken` is honoured only while `controlEnabled`: the device switch is
+ * what grants control, the token only says who holds it.
+ */
+export async function startMcpServer(
+  port: number, token: string, controlToken = '', controlEnabled = false,
+): Promise<McpServerStatus> {
   const module = nativeModule();
   if (!module) return { ...MCP_SERVER_STOPPED, port };
-  return module.startServer(port, token);
+  return module.startServer(port, token, controlToken, controlEnabled);
+}
+
+/** A control call the native server is waiting on (see `McpServerModule.runCommand`). */
+export interface McpCommandRequest {
+  id: string;
+  command: string;
+  /** JSON object, already validated against the advertised schema. */
+  args: string;
+}
+
+/**
+ * Subscribes to control calls. The native side holds the HTTP request open
+ * until `resolveMcpCommand` answers it, or gives up after a few seconds.
+ */
+export function onMcpCommand(handler: (request: McpCommandRequest) => void): () => void {
+  const module = nativeModule();
+  if (!module) return () => {};
+  const subscription = new NativeEventEmitter(module).addListener('McpCommand', handler);
+  return () => subscription.remove();
+}
+
+export function resolveMcpCommand(id: string, outcomeJson: string): void {
+  nativeModule()?.resolveCommand?.(id, outcomeJson);
 }
 
 export async function stopMcpServer(): Promise<boolean> {

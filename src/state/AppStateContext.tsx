@@ -46,8 +46,11 @@ import {
 } from '../surveillance/localStreamServer';
 import {
   McpServerStatus, MCP_SERVER_STOPPED, generateMcpToken as mintMcpToken,
-  getMcpServerStatus, pushMcpSnapshot, startMcpServer, stopMcpServer,
+  getMcpServerStatus, onMcpCommand, pushMcpSnapshot, resolveMcpCommand, startMcpServer, stopMcpServer,
 } from '../surveillance/mcpServer';
+import { executeMcpCommand } from '../surveillance/mcpCommands';
+import { AGENT_LOG_KEY, AgentAction, appendAgentAction, parseAgentLog } from '../surveillance/agentLog';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { alertContent, passageIdFromUrl, shouldAlert } from '../surveillance/alerts';
 import { installFrameErrorGuard } from '../camera/frameErrorGuard';
 import { FRAME_ERROR_PREFIX } from '../camera/frameErrors';
@@ -225,6 +228,11 @@ interface AppStateValue {
   toggleMcpServer: () => void;
   generateMcpToken: () => void;
   clearMcpToken: () => void;
+  toggleMcpControl: () => void;
+  generateMcpControlToken: () => void;
+  clearMcpControlToken: () => void;
+  /** Control calls made by agents, newest first (`agentLog.ts`). */
+  agentLog: AgentAction[];
   /** Live state of the native MCP server, or MCP_SERVER_STOPPED when it is off. */
   mcpStatus: McpServerStatus;
   /** Sound and vibration live in Android's channel settings, not here. */
@@ -1596,6 +1604,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     () => events.find(e => e.id === selected) ?? null,
     [events, selected],
   );
+  /** Keeps or releases the whole passage `eventId` belongs to, as the detail sheet does. */
+  const setKept = useCallback((eventId: number, kept: boolean) => {
+    setEvents(evs => {
+      const passageId = evs.find(e => e.id === eventId)?.passageId;
+      return evs.map(e => (e.id === eventId || (passageId != null && e.passageId === passageId)) ? { ...e, kept } : e);
+    });
+  }, []);
+
   const toggleKeep = useCallback(() => {
     if (!selectedEvent) return;
     const keep = !keptEventIds(events).has(selectedEvent.id);
@@ -1728,13 +1744,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hydrated) return;
     if (settings.mcpEnabled) {
-      startMcpServer(settings.mcpPort, settings.mcpToken).then(setMcpStatus).catch(() => {
+      startMcpServer(settings.mcpPort, settings.mcpToken, settings.mcpControlToken, settings.mcpControlEnabled).then(setMcpStatus).catch(() => {
         setMcpStatus({ ...MCP_SERVER_STOPPED, port: settings.mcpPort });
       });
     } else {
       stopMcpServer().then(() => setMcpStatus({ ...MCP_SERVER_STOPPED, port: settings.mcpPort }));
     }
-  }, [hydrated, settings.mcpEnabled, settings.mcpPort, settings.mcpToken]);
+  }, [hydrated, settings.mcpEnabled, settings.mcpPort, settings.mcpToken, settings.mcpControlToken, settings.mcpControlEnabled]);
 
   /**
    * The last time a client actually asked something.
@@ -1755,6 +1771,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const clearMcpToken = useCallback(() => {
     patchSettings({ mcpToken: '' });
+  }, [patchSettings]);
+
+  const toggleMcpControl = useCallback(() => {
+    patchSettings({ mcpControlEnabled: !settings.mcpControlEnabled });
+  }, [patchSettings, settings.mcpControlEnabled]);
+  const generateMcpControlToken = useCallback(() => {
+    mintMcpToken().then(mcpControlToken => patchSettings({ mcpControlToken }));
+  }, [patchSettings]);
+  const clearMcpControlToken = useCallback(() => {
+    patchSettings({ mcpControlToken: '' });
   }, [patchSettings]);
 
   const [localStreamStatus, setLocalStreamStatus] = useState<LocalServerStatus>({
@@ -1930,6 +1956,41 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     hasFrame: sawFrame, ready: recorder.isReady ?? true,
   });
   /**
+   * Control calls from an agent, executed with the same callbacks the screens
+   * use and answered back to the native server, which holds the request open.
+   *
+   * Read through a ref: the subscription is made once per server lifetime, and
+   * the state it acts on — monitoring, settings, the history — is the state at
+   * the moment of the call, not at the moment of subscribing.
+   */
+  const [agentLog, setAgentLog] = useState<AgentAction[]>([]);
+  const agentLogRef = useRef<AgentAction[]>([]);
+  useEffect(() => {
+    AsyncStorage.getItem(AGENT_LOG_KEY).then(raw => {
+      agentLogRef.current = parseAgentLog(raw);
+      setAgentLog(agentLogRef.current);
+    }, () => {});
+  }, []);
+  const commandDepsRef = useLatest({
+    monitoring, foreground, cameraPermission: perms.cam, status: surveillanceStatus, settings, events,
+    toggleMonitoring, setSensitivity, setThreshold, setAnimalThreshold, setKept, acknowledgeMove: acknowledgeMoveCb,
+  });
+  useEffect(() => {
+    if (!hydrated || !settings.mcpEnabled || !settings.mcpControlEnabled) return;
+    return onMcpCommand(({ id, command, args }) => {
+      let parsed: Record<string, unknown> = {};
+      try { parsed = JSON.parse(args) ?? {}; } catch {}
+      const outcome = executeMcpCommand(command, parsed, commandDepsRef.current);
+      resolveMcpCommand(id, JSON.stringify(outcome));
+      agentLogRef.current = appendAgentAction(agentLogRef.current, {
+        at: Date.now(), command, ok: outcome.ok, changed: outcome.ok && outcome.changed,
+      });
+      setAgentLog(agentLogRef.current);
+      AsyncStorage.setItem(AGENT_LOG_KEY, JSON.stringify(agentLogRef.current)).catch(() => {});
+    });
+  }, [hydrated, settings.mcpEnabled, settings.mcpControlEnabled, commandDepsRef]);
+
+  /**
    * Hands the server what it answers from.
    *
    * On the history and the settings, never on a frame: the detection path
@@ -1981,7 +2042,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo,
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
@@ -1993,7 +2054,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo, onb, perms, onbNext, onbFinish, grantPermission,
   ]);
 

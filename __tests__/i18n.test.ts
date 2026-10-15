@@ -49,6 +49,8 @@ describe('the two catalogues', () => {
       'info.perm.mic',
       'info.perm.notif',
       'info.perms',
+      // Placeholders and separators only.
+      'setup.agentLog.entry',
       'setup.license',
       'setup.privacy.perms',
       'setup.section.not',

@@ -198,6 +198,13 @@ export interface Settings {
   mcpEnabled: boolean;
   mcpPort: number;
   mcpToken: string;
+  /**
+   * Lets an agent holding `mcpControlToken` start and stop surveillance, change
+   * sensitivity and thresholds, keep a passage and acknowledge an alert. Off by
+   * default; nothing destructive is ever reachable (see `mcpCommands.ts`).
+   */
+  mcpControlEnabled: boolean;
+  mcpControlToken: string;
   exp: ExpandedSections;
 }
 

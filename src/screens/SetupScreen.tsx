@@ -20,6 +20,7 @@ import { PrimaryOutlineButton, SecondaryOutlineButton } from '../components/Outl
 import { ShieldCheckIcon } from '../components/icons';
 import { StringKey, t, tValue } from '../i18n';
 import { useLandscape } from '../utils/useLandscape';
+import { formatWhen } from '../utils/date';
 import { devicePositionFor, physicalDeviceFilterFor } from '../camera/deviceSelection';
 
 // Labels translated, values not: the variants are written to disk. See the
@@ -70,13 +71,18 @@ export function SetupScreen() {
     setTimeout(() => setCopiedLabel(null), 2000);
   };
 
+  const controlActive = settings.mcpControlEnabled && settings.mcpControlToken.length > 0;
+  const clientToken = controlActive ? settings.mcpControlToken : settings.mcpToken;
+
   const getMcpJsonConfig = () => {
     return JSON.stringify(
       {
         mcpServers: {
           novaguard: {
             url: mcpServerUrl,
-            headers: settings.mcpToken ? { Authorization: `Bearer ${settings.mcpToken}` } : {},
+            // The control token grants reading too, so a client set up for
+            // control needs only that one.
+            headers: clientToken ? { Authorization: `Bearer ${clientToken}` } : {},
           },
         },
       },
@@ -417,8 +423,63 @@ export function SetupScreen() {
           </SettingRow>
 
           <SettingRow label={t('setup.mcpMode')}>
-            <StaticValue label={t('setup.mcpMode.readOnly')} />
+            <StaticValue label={t(controlActive ? 'setup.mcpMode.control' : 'setup.mcpMode.readOnly')} />
           </SettingRow>
+
+          <SettingRow label={t('setup.mcpControl')} subtitle={t('setup.mcpControl.sub')}>
+            <Switch
+              value={settings.mcpControlEnabled}
+              onValueChange={s.toggleMcpControl}
+              accessibilityLabel={t('setup.mcpControl')}
+            />
+          </SettingRow>
+
+          {settings.mcpControlEnabled ? (
+            <>
+              <SettingRow label={t('setup.mcpControlToken')}>
+                <StaticValue
+                  label={settings.mcpControlToken
+                    ? `mcp_••••••••${settings.mcpControlToken.slice(-4)}`
+                    : t('setup.mcpControlToken.none')}
+                />
+              </SettingRow>
+              <View style={[styles.subBlock, styles.aboutButtonsRow]}>
+                <SecondaryOutlineButton
+                  label={t('setup.mcpControlToken.generate')}
+                  onPress={s.generateMcpControlToken}
+                  style={styles.flex1}
+                />
+                {settings.mcpControlToken ? (
+                  <>
+                    <SecondaryOutlineButton
+                      label={copiedLabel === 'controlToken' ? t('setup.mcpCopy.copied') : t('setup.mcpCopy.token')}
+                      onPress={() => copyToClipboard(settings.mcpControlToken, 'controlToken')}
+                      style={styles.flex1}
+                    />
+                    <SecondaryOutlineButton
+                      label={t('setup.mcpToken.clear')}
+                      onPress={s.clearMcpControlToken}
+                      style={styles.flex1}
+                    />
+                  </>
+                ) : null}
+              </View>
+              <View style={styles.subBlock} testID="agent-log">
+                <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.subLabel}>{t('setup.agentLog')}</Text>
+                {s.agentLog.length === 0 ? (
+                  <Text style={styles.hint}>{t('setup.agentLog.empty')}</Text>
+                ) : s.agentLog.slice(0, 5).map(entry => (
+                  <Text key={`${entry.at}-${entry.command}`} style={styles.hint}>
+                    {t('setup.agentLog.entry', {
+                      time: formatWhen(entry.at),
+                      command: entry.command,
+                      outcome: t(!entry.ok ? 'setup.agentLog.refused' : entry.changed ? 'setup.agentLog.done' : 'setup.agentLog.unchanged'),
+                    })}
+                  </Text>
+                ))}
+              </View>
+            </>
+          ) : null}
 
           <SettingRow label={t('setup.mcpPort')}>
             <StaticValue label={String(settings.mcpPort)} />
