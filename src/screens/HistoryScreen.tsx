@@ -10,6 +10,9 @@ import { CloseIcon, TrashIcon } from '../components/icons';
 import { PrimaryOutlineButton, SecondaryOutlineButton, TextButton } from '../components/OutlineButton';
 import { historyRows, keptEventIds } from '../recording/library';
 import { groupPassages } from '../recording/passages';
+import { daySummary } from '../recording/daySummary';
+import { DaySummaryCard } from '../components/DaySummaryCard';
+import { FadeInView } from '../components/FadeInView';
 import { formatDay } from '../utils/date';
 import { useLandscape } from '../utils/useLandscape';
 import { t, tn } from '../i18n';
@@ -77,11 +80,14 @@ export function HistoryScreen() {
   // A card is wide and short: one per line wastes most of a landscape window.
   const perRow = landscape ? 2 : 1;
   const kept = useMemo(() => keptEventIds(events), [events]);
+  const allPassages = useMemo(() => groupPassages(events), [events]);
+  // Today counts every passage, whatever the filter: it is the day, not the list.
+  const today = useMemo(() => daySummary(allPassages, Date.now()), [allPassages]);
   const passages = useMemo(() => {
     const matched = new Set(shown.map(event => event.id));
-    return groupPassages(events).filter(passage => passage.events.some(event => matched.has(event.id)) &&
+    return allPassages.filter(passage => passage.events.some(event => matched.has(event.id)) &&
       (filter === 'Toutes' || passage.kinds.includes(filter === 'Personnes' ? 'Personne' : 'Animal')));
-  }, [events, shown, filter]);
+  }, [allPassages, shown, filter]);
   const byEvent = useMemo(() => new Map(passages.map(passage => [passage.summary.id, passage])), [passages]);
   const rows = useMemo(() => historyRows(passages.map(passage => passage.summary), perRow), [passages, perRow]);
 
@@ -106,6 +112,11 @@ export function HistoryScreen() {
   const deletePicked = useCallback(() => {
     askDeleteMany([...picked].flatMap(id => byEvent.get(id)?.events.map(e => e.id) ?? []));
   }, [askDeleteMany, byEvent, picked]);
+
+  const showToday = useCallback(() => {
+    setFilter('Toutes');
+    setPeriod("Aujourd'hui");
+  }, [setFilter, setPeriod]);
 
   const resetFilters = useCallback(() => {
     setFilter('Toutes');
@@ -160,12 +171,13 @@ export function HistoryScreen() {
         data={rows}
         keyExtractor={row => row.key}
         contentContainerStyle={styles.list}
-        renderItem={({ item }) => (item.kind === 'day'
+        ListHeaderComponent={events.length > 0 ? <DaySummaryCard summary={today} onPress={showToday} /> : null}
+        renderItem={({ item, index }) => (item.kind === 'day'
           ? <Text style={styles.dayHeading}>{formatDay(item.day)}</Text>
           : (
             <View style={styles.row}>
               {item.events.map(event => (
-                <View key={event.id} style={styles.cell}>
+                <FadeInView key={event.id} index={index} style={styles.cell}>
                   <EventCard
                     event={event}
                     passage={byEvent.get(event.id)}
@@ -174,7 +186,7 @@ export function HistoryScreen() {
                     onPress={() => (picking ? togglePick(event.id) : selectEvent(event.id))}
                     onLongPress={() => togglePick(event.id)}
                   />
-                </View>
+                </FadeInView>
               ))}
               {/* Keeps a lone last card the width of a column instead of
                   letting it stretch across the row. */}

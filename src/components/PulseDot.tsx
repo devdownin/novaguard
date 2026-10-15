@@ -1,22 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, StyleSheet, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, View } from 'react-native';
+import { useReducedMotion } from '../utils/useReducedMotion';
 
 export type Pulse = 'none' | 'breathe' | 'beat';
 
 /** One cycle, ms: a slow breath while watching, a heartbeat while filming. */
 const PERIOD: Record<Exclude<Pulse, 'none'>, number> = { breathe: 2600, beat: 1100 };
-
-/** True while the system asks for reduced motion; a looping halo is exactly what that setting is for. */
-export function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    AccessibilityInfo.isReduceMotionEnabled().then(value => { if (alive) setReduced(value); }, () => {});
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
-    return () => { alive = false; sub.remove(); };
-  }, []);
-  return reduced;
-}
 
 /**
  * A status dot with a halo that grows and fades around it. The dot itself never

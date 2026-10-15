@@ -10,6 +10,7 @@ import { t } from '../i18n';
 import { Viewfinder } from '../components/Viewfinder';
 import { SurveillanceStatusPanel } from '../components/SurveillanceStatusPanel';
 import { statusColor } from '../surveillance/status';
+import { CountUp } from '../components/CountUp';
 
 /**
  * The camera screen, in the two shapes a surveillance phone is actually left in.
@@ -157,12 +158,16 @@ function StatCell({ label, value, landscape, onPress, hint }: {
   const body = (
     <>
       <Text style={styles.statLabel} maxFontSizeMultiplier={MAX_FONT_SCALE}>{label}</Text>
-      <Text
-        style={[styles.statValue, landscape && styles.statValueInline]}
-        maxFontSizeMultiplier={MAX_FONT_SCALE}
-      >
-        {value}
-      </Text>
+      {typeof value === 'number'
+        ? <CountUp value={value} style={[styles.statValue, landscape && styles.statValueInline]} />
+        : (
+          <Text
+            style={[styles.statValue, landscape && styles.statValueInline]}
+            maxFontSizeMultiplier={MAX_FONT_SCALE}
+          >
+            {value}
+          </Text>
+        )}
     </>
   );
 
