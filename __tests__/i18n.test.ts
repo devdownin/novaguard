@@ -52,9 +52,7 @@ describe('the two catalogues', () => {
       'setup.license',
       'setup.privacy.perms',
       'setup.section.not',
-      'setup.title',
       'setup.version',
-      'tab.setup',
       'value.kind.Animal',
     ]);
   });

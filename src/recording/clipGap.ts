@@ -9,7 +9,7 @@
  * carried about it came from fake timers, which say nothing about an encoder.
  *
  * Only a real device can answer, so the app measures itself and reports the
- * result in Setup → À propos. Nothing here is a fixture: the numbers come from
+ * result in Réglages → À propos. Nothing here is a fixture: the numbers come from
  * the two moments the JS side can actually observe.
  *
  * What the two halves mean, precisely — the distinction is the whole point of

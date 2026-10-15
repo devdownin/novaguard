@@ -38,7 +38,7 @@ async function seedOpenedApp() {
   await AsyncStorage.setItem('@novaguard:onboardingComplete', JSON.stringify(true));
   await AsyncStorage.setItem('@novaguard:settings', JSON.stringify({
     ...defaultSettings,
-    exp: { surv: true, det: true, rec: true, sto: true, not: true, about: true },
+    exp: { surv: true, det: true, rec: true, sto: true, not: true, adv: true, about: true },
   }));
 }
 

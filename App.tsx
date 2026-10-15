@@ -24,7 +24,7 @@ import { t, tn } from './src/i18n';
 function AppShell() {
   const {
     hydrated, tab, confirmDelete, cancelDelete, doDelete,
-    confirmWipe, cancelWipe, doWipe, events,
+    confirmWipe, cancelWipe, doWipe, events, pendingBulkDelete, cancelDeleteMany, doDeleteMany,
   } = useAppState();
   const landscape = useLandscape();
 
@@ -64,6 +64,14 @@ function AppShell() {
         confirmLabel={t('confirm.delete.ok')}
         onCancel={cancelDelete}
         onConfirm={doDelete}
+      />
+      <ConfirmDialog
+        visible={pendingBulkDelete != null}
+        title={t('confirm.many.title')}
+        body={tn('confirm.many.body.other', pendingBulkDelete?.length ?? 0)}
+        confirmLabel={t('confirm.delete.ok')}
+        onCancel={cancelDeleteMany}
+        onConfirm={doDeleteMany}
       />
       <ConfirmDialog
         visible={confirmWipe}

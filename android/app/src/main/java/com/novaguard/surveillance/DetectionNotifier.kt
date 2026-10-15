@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -32,19 +33,22 @@ object DetectionNotifier {
   private const val CHANNEL_ID = "novaguard.detections"
   private const val NOTIFICATION_ID = 1002
 
-  fun notify(context: Context, title: String, body: String) {
+  fun notify(context: Context, title: String, body: String, passageId: String) {
     try {
-      post(context, title, body)
+      post(context, title, body, passageId)
     } catch (e: Exception) {
       // An alert is never worth crashing surveillance for.
       Log.w(TAG, "Detection notification refused: ${e.message}")
     }
   }
 
-  private fun post(context: Context, title: String, body: String) {
+  private fun post(context: Context, title: String, body: String, passageId: String) {
     createChannel(context)
 
-    val open = Intent(context, MainActivity::class.java).apply {
+    // VIEW + data is what React Native's Linking reads (getInitialURL on a cold
+    // start, the "url" event through onNewIntent on the singleTask activity).
+    // Explicit component and no intent-filter: no other app can route here.
+    val open = Intent(Intent.ACTION_VIEW, passageUri(passageId), context, MainActivity::class.java).apply {
       flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
     }
     val pending = PendingIntent.getActivity(
@@ -69,6 +73,11 @@ object DetectionNotifier {
     // Throws nothing when POST_NOTIFICATIONS is denied; the post is simply
     // dropped, which is the behaviour we want — the app must not depend on it.
     NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+  }
+
+  /** Read back by `passageIdFromUrl` in `alerts.ts`. */
+  private fun passageUri(passageId: String): Uri? = passageId.takeIf { it.isNotEmpty() }?.let {
+    Uri.Builder().scheme("novaguard").authority("passage").appendPath(it).build()
   }
 
   fun dismiss(context: Context) {

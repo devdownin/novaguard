@@ -64,6 +64,11 @@ export interface DetectionEvent {
    * one must treat a missing value as `null` rather than trust the type.
    */
   thumbPath: string | null;
+  /**
+   * Set by the user to hold the clip as evidence: neither the retention sweep
+   * nor auto-delete may reclaim it. Absent on events written before the flag.
+   */
+  kept?: boolean;
 }
 
 /** What the volume itself reports. Measured; nothing here is derived. */
@@ -87,6 +92,8 @@ export interface ExpandedSections {
   not: boolean;
   stream: boolean;
   mcp: boolean;
+  /** Absent from settings saved before the section existed: read as collapsed. */
+  adv?: boolean;
   about: boolean;
 }
 

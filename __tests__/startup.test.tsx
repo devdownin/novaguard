@@ -86,7 +86,7 @@ describe('cold start', () => {
     const shown = texts(await finishBoot(await startApp()));
     expect(shown).toEqual(expect.arrayContaining(['NOVAGUARD', 'DÉMARRER LA SURVEILLANCE']));
     // Tab bar present => the whole shell mounted, not just one screen.
-    expect(shown).toEqual(expect.arrayContaining(['Caméra', 'Historique', 'Setup']));
+    expect(shown).toEqual(expect.arrayContaining(['Caméra', 'Historique', 'Réglages']));
   });
 
   it('falls back to the standby view when the camera is not authorised', async () => {
@@ -177,7 +177,7 @@ describe('cold start', () => {
     // Reaching the shell at all means the merge filled the gaps; a raw spread
     // would have left `exp` undefined and thrown on the first section render.
     const shown = texts(await finishBoot(await startApp()));
-    expect(shown).toEqual(expect.arrayContaining(['NOVAGUARD', 'Setup']));
+    expect(shown).toEqual(expect.arrayContaining(['NOVAGUARD', 'Réglages']));
   });
 
   it('skips onboarding when it has already been completed', async () => {

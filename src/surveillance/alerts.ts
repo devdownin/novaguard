@@ -35,6 +35,22 @@ export function alertContent(kind: DetectionKind, at: number): { title: string; 
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   return {
     title: t(kind === 'Personne' ? 'notif.person' : 'notif.animal'),
-    body: `À ${time} · enregistrement en cours`,
+    body: t('notif.detail', { time }),
   };
+}
+
+/**
+ * The link a detection alert opens. Built natively from the passage id
+ * (`DetectionNotifier`) and read back here, so the two only share this shape.
+ */
+const PASSAGE_URL = /^novaguard:\/\/passage\/([^/?#]+)$/;
+
+export function passageIdFromUrl(url: string | null | undefined): string | null {
+  const match = url ? PASSAGE_URL.exec(url) : null;
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
 }

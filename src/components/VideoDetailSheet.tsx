@@ -4,7 +4,7 @@ import Video from 'react-native-video';
 import { color, font, radius, MAX_FONT_SCALE } from '../theme';
 import { useAppState } from '../state/AppStateContext';
 import { groupPassages } from '../recording/passages';
-import { formatBytes } from '../recording/library';
+import { formatBytes, keptEventIds } from '../recording/library';
 import { t, tValue } from '../i18n';
 import { shareRecording } from '../surveillance/foregroundService';
 import { formatWhen } from '../utils/date';
@@ -14,7 +14,7 @@ import { ClipThumbnail } from './ClipThumbnail';
 import { PrimaryOutlineButton, SecondaryOutlineButton, TextButton } from './OutlineButton';
 
 export function VideoDetailSheet() {
-  const { selected, selectedEvent, events, selectEvent, askDelete } = useAppState();
+  const { selected, selectedEvent, events, selectEvent, askDelete, toggleKeep } = useAppState();
   const [playback, setPlayback] = useState<{ root: number; clip: number; all: boolean; running: boolean } | null>(null);
   const active = useRef<typeof playback>(null);
   const [playFailed, setPlayFailed] = useState(false);
@@ -70,6 +70,7 @@ export function VideoDetailSheet() {
   }, [path]);
 
   const hasClip = !!path;
+  const kept = useMemo(() => selected != null && keptEventIds(events).has(selected), [events, selected]);
 
   return (
     <Sheet visible={!!event} onClose={close}>
@@ -142,21 +143,20 @@ export function VideoDetailSheet() {
             <StatCell label={t('detail.size')} value={hasClip ? formatBytes(event.bytes) : '—'} />
             <StatCell
               label={t('detail.file')}
-              value={hasClip ? event.path!.split('/').pop()! : 'Aucun'}
+              value={hasClip ? event.path!.split('/').pop()! : t('detail.file.none')}
               small
             />
           </View>
 
-          {shareFailed && (
-            <Text style={styles.shareError}>
-              PARTAGE IMPOSSIBLE · LE FICHIER N'EST PLUS LÀ
-            </Text>
-          )}
+          {shareFailed && <Text style={styles.shareError}>{t('detail.shareError')}</Text>}
+          {kept && <Text style={styles.keptNote} maxFontSizeMultiplier={MAX_FONT_SCALE}>{t('detail.kept')}</Text>}
 
           <View style={styles.actions}>
             {hasClip && (
               <PrimaryOutlineButton label={t('detail.share')} onPress={share} style={styles.action} />
             )}
+            <SecondaryOutlineButton label={t(kept ? 'detail.unkeep' : 'detail.keep')} onPress={toggleKeep}
+              style={styles.action} />
             <SecondaryOutlineButton label={t(clips.length > 1 ? 'detail.deleteSequence' : 'detail.delete')} onPress={() => { updatePlayback(null); selectEvent(event.id); askDelete(); }} style={styles.action} />
             <TextButton label={t('detail.close')} onPress={close} style={styles.action} />
           </View>
@@ -187,6 +187,7 @@ function StatCell({ label, value, accent, small }: StatCellProps) {
 
 const styles = StyleSheet.create({
   passageControls: { gap: 8, marginTop: 12 },
+  keptNote: { color: color.accent, fontFamily: font.regular, fontSize: 12, marginTop: 10 },
   playError: { color: color.warning, fontFamily: font.regular, fontSize: 12, marginTop: 10 },
   preview: {
     aspectRatio: 16 / 10,

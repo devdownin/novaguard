@@ -1,6 +1,7 @@
 import React, {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
+import { Linking } from 'react-native';
 import type { Camera as VisionCamera } from 'react-native-vision-camera';
 import { Camera as CameraModule, useCameraPermission, useMicrophonePermission } from 'react-native-vision-camera';
 import {
@@ -22,9 +23,9 @@ import { detectionsInZone } from '../ml/zone';
 import { Clip, useRecorder } from '../recording/useRecorder';
 import { useBufferedRecorder } from '../recording/useBufferedRecorder';
 import { TOLERANCE_OPTIONS, usesBufferedCapture } from '../recording/presenceMode';
-import { STATUS_LABEL, SurveillanceStatus, surveillanceStatusOf } from '../surveillance/status';
+import { serviceNotice, statusIsFault, SurveillanceStatus, surveillanceStatusOf } from '../surveillance/status';
 import {
-  bytesToReclaim, clipFileName, clipOutcome, eventFiles, eventsToReclaim, expiredEvents, lowSpaceBytes,
+  bytesToReclaim, clipFileName, clipOutcome, eventFiles, eventsToReclaim, expiredEvents, keptEventIds, lowSpaceBytes,
   minFreeBytes, nextEventId, periodRange, postRollMs, sameDay, todayCount, totalBytes,
 } from '../recording/library';
 import {
@@ -44,7 +45,7 @@ import {
   McpServerStatus, MCP_SERVER_STOPPED, generateMcpToken as mintMcpToken,
   getMcpServerStatus, pushMcpSnapshot, startMcpServer, stopMcpServer,
 } from '../surveillance/mcpServer';
-import { alertContent, shouldAlert } from '../surveillance/alerts';
+import { alertContent, passageIdFromUrl, shouldAlert } from '../surveillance/alerts';
 import { installFrameErrorGuard } from '../camera/frameErrorGuard';
 import { FRAME_ERROR_PREFIX } from '../camera/frameErrors';
 import {
@@ -160,10 +161,17 @@ interface AppStateValue {
   identityAvailable: boolean;
 
   // confirmations
+  /** Holds or releases the selected passage as evidence (see `keptEventIds`). */
+  toggleKeep: () => void;
   confirmDelete: boolean;
   askDelete: () => void;
   cancelDelete: () => void;
   doDelete: () => void;
+  /** Events a bulk delete is waiting on the user to confirm, or null. */
+  pendingBulkDelete: number[] | null;
+  askDeleteMany: (ids: number[]) => void;
+  cancelDeleteMany: () => void;
+  doDeleteMany: () => void;
   confirmWipe: boolean;
   askWipe: () => void;
   cancelWipe: () => void;
@@ -1194,7 +1202,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (shouldAlert(settingsRef.current, lastAlertRef.current, now)) {
           lastAlertRef.current = now;
           const { title, body } = alertContent(primary.kind, now);
-          notifyDetection(title, body);
+          notifyDetection(title, body, passageIdRef.current ?? '');
         }
       } else {
         if (recordingIdRef.current() == null && attemptAt >= nextRecordingAttemptRef.current) {
@@ -1506,12 +1514,43 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     unlockHistory().then(confirmed => { if (confirmed) setSelected(id); });
   }, [historyLockedRef, unlockHistory]);
 
+  // A tap on a detection alert opens its passage. Through `selectEvent`, so a
+  // locked history still asks first: the link comes from a notification any
+  // app could fake an intent for, and it must not open a clip on its own. A
+  // passage still being recorded has no clip yet — the history is the answer.
+  const openPassageLink = useCallback((url: string | null | undefined) => {
+    const passageId = passageIdFromUrl(url);
+    if (passageId == null) return;
+    setTab('hist');
+    const latest = eventsRef.current.filter(e => e.passageId === passageId)
+      .reduce<DetectionEvent | null>((best, e) => (best == null || e.timestamp > best.timestamp ? e : best), null);
+    if (latest) selectEvent(latest.id);
+  }, [eventsRef, selectEvent]);
+  const initialLinkRef = useRef(false);
+  useEffect(() => {
+    if (!hydrated) return undefined;
+    if (!initialLinkRef.current) {
+      initialLinkRef.current = true;
+      Linking.getInitialURL().then(openPassageLink).catch(() => {});
+    }
+    const subscription = Linking.addEventListener('url', ({ url }) => openPassageLink(url));
+    return () => subscription.remove();
+  }, [hydrated, openPassageLink]);
+
   const askDelete = useCallback(() => setConfirmDelete(true), []);
   const cancelDelete = useCallback(() => setConfirmDelete(false), []);
   const selectedEvent = useMemo(
     () => events.find(e => e.id === selected) ?? null,
     [events, selected],
   );
+  const toggleKeep = useCallback(() => {
+    if (!selectedEvent) return;
+    const keep = !keptEventIds(events).has(selectedEvent.id);
+    const passageId = selectedEvent.passageId;
+    setEvents(evs => evs.map(e => (e.id === selectedEvent.id || (passageId != null && e.passageId === passageId))
+      ? { ...e, kept: keep } : e));
+  }, [events, selectedEvent]);
+
   const doDelete = useCallback(() => {
     const files = selectedEvent ? eventFiles([selectedEvent]) : [];
     setEvents(evs => evs.filter(e => e.id !== selected));
@@ -1523,6 +1562,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // 30 s later. `doWipe` below already did it this way.
     deleteFiles(files).then(sweepDisk);
   }, [selected, selectedEvent, sweepDisk]);
+
+  const [pendingBulkDelete, setPendingBulkDelete] = useState<number[] | null>(null);
+  const askDeleteMany = useCallback((ids: number[]) => setPendingBulkDelete(ids.length ? ids : null), []);
+  const cancelDeleteMany = useCallback(() => setPendingBulkDelete(null), []);
+  const doDeleteMany = useCallback(() => {
+    if (!pendingBulkDelete) return;
+    const ids = new Set(pendingBulkDelete);
+    const victims = events.filter(e => ids.has(e.id));
+    setEvents(evs => evs.filter(e => !ids.has(e.id)));
+    if (selected != null && ids.has(selected)) setSelected(null);
+    setPendingBulkDelete(null);
+    // Chained like `doDelete`: the sweep must measure after the unlink.
+    deleteFiles(eventFiles(victims)).then(sweepDisk);
+  }, [events, pendingBulkDelete, selected, sweepDisk]);
 
   const askWipe = useCallback(() => setConfirmWipe(true), []);
   const cancelWipe = useCallback(() => setConfirmWipe(false), []);
@@ -1839,8 +1892,21 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     hasFrame: sawFrame, ready: recorder.isReady ?? true,
   });
   const visibleError = cameraProblem ?? (analysisStalled ? t('error.analysisStalled') : null) ?? recordingProblem ?? recError;
+  const faultRef = useRef<{ status: SurveillanceStatus; since: number } | null>(null);
+  const resumedAtRef = useRef<number | null>(null);
   useEffect(() => {
-    if (monitoring) startForegroundService(t(STATUS_LABEL[surveillanceStatus]));
+    if (!monitoring) { faultRef.current = null; resumedAtRef.current = null; return; }
+    const now = Date.now();
+    if (statusIsFault(surveillanceStatus)) {
+      // One outage, one start time: a camera fault that turns into a storage
+      // fault has still kept nobody filmed since the first one.
+      faultRef.current = { status: surveillanceStatus, since: faultRef.current?.since ?? now };
+      resumedAtRef.current = null;
+    } else if (faultRef.current && surveillanceStatus !== 'starting') {
+      faultRef.current = null;
+      resumedAtRef.current = now;
+    }
+    startForegroundService(serviceNotice(surveillanceStatus, faultRef.current?.since ?? null, resumedAtRef.current));
   }, [monitoring, surveillanceStatus]);
 
   const value = useMemo<AppStateValue>(() => ({
@@ -1850,7 +1916,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     recording: isRecording, recError: visibleError, surveillanceStatus, captureRevision, retryCapture, openCaptureSettings, openStorageSettings, clipGap, autoTune, autoTuneLog: autoTuneLogRef, deviceLoad: deviceLoadRef, storage: store, cameraRef, foreground, reportCameraProblem, reportCameraError, cameraHealth: recovery.health, cameraActive, reportFrameStage,
     toggleMonitoring, reportDetections,
     events, filter, setFilter, period, setPeriod, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent, historyLocked, unlockHistory, identityAvailable,
-    confirmDelete, askDelete, cancelDelete, doDelete,
+    toggleKeep, confirmDelete, askDelete, cancelDelete, doDelete,
+    pendingBulkDelete, askDeleteMany, cancelDeleteMany, doDeleteMany,
     confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
@@ -1862,7 +1929,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     hydrated, tab, monitoring, det, detToday, lastDetAt,
     isRecording, visibleError, surveillanceStatus, captureRevision, retryCapture, openCaptureSettings, openStorageSettings, clipGap, autoTune, autoTuneLogRef, deviceLoadRef, store, cameraRef, foreground, reportCameraProblem, reportCameraError, recovery, cameraActive, reportFrameStage, toggleMonitoring, reportDetections,
     events, filter, period, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent, historyLocked, unlockHistory, identityAvailable,
-    confirmDelete, askDelete, cancelDelete, doDelete, confirmWipe, askWipe, cancelWipe, doWipe,
+    toggleKeep, confirmDelete, askDelete, cancelDelete, doDelete, pendingBulkDelete, askDeleteMany, cancelDeleteMany, doDeleteMany,
+    confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,

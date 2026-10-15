@@ -1,5 +1,7 @@
 import { CameraHealth } from '../camera/cameraHealth';
 import { StringKey } from '../i18n/fr';
+import { t } from '../i18n';
+import { formatTimeOfDay } from '../utils/date';
 
 export type SurveillanceStatus = 'inactive' | 'starting' | 'active' | 'recording' |
   'camera-unavailable' | 'storage-insufficient' | 'analysis-unavailable' | 'recording-error';
@@ -26,3 +28,16 @@ export const STATUS_LABEL: Record<SurveillanceStatus, StringKey> = {
 };
 export const statusIsFault = (status: SurveillanceStatus): boolean =>
   ['camera-unavailable', 'storage-insufficient', 'analysis-unavailable', 'recording-error'].includes(status);
+
+/**
+ * What the persistent notification says. With the screen off it is the only
+ * surface, so a fault carries the time it began — "since when nobody has been
+ * filmed" — and the first healthy status after a fault says when it ended,
+ * until the next change replaces it.
+ */
+export function serviceNotice(status: SurveillanceStatus, faultSince: number | null, resumedAt: number | null): string {
+  const label = t(STATUS_LABEL[status]);
+  if (statusIsFault(status) && faultSince != null) return t('notif.since', { status: label, time: formatTimeOfDay(faultSince) });
+  if (!statusIsFault(status) && resumedAt != null) return t('notif.resumed', { status: label, time: formatTimeOfDay(resumedAt) });
+  return label;
+}

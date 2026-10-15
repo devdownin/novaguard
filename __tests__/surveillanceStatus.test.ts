@@ -1,4 +1,4 @@
-import { surveillanceStatusOf } from '../src/surveillance/status';
+import { serviceNotice, surveillanceStatusOf } from '../src/surveillance/status';
 
 const healthy = {
   monitoring: true, recording: false, cameraPermission: true, cameraHealth: 'healthy' as const,
@@ -25,4 +25,17 @@ it('gives faults priority over an encoder that is still active', () => {
 });
 it('does not label deliberate standby as a failed watch', () => {
   expect(surveillanceStatusOf({ ...healthy, monitoring: false, recordingProblem: 'old error', lowStorage: true })).toBe('inactive');
+});
+
+describe('serviceNotice', () => {
+  const at = new Date(2026, 9, 14, 9, 5).getTime();
+  it('dates a fault, says when it ended, and stays plain otherwise', () => {
+    expect(serviceNotice('storage-insufficient', at, null)).toBe('Stockage insuffisant · depuis 09:05');
+    expect(serviceNotice('active', null, at)).toBe('Surveillance active · reprise à 09:05');
+    expect(serviceNotice('recording', null, null)).toBe('Enregistrement en cours');
+  });
+  it('never dates a healthy status with a fault time, nor a fault with a recovery', () => {
+    expect(serviceNotice('active', at, null)).toBe('Surveillance active');
+    expect(serviceNotice('camera-unavailable', null, at)).toBe('Caméra indisponible');
+  });
 });
