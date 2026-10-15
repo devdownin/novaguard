@@ -1,4 +1,4 @@
-import { ALERT_COOLDOWN_MS, alertContent, shouldAlert } from '../src/surveillance/alerts';
+import { ALERT_COOLDOWN_MS, alertContent, passageIdFromUrl, shouldAlert } from '../src/surveillance/alerts';
 
 const ON = { notif: true, notifDet: true };
 
@@ -49,5 +49,18 @@ describe('alertContent', () => {
       title: 'Animal détecté',
       body: 'À 22:41 · enregistrement en cours',
     });
+  });
+});
+
+describe('passageIdFromUrl', () => {
+  it('reads the passage the native alert links to', () => {
+    expect(passageIdFromUrl('novaguard://passage/1760000000000-3-abc12345')).toBe('1760000000000-3-abc12345');
+    expect(passageIdFromUrl('novaguard://passage/a%20b')).toBe('a b');
+  });
+  it('ignores anything else', () => {
+    for (const url of [null, undefined, '', 'novaguard://passage/', 'https://passage/x', 'novaguard://passage/x/y',
+      'novaguard://other/x', 'novaguard://passage/%E0%A4%A']) {
+      expect(passageIdFromUrl(url)).toBeNull();
+    }
   });
 });

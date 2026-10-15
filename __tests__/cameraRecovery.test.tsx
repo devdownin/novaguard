@@ -21,6 +21,7 @@ import { NOTIFICATION_BODY, startForegroundService } from '../src/surveillance/f
 import { retryDelayFor } from '../src/camera/cameraHealth';
 import { FrameDetection } from '../src/ml/types';
 import { t } from '../src/i18n';
+import { formatTimeOfDay } from '../src/utils/date';
 
 jest.mock('../src/surveillance/foregroundService');
 
@@ -73,11 +74,14 @@ it('says the camera is down on the surface a dark screen still shows', async () 
   const handle = await watching();
   expect(notificationBody()).toBe(t('surv.status.starting'));
 
+  const faultAt = Date.now();
   await ReactTestRenderer.act(async () => { handle.state.reportCameraError(FAILURE); });
 
   // The notification is the only thing a propped-up phone displays. Leaving it
-  // on "surveillance active" is the app asserting something false.
-  expect(notificationBody()).toBe(t('surv.status.cameraUnavailable'));
+  // on "surveillance active" is the app asserting something false — and with
+  // nobody looking, since when nobody has been filmed is the part that matters.
+  expect(notificationBody()).toBe(
+    t('notif.since', { status: t('surv.status.cameraUnavailable'), time: formatTimeOfDay(faultAt) }));
   expect(handle.state.cameraHealth).toBe('interrupted');
   expect(handle.state.recError).toBe(FAILURE);
 });
@@ -120,11 +124,14 @@ it('is well again on a frame, not on a restart', async () => {
   await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(retryDelayFor(0)); });
   expect(handle.state.cameraHealth).toBe('interrupted');
 
+  const resumedAt = Date.now();
   await ReactTestRenderer.act(async () => { handle.state.reportDetections([person()], 9 / 16); });
 
   expect(handle.state.cameraHealth).toBe('healthy');
-  // And the notification stops warning about an interruption that is over.
-  expect(notificationBody()).toBe(t('surv.status.on'));
+  // And the notification stops warning about an interruption that is over,
+  // saying when it ended for whoever picks the phone up later.
+  expect(notificationBody()).toBe(
+    t('notif.resumed', { status: t('surv.status.on'), time: formatTimeOfDay(resumedAt) }));
 });
 
 it('restarts nothing when surveillance is not running', async () => {

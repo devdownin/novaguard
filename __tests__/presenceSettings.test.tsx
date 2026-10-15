@@ -9,6 +9,7 @@ import { SetupScreen } from '../src/screens/SetupScreen';
 import { SurveillanceScreen } from '../src/screens/SurveillanceScreen';
 import { defaultSettings } from '../src/state/defaults';
 import { t } from '../src/i18n';
+import { formatTimeOfDay } from '../src/utils/date';
 import { startForegroundService } from '../src/surveillance/foregroundService';
 
 jest.mock('../src/surveillance/foregroundService');
@@ -65,10 +66,12 @@ it('says detection is unavailable on both camera surfaces and the background not
   await mount();
   await ReactTestRenderer.act(async () => { state.toggleMonitoring(); });
   expect(statusOnScreen()).toBe(t('surv.status.starting'));
+  const faultAt = Date.now();
   await ReactTestRenderer.act(async () => { state.reportCameraProblem('Modèle indisponible'); });
   expect(statusOnScreen()).toBe(t('surv.status.analysis'));
   expect(tree.root.findByProps({ testID: 'viewfinder-status' }).props.accessibilityLabel).toBe(t('surv.status.analysis'));
-  expect(startForegroundService).toHaveBeenLastCalledWith(t('surv.status.analysis'));
+  expect(startForegroundService).toHaveBeenLastCalledWith(
+    t('notif.since', { status: t('surv.status.analysis'), time: formatTimeOfDay(faultAt) }));
   expect(labels()).not.toContain(t('view.overlay.none'));
   await ReactTestRenderer.act(async () => { state.reportCameraProblem(null); state.reportDetections([], 9 / 16); });
   expect(statusOnScreen()).toBe(t('surv.status.on'));
@@ -76,9 +79,11 @@ it('says detection is unavailable on both camera surfaces and the background not
 it('shows insufficient storage even before a subject triggers a recording', async () => {
   (fs.getFSInfo as jest.Mock).mockResolvedValue({ freeSpace: 0, totalSpace: 1e11 });
   await mount();
+  const faultAt = Date.now();
   await ReactTestRenderer.act(async () => { state.toggleMonitoring(); });
   expect(statusOnScreen()).toBe(t('surv.status.storage'));
-  expect(startForegroundService).toHaveBeenLastCalledWith(t('surv.status.storage'));
+  expect(startForegroundService).toHaveBeenLastCalledWith(
+    t('notif.since', { status: t('surv.status.storage'), time: formatTimeOfDay(faultAt) }));
 });
 
 it('offers a real capture restart while keeping surveillance enabled', async () => {

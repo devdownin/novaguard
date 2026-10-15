@@ -31,11 +31,12 @@ jest.mock('../src/surveillance/foregroundService');
 
 type Tree = ReactTestRenderer.ReactTestRenderer;
 
-async function boot(exp: Partial<ExpandedSections>): Promise<Tree> {
+async function boot(exp: Partial<ExpandedSections>, stored: Record<string, unknown> = {}): Promise<Tree> {
   await AsyncStorage.setItem('@novaguard:onboardingComplete', JSON.stringify(true));
   await AsyncStorage.setItem('@novaguard:settings', JSON.stringify({
     ...defaultSettings,
-    exp: { surv: false, det: false, rec: false, sto: false, not: false, stream: false, mcp: false, about: false, ...exp },
+    exp: { surv: false, det: false, rec: false, sto: false, not: false, stream: false, mcp: false, adv: false, about: false, ...exp },
+    ...stored,
   }));
 
   let renderer!: Tree;
@@ -65,8 +66,8 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-it('puts the self-tuning row in Détection, beside the switch that governs it', async () => {
-  const tree = await boot({ det: true });
+it('puts the self-tuning row beside the switch that governs it, both under Avancé', async () => {
+  const tree = await boot({ adv: true });
 
   expect(has(tree, 'autotune-open')).toBe(true);
   const lines = texts(tree);
@@ -76,7 +77,7 @@ it('puts the self-tuning row in Détection, beside the switch that governs it', 
 });
 
 it('names the way to the charts instead of leaving a state to be pressed', async () => {
-  const tree = await boot({ det: true });
+  const tree = await boot({ adv: true });
 
   // "Rien retiré" is a state, and a state does not read as somewhere to go.
   expect(texts(tree)).toContain(t('setup.autoTune.open'));
@@ -112,4 +113,31 @@ it('leaves À propos at the very bottom of the page', async () => {
   expect(about).toBeGreaterThan(lines.indexOf(t('setup.section.not')));
   // Under the privacy card too, which is the last thing with anything to do.
   expect(about).toBeGreaterThan(lines.indexOf(t('setup.privacy')));
+});
+
+describe('Avancé', () => {
+  it('keeps the expert controls out of the sections everyone opens', async () => {
+    const tree = await boot({ det: true });
+    const lines = texts(tree);
+    for (const key of ['setup.threshold', 'setup.forceCpu', 'setup.autoTuneSwitch'] as const) {
+      expect(lines).not.toContain(t(key));
+    }
+    // The threshold still decides what opens a recording: its value stays readable.
+    expect(lines).toContain(t('setup.threshold.summary', { value: defaultSettings.threshold }));
+    expect(lines).toContain(t('setup.section.adv'));
+    expect(lines).not.toContain(t('setup.section.mcp'));
+    expect(lines).not.toContain(t('setup.section.stream'));
+  });
+
+  it('holds them once opened, with the two servers', async () => {
+    const lines = texts(await boot({ adv: true }));
+    for (const key of ['setup.threshold', 'setup.forceCpu', 'setup.autoTuneSwitch', 'setup.section.mcp', 'setup.section.stream'] as const) {
+      expect(lines).toContain(t(key));
+    }
+  });
+
+  it('never folds away a server that is running', async () => {
+    const tree = await boot({}, { mcpEnabled: true });
+    expect(texts(tree)).toContain(t('setup.section.mcp'));
+  });
 });

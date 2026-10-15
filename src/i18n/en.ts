@@ -111,6 +111,12 @@ export const en: Record<StringKey, string> = {
   'detail.file': 'File',
   'detail.share': 'Share',
   'detail.delete': 'Delete',
+  'detail.keep': 'Keep',
+  'detail.unkeep': 'Stop keeping',
+  'detail.kept': 'Kept · never deleted automatically',
+  'detail.shareError': 'CANNOT SHARE · THE FILE IS GONE',
+  'detail.file.none': 'None',
+  'hist.event.kept': 'Kept',
   'detail.close': 'Close',
 
   // ── setup ────────────────────────────────────────────────────────────
@@ -122,6 +128,8 @@ export const en: Record<StringKey, string> = {
   'setup.section.not': 'NOTIFICATIONS',
   'setup.section.stream': 'LOCAL STREAMING',
   'setup.section.mcp': 'MCP SERVER',
+  'setup.section.adv': 'ADVANCED',
+  'setup.section.adv.sub': 'Fine detection tuning and local servers. The defaults suit most devices.',
   'setup.section.about': 'ABOUT',
 
   'setup.mcpEnabled': 'Read-only MCP server',
@@ -161,7 +169,8 @@ export const en: Record<StringKey, string> = {
   'setup.lockHistory.sub': 'Fingerprint, face or device code before the videos open',
   'setup.lockHistory.unavailable': 'No screen lock set up on this device',
   'setup.night': 'Night mode',
-  'setup.night.sub': 'Available on this device',
+  'setup.night.sub': 'Brightens the image in low light',
+  'setup.night.unsupported': 'Not supported by this camera',
 
   'setup.person': 'Detect people',
   'setup.animal': 'Detect animals',
@@ -188,6 +197,7 @@ export const en: Record<StringKey, string> = {
   'setup.sens.hint.Moyenne': '3 frames per second — confirms a subject over two consecutive frames',
   'setup.sens.hint.Haute': '5 frames per second — quickest to react and most forgiving, heaviest on the battery',
   'setup.threshold': 'Confidence threshold',
+  'setup.threshold.summary': 'Confidence threshold: {value}% · set in Advanced',
 
   'setup.post': 'Tolerance margin',
   'setup.post.sub': 'Maximum time kept after the last positive detection.',
@@ -384,6 +394,9 @@ export const en: Record<StringKey, string> = {
   'notif.interrupted': 'Camera interrupted — trying again',
   'notif.person': 'Person detected',
   'notif.animal': 'Animal detected',
+  'notif.detail': 'At {time} · recording',
+  'notif.since': '{status} · since {time}',
+  'notif.resumed': '{status} · resumed at {time}',
 
   // ── dates ────────────────────────────────────────────────────────────
   'lic.react-react-native': 'Application framework',

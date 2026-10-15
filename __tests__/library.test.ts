@@ -3,6 +3,7 @@ import {
   clipFileName,
   clipOutcome,
   eventsToReclaim,
+  keptEventIds,
   expiredEvents,
   formatBytes,
   historyRows,
@@ -403,5 +404,25 @@ describe('historyRows', () => {
     expect(historyRows([], 2)).toEqual([]);
     // A zero would otherwise flush on every push and loop forever on none.
     expect(shape(historyRows([at(9, 2, 18), at(9, 2, 9)], 0))).toEqual(['day', 1, 1]);
+  });
+});
+
+describe('kept events', () => {
+  const kept = (e: DetectionEvent, passageId?: string): DetectionEvent => ({ ...e, kept: true, passageId });
+  const inPassage = (e: DetectionEvent, passageId: string): DetectionEvent => ({ ...e, passageId });
+
+  it('survive the retention sweep, with every segment of their passage', () => {
+    const now = Date.now();
+    const events = [kept(ev(1, 40), 'p'), inPassage(ev(2, 40), 'p'), ev(3, 40)];
+    expect(expiredEvents(events, '7 jours', now).map(e => e.id)).toEqual([3]);
+  });
+
+  it('are never picked to free space, even when they are the oldest', () => {
+    const events = [kept(ev(1, 30)), ev(2, 5), ev(3, 1)];
+    expect(eventsToReclaim(events, 15 * MB).map(e => e.id)).toEqual([2, 3]);
+  });
+
+  it('are read back as not kept when the field predates the flag', () => {
+    expect(keptEventIds([ev(1, 3)]).size).toBe(0);
   });
 });

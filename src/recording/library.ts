@@ -265,6 +265,16 @@ export function totalBytes(events: DetectionEvent[]): number {
 }
 
 /**
+ * Events the user asked to keep, by passage: keeping a passage keeps every
+ * segment of it, including the ones still being written when the flag was set.
+ * Only an explicit delete removes them.
+ */
+export function keptEventIds(events: DetectionEvent[]): Set<number> {
+  const passages = new Set(events.filter(e => e.kept && e.passageId).map(e => e.passageId));
+  return new Set(events.filter(e => e.kept || (e.passageId != null && passages.has(e.passageId))).map(e => e.id));
+}
+
+/**
  * Events past the retention window. Compares against the *start* of the
  * cutoff day so "1 jour" means "yesterday and earlier", not "24 h ago" —
  * otherwise a clip would disappear mid-morning on its own anniversary.
@@ -277,17 +287,20 @@ export function expiredEvents(
   const days = retentionDays(retention);
   if (days == null) return [];
   const cutoff = startOfDayBefore(now, days - 1);
-  return events.filter(e => e.timestamp < cutoff);
+  const kept = keptEventIds(events);
+  return events.filter(e => e.timestamp < cutoff && !kept.has(e.id));
 }
 
 /**
  * Oldest events to delete to reclaim `bytesNeeded`, oldest first.
  * Events carrying no file (bytes 0) are skipped — dropping them frees nothing
- * and would silently erase history the user can still read.
+ * and would silently erase history the user can still read. Kept events are
+ * skipped too: a full disk stops recording, it never erases evidence.
  */
 export function eventsToReclaim(events: DetectionEvent[], bytesNeeded: number): DetectionEvent[] {
   if (bytesNeeded <= 0) return [];
-  const oldestFirst = events.filter(e => e.bytes > 0).sort((a, b) => a.timestamp - b.timestamp);
+  const kept = keptEventIds(events);
+  const oldestFirst = events.filter(e => e.bytes > 0 && !kept.has(e.id)).sort((a, b) => a.timestamp - b.timestamp);
   const picked: DetectionEvent[] = [];
   let freed = 0;
   for (const e of oldestFirst) {

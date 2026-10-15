@@ -8,7 +8,9 @@ import { ClipThumbnail } from './ClipThumbnail';
 import { t } from '../i18n';
 import { Passage } from '../recording/passages';
 
-export function EventCard({ event, onPress, passage }: { event: DetectionEvent; onPress: () => void; passage?: Passage }) {
+export function EventCard({ event, onPress, passage, kept = false }: {
+  event: DetectionEvent; onPress: () => void; passage?: Passage; kept?: boolean;
+}) {
   const title = passage && passage.kinds.length > 1 ? t('hist.passage.mixed') : t(event.kind === 'Personne' ? 'hist.event.person' : 'hist.event.animal');
   const durLabel = formatDuration(event.dur);
 
@@ -49,6 +51,7 @@ export function EventCard({ event, onPress, passage }: { event: DetectionEvent; 
         {passage && passage.events.length > 1 && <Text style={styles.when}>{t('hist.passage.clips', { count: passage.events.length })}</Text>}
         {passage && passage.missingCount > 0 && passage.events.length > 1 && <Text style={styles.noClip}>{t('hist.passage.missing', { count: passage.missingCount })}</Text>}
         {event.path == null && <Text style={styles.noClip}>{t('hist.event.noClip')}</Text>}
+        {kept && <Text style={styles.kept}>{t('hist.event.kept')}</Text>}
       </View>
       <ChevronRightIcon size={7} color={color.neutral700} />
     </Pressable>
@@ -127,5 +130,10 @@ const styles = StyleSheet.create({
     fontFamily: font.regular,
     fontSize: 11,
     color: color.neutral400,
+  },
+  kept: {
+    fontFamily: font.regular,
+    fontSize: 11,
+    color: color.accent,
   },
 });

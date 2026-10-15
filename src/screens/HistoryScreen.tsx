@@ -7,7 +7,7 @@ import { SegmentedControl } from '../components/SegmentedControl';
 import { PeriodDropdown } from '../components/PeriodDropdown';
 import { EventCard } from '../components/EventCard';
 import { PrimaryOutlineButton } from '../components/OutlineButton';
-import { historyRows } from '../recording/library';
+import { historyRows, keptEventIds } from '../recording/library';
 import { groupPassages } from '../recording/passages';
 import { formatDay } from '../utils/date';
 import { useLandscape } from '../utils/useLandscape';
@@ -75,6 +75,7 @@ export function HistoryScreen() {
 
   // A card is wide and short: one per line wastes most of a landscape window.
   const perRow = landscape ? 2 : 1;
+  const kept = useMemo(() => keptEventIds(events), [events]);
   const passages = useMemo(() => {
     const matched = new Set(shown.map(event => event.id));
     return groupPassages(events).filter(passage => passage.events.some(event => matched.has(event.id)) &&
@@ -132,7 +133,7 @@ export function HistoryScreen() {
             <View style={styles.row}>
               {item.events.map(event => (
                 <View key={event.id} style={styles.cell}>
-                  <EventCard event={event} passage={byEvent.get(event.id)} onPress={() => selectEvent(event.id)} />
+                  <EventCard event={event} passage={byEvent.get(event.id)} kept={kept.has(event.id)} onPress={() => selectEvent(event.id)} />
                 </View>
               ))}
               {/* Keeps a lone last card the width of a column instead of

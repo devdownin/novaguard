@@ -23,7 +23,8 @@ export interface Spec extends TurboModule {
    * than a stack: the app's own Historique screen is the record, so a pile of
    * system notifications would only be noise.
    */
-  notifyDetection(title: string, body: string): void;
+  /** `passageId` makes a tap on the alert open that passage (see `passageIdFromUrl`). */
+  notifyDetection(title: string, body: string, passageId: string): void;
   dismissDetection(): void;
 
   /**
