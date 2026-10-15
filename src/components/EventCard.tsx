@@ -5,7 +5,7 @@ import { DetectionEvent } from '../state/types';
 import { formatDuration, formatTimeOfDay, formatWhen } from '../utils/date';
 import { ChevronRightIcon } from './icons';
 import { ClipThumbnail } from './ClipThumbnail';
-import { t } from '../i18n';
+import { t, tValue } from '../i18n';
 import { Passage } from '../recording/passages';
 
 export function EventCard({ event, onPress, onLongPress, passage, kept = false, picked }: {
@@ -13,6 +13,8 @@ export function EventCard({ event, onPress, onLongPress, passage, kept = false, 
   /** Undefined outside selection mode; a boolean while the history is being picked from. */
   picked?: boolean;
 }) {
+  // Any clip of the passage may carry it: the agent annotates the event it looked at.
+  const note = (passage?.events ?? [event]).find(e => e.agentNote)?.agentNote;
   const title = passage && passage.kinds.length > 1 ? t('hist.passage.mixed') : t(event.kind === 'Personne' ? 'hist.event.person' : 'hist.event.animal');
   const durLabel = formatDuration(event.dur);
 
@@ -57,6 +59,9 @@ export function EventCard({ event, onPress, onLongPress, passage, kept = false, 
         {passage && passage.missingCount > 0 && passage.events.length > 1 && <Text style={styles.noClip}>{t('hist.passage.missing', { count: passage.missingCount })}</Text>}
         {event.path == null && <Text style={styles.noClip}>{t('hist.event.noClip')}</Text>}
         {kept && <Text style={styles.kept}>{t('hist.event.kept')}</Text>}
+        {note && <Text style={note.verdict === 'attention' ? styles.noteAttention : styles.note} numberOfLines={1}>
+          {t('hist.event.agentNote', { verdict: tValue(`value.verdict.${note.verdict}`) })}
+        </Text>}
       </View>
       <ChevronRightIcon size={7} color={color.neutral700} />
     </Pressable>
@@ -145,5 +150,15 @@ const styles = StyleSheet.create({
     fontFamily: font.regular,
     fontSize: 11,
     color: color.accent,
+  },
+  note: {
+    fontFamily: font.regular,
+    fontSize: 11,
+    color: color.neutral400,
+  },
+  noteAttention: {
+    fontFamily: font.medium,
+    fontSize: 11,
+    color: color.warning,
   },
 });

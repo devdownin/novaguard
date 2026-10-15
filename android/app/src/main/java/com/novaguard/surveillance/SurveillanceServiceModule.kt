@@ -5,6 +5,7 @@ import android.os.PowerManager
 import androidx.fragment.app.FragmentActivity
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.UiThreadUtil
 import java.util.concurrent.Executors
 
@@ -106,6 +107,19 @@ class SurveillanceServiceModule(reactContext: ReactApplicationContext) :
     thumbnails.execute { promise.resolve(ClipThumbnail.extract(clipPath)) }
   }
 
+  /** Never rejects: an unreadable clip resolves to "", and the report says so. */
+  override fun hashRecording(path: String, promise: Promise) {
+    hashing.execute { promise.resolve(ClipSharing.sha256(path)) }
+  }
+
+  override fun shareEvidence(paths: ReadableArray, report: String, reportName: String): Boolean =
+    ClipSharing.shareEvidence(
+      reactApplicationContext,
+      (0 until paths.size()).mapNotNull { paths.getString(it) },
+      report,
+      reportName,
+    )
+
   companion object {
     const val NAME = "SurveillanceService"
 
@@ -115,5 +129,8 @@ class SurveillanceServiceModule(reactContext: ReactApplicationContext) :
     // One thread, shared: clips are filed one at a time, and a pool would only
     // let several decodes compete for memory on the phone doing the watching.
     private val thumbnails = Executors.newSingleThreadExecutor()
+    // Its own thread: hashing a long clip is seconds of reading, and a thumbnail
+    // for the clip being filed must not wait behind an export.
+    private val hashing = Executors.newSingleThreadExecutor()
   }
 }

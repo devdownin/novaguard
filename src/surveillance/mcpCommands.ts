@@ -1,4 +1,4 @@
-import type { DetectionEvent, Sensitivity, Settings } from '../state/types';
+import type { AgentNote, AgentVerdict, DetectionEvent, Sensitivity, Settings } from '../state/types';
 import type { SurveillanceStatus } from './status';
 import { keptEventIds } from '../recording/library';
 
@@ -6,19 +6,24 @@ import { keptEventIds } from '../recording/library';
  * What an agent may change, and nothing else.
  *
  * Each command is reversible and visible: the user sees surveillance start or
- * stop, the thresholds move, a passage marked kept, and every call lands in the
- * agent log (`agentLog.ts`). Deleting an event or a clip, editing the zone,
+ * stop, the thresholds move, a passage marked kept, an agent's note on an event
+ * (which they can clear), and every call lands in the agent log (`agentLog.ts`). Deleting an event or a clip, editing the zone,
  * the retention, a PIN or a token are deliberately absent — they are the
  * operations whose damage the owner might only discover after the fact.
  */
 export const CONTROL_COMMANDS = [
   'start_surveillance', 'stop_surveillance', 'set_sensitivity', 'set_thresholds', 'keep_event', 'acknowledge_alert',
+  'annotate_event',
 ] as const;
 export type ControlCommand = typeof CONTROL_COMMANDS[number];
 
 /** Same bounds as the sliders in Réglages → Avancé. */
 export const THRESHOLD_MIN = 50;
 export const THRESHOLD_MAX = 95;
+
+export const AGENT_VERDICTS: readonly AgentVerdict[] = ['false_alarm', 'expected', 'attention', 'note'];
+/** Room for a sentence, not for a report: it is read on a card in the history. */
+export const AGENT_NOTE_MAX = 280;
 
 export interface CommandDeps {
   monitoring: boolean;
@@ -33,6 +38,7 @@ export interface CommandDeps {
   setThreshold: (v: number) => void;
   setAnimalThreshold: (v: number) => void;
   setKept: (eventId: number, kept: boolean) => void;
+  setAgentNote: (eventId: number, note: AgentNote | null) => void;
   acknowledgeMove: () => void;
 }
 
@@ -105,6 +111,21 @@ export function executeMcpCommand(command: string, args: Record<string, unknown>
       if (already === kept) return done(false, { eventId: id, kept });
       deps.setKept(id, kept);
       return done(true, { eventId: id, kept });
+    }
+    case 'annotate_event': {
+      const id = args.eventId;
+      const verdict = args.verdict;
+      const text = args.note === undefined ? '' : args.note;
+      if (typeof id !== 'number' || !AGENT_VERDICTS.includes(verdict as AgentVerdict) || typeof text !== 'string') {
+        return fail('NOVAGUARD_INVALID_ARGUMENT', `eventId (integer) and verdict (${AGENT_VERDICTS.join(', ')}) are required; note is a string`);
+      }
+      if (text.length > AGENT_NOTE_MAX) return fail('NOVAGUARD_INVALID_ARGUMENT', `note is limited to ${AGENT_NOTE_MAX} characters`);
+      const event = deps.events.find(e => e.id === id);
+      if (!event) return fail('NOVAGUARD_NOT_FOUND', `Event ${id} not found`);
+      const trimmed = text.trim();
+      if (event.agentNote?.verdict === verdict && event.agentNote?.text === trimmed) return done(false, { eventId: id, verdict });
+      deps.setAgentNote(id, { verdict: verdict as AgentVerdict, text: trimmed, at: Date.now() });
+      return done(true, { eventId: id, verdict });
     }
     case 'acknowledge_alert': {
       if (deps.status !== 'camera-moved') return done(false, { status: deps.status });

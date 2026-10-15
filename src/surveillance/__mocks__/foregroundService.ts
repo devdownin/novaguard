@@ -35,6 +35,8 @@ export const isCharging = jest.fn(() => false);
 export const canConfirmIdentity = jest.fn(() => true);
 export const confirmIdentity = jest.fn<Promise<boolean>, [string, string]>(async () => true);
 export const shareRecording = jest.fn(() => true);
+export const hashRecording = jest.fn(async (_path: string) => 'ab'.repeat(32));
+export const shareEvidence = jest.fn((_paths: string[], _report: string, _name: string) => true);
 // Null by default: no native side under Jest, which is also what a device with
 // an undecodable clip answers. A suite that cares hands back a path.
 export const extractThumbnail = jest.fn<Promise<string | null>, [string]>(async () => null);

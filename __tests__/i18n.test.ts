@@ -61,6 +61,7 @@ describe('the two catalogues', () => {
       'value.controlTtl.1 h',
       'value.controlTtl.24 h',
       'value.kind.Animal',
+      'value.verdict.note',
     ]);
   });
 

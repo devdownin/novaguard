@@ -32,8 +32,11 @@ traitements ne passe par un réseau.**
 
 ## Aucune transmission
 
-L'application ne demande même pas la permission `INTERNET` : elle est
-techniquement incapable d'établir une connexion réseau. Il n'y a donc :
+L'application déclare la permission `INTERNET` pour une seule raison : deux
+serveurs locaux optionnels, **éteints par défaut** — le direct Wi-Fi et le
+serveur MCP. Ils ne font qu'écouter sur le réseau local et ne répondent qu'aux
+appareils que vous y connectez vous-même. NovaGuard n'ouvre elle-même aucune
+connexion sortante, vers aucun serveur. Il n'y a donc :
 
 - aucun compte, aucune inscription, aucun identifiant ;
 - aucune télémétrie, aucune statistique d'usage, aucun rapport de plantage
@@ -43,7 +46,15 @@ techniquement incapable d'établir une connexion réseau. Il n'y a donc :
 
 ### Serveur MCP (Optionnel)
 
-Si vous choisissez d'activer le serveur MCP (*Model Context Protocol*) dans les réglages, NovaGuard fournit une interface de consultation en lecture seule sécurisée par jeton d'accès sur le réseau local (port 8081 par défaut). Lorsqu'un assistant IA externe interroge le serveur MCP, les métadonnées de surveillance et les vidéos explicitement demandées sont transmises au client IA sélectionné par l'utilisateur. Le serveur MCP est strictement en lecture seule et ne peut pas modifier l'état de surveillance ni altérer vos données.
+Si vous activez le serveur MCP (*Model Context Protocol*) dans les réglages, un assistant IA de votre choix peut interroger NovaGuard depuis cet appareil ou, avec un jeton d'accès, depuis le réseau local (port 8081 par défaut). Il reçoit les métadonnées de surveillance, les images et les vidéos **qu'il demande explicitement** ; si cet assistant s'appuie sur un modèle distant, ces données quittent alors l'appareil vers le service que vous avez choisi — jamais vers NovaGuard.
+
+Deux capacités supplémentaires sont éteintes par défaut et s'activent séparément :
+
+- **la vue en direct** : l'assistant peut demander une image de ce que voit la caméra pendant la surveillance ; rien n'est enregistré ;
+- **le pilotage** : avec un jeton de pilotage distinct, à durée limitée et révocable depuis la notification, l'assistant peut démarrer ou arrêter la surveillance, régler la sensibilité et les seuils, conserver un passage, acquitter une alerte et laisser une note sur un évènement. Il ne peut **rien supprimer**, ni modifier la zone, la rétention ou un jeton. Chaque action est consignée dans les réglages.
+
+La page « Ce qu'un assistant IA peut voir et faire » (Réglages) détaille l'ensemble.
+
 
 ## Qui peut ouvrir l'historique
 

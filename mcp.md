@@ -1,9 +1,9 @@
 # NovaGuard — MCP Server Specification
 
-**Version:** 2.1.0  
+**Version:** 2.2.0  
 **Status:** Implemented (`McpServerModule.kt`)  
 **Target MCP specification:** `2026-07-28`  
-**Scope:** Read access to NovaGuard surveillance data; opt-in, non-destructive control by an agent
+**Scope:** Read access to NovaGuard surveillance data; opt-in live view; opt-in, non-destructive control by an agent; optional HTTPS
 
 ## 1. Purpose
 
@@ -19,7 +19,7 @@ Typical requests:
 
 ## 2. Architectural principles
 
-1. **Read by default, control by consent.** Every read tool is available to a read token. Control tools exist only while the device's own switch "Autoriser le pilotage par un agent" is on, and answer only to the separate control token.
+1. **Read by default, control and live view by consent.** Every read tool over what was recorded is available to a read token. Control tools exist only while the device's own switch "Autoriser le pilotage par un agent" is on, and answer only to the separate control token; the live view of what the camera sees now has its own switch, off by default.
 2. **Nothing destructive, ever.** No tool deletes an event or a recording, edits the detection zone, the retention, a PIN or a token (§19).
 3. **Control goes through the app.** The server holds no reference able to modify state; a control call is handed to the app, which carries it out with the same callbacks as its own buttons, or refuses it.
 4. **Every control call is logged** on the device, refused ones included, and shown to the owner.
@@ -80,14 +80,15 @@ The server answers reads from a snapshot the app pushes when the history, the st
 ## 5. Deployment
 
 - **Loopback** (no token): the socket binds `127.0.0.1` only. Reading needs no token there; control always needs the control token, so another app on the phone cannot switch the camera off.
-- **LAN** (a read or control token is set): the socket binds all interfaces; every non-loopback request needs a token. Plain HTTP: the token is readable on a shared Wi-Fi, so use a trusted network.
+- **LAN** (a read or control token is set): the socket binds all interfaces; every non-loopback request needs a token. In plain HTTP the token is readable on a shared Wi-Fi.
+- **HTTPS** (switch "Chiffrer les connexions", off by default): the phone creates its own authority once — EC P-256, private key in the Android Keystore, never exported — and issues under it a server certificate for its current addresses (loopback and the Wi-Fi IP), reissued at the next handshake when the address changes. The owner installs the authority's PEM on the client once (system store, or `NODE_EXTRA_CA_CERTS` for Node clients) and compares the SHA-256 fingerprint Réglages shows. Every connection, loopback included, is then TLS. Certificates are built by `McpCertificates.java`, which `scripts/test-presence-native.sh` parses back, verifies and uses in a real TLS handshake.
 - **Discovery.** On the LAN the server is advertised over DNS-SD as `NovaGuard`, type `_novaguard-mcp._tcp`, TXT `path=/mcp`, `auth=bearer`: the phone's address is a DHCP lease, and a client that browses (`dns-sd -B _novaguard-mcp._tcp`, `avahi-browse -r _novaguard-mcp._tcp`) finds it again after it moves. Réglages also shows the client configuration as a QR code.
 - Public Internet exposure and port forwarding are not supported.
 - The server lives in the app's process. Android only lets a camera foreground service start while the app is on screen, so `start_surveillance` from the background is refused with a clear message; stopping works at any time.
 
 ## 6. Android networking/privacy impact
 
-The current release intentionally does not declare Android `INTERNET`. Adding an HTTP read API is therefore an explicit privacy/architecture change.
+The app declares Android `INTERNET` only so that the two optional local servers (MCP and Wi-Fi live view) can listen; both are off by default and NovaGuard opens no outgoing connection (`__tests__/playRelease.test.ts` checks the sources).
 
 Default state:
 
@@ -117,7 +118,7 @@ Target protocol: MCP `2026-07-28`.
 }
 ```
 
-Control tools appear in `tools/list` only while control is enabled on the device and the control token has not expired.
+Control tools appear in `tools/list` only while control is enabled on the device and the control token has not expired; `get_live_frame` only while the owner's live-view switch is on.
 
 ## 7.1 Prompts
 
@@ -131,7 +132,7 @@ Control tools appear in `tools/list` only while control is enabled on the device
 
 # 8. MCP Tools
 
-§8.1–§8.10 and §8.12 are read tools. §8.11 lists the control tools.
+§8.1–§8.10, §8.12 and §8.13 are read tools. §8.11 lists the control tools.
 
 ## 8.1 `novaguard.get_status`
 
@@ -237,7 +238,7 @@ Input:
 
 Event ids are epoch milliseconds (up to 15 digits); a 32-bit bound rejects every real event.
 
-Output contains `id`, `kind`, `timestamp`, `durationSeconds`, `confidence` (in `[0,1]`), `hasVideo`, `sizeBytes`, `videoResourceUri` and `thumbnailResourceUri` where available, `passageId` (shared by the clips of one visit, `null` on older clips), `kinds` (every kind seen during the passage) and `kept` (exempt from retention and automatic deletion).
+Output contains `id`, `kind`, `timestamp`, `durationSeconds`, `confidence` (in `[0,1]`), `hasVideo`, `sizeBytes`, `videoResourceUri` and `thumbnailResourceUri` where available, `passageId` (shared by the clips of one visit, `null` on older clips), `kinds` (every kind seen during the passage), `kept` (exempt from retention and automatic deletion), `subjectTracked` (the event recorded where its subject was, so `get_event_frames` can crop to it) and `agentNote` (`{verdict, text, at}` left by `annotate_event`, or `null`).
 
 ## 8.4 `novaguard.get_latest_events`
 
@@ -358,12 +359,15 @@ Input:
   "properties":{
     "eventId":{"type":"integer","minimum":0,"maximum":999999999999999},
     "count":{"type":"integer","minimum":1,"maximum":8},
-    "maxEdge":{"type":"integer","minimum":160,"maximum":1280}
+    "maxEdge":{"type":"integer","minimum":160,"maximum":1280},
+    "framing":{"type":"string","enum":["full","subject"]}
   }
 }
 ```
 
-Output: a `text` block `{"eventId","source":"video"|"thumbnail","frames":[{"index","offsetSeconds"}]}`, then one `image/jpeg` block per frame. Frames sit at the middle of `count` equal slices of the clip (default 4, longest side default 768 px), decoded already scaled, one extraction at a time. Without a clip, the event's thumbnail is returned; without either, the result carries `isError` and `NOVAGUARD_MEDIA_UNAVAILABLE`.
+Output: a `text` block `{"eventId","source":"video"|"thumbnail","frames":[{"index","offsetSeconds","cropped"}]}`, then one `image/jpeg` block per frame. Frames sit at the middle of `count` equal slices of the clip (default 4, longest side default 768 px), decoded already scaled, one extraction at a time. Without a clip, the event's thumbnail is returned; without either, the result carries `isError` and `NOVAGUARD_MEDIA_UNAVAILABLE`.
+
+`framing: "subject"` crops each still around where the subject was at that moment — the box recorded with the event (`subjectTracked: true`, one sample a second at most), grown by half on every side, never under 35 % of the frame, decoded larger first so the crop keeps detail (at most 1920 px). An event without a recorded subject (older clips) gets whole frames, each marked `cropped: false`.
 
 ## 8.10 `novaguard.wait_for_event`
 
@@ -379,6 +383,7 @@ Long poll: returns as soon as an event newer than `afterEventId` is recorded (de
 | `set_thresholds` | `person`, `animal` ∈ [0.5, 0.95], at least one | Entry thresholds per kind. |
 | `keep_event` | `eventId`, `kept` | Keeps or releases the event's whole passage (exempt from retention and automatic deletion). |
 | `acknowledge_alert` | — | Acknowledges `camera-moved`; `camera-obstructed` cannot be acknowledged, it clears when the camera sees again. |
+| `annotate_event` | `eventId`, `verdict`: `false_alarm`/`expected`/`attention`/`note`, `note` (≤ 280 characters) | Leaves the agent's verdict on the event, shown in Historique (card and sheet). Replaces the previous one; the owner can clear it. Read back as `agentNote` on the event. |
 
 Every control tool is idempotent and returns `changed`. A call with a read token is a JSON-RPC error `NOVAGUARD_AUTH_FORBIDDEN` (HTTP 403); a refusal by the app (no permission, background, unknown event) is a result carrying `isError`.
 
@@ -397,6 +402,10 @@ Why the camera may miss or cut passages. No arguments.
 ```
 
 `clipGap` is the time between two clips of one passage (`finalize` the encoder's, `restart` the app's); `null` until measured. `autoTune.given` are the settings the app gave up to keep its analysis rate, in order; `measuredFps`/`targetFps` are the figures of its last decision. `crashedStage` names the analysis step a previous launch never returned from (`camera`, `resize`, `inference`, `faces`, `report`). `device` is read at call time: `thermalStatus` is Android's `PowerManager` scale (0 none … 6 shutdown, -1 unknown).
+
+## 8.13 `novaguard.get_live_frame`
+
+What the camera sees now, as one `image/jpeg` block after a `text` block `{"capturedAt","status"}`. Argument: `maxEdge` (160–1280, default 768). Advertised only while the owner's switch "Vue en direct pour l'agent" is on (off by default), answered only while surveillance runs; otherwise `NOVAGUARD_DEVICE_UNAVAILABLE`, and `NOVAGUARD_TIMEOUT` if no frame arrives within 3 s (camera interrupted). Nothing is recorded. The frame processor offers a frame twice a second to a native plugin that does nothing until a request is pending; the YUV copy, JPEG encoding, downscale and rotation happen only then, off the camera thread except for the copy.
 
 # 9. MCP Resources
 
@@ -521,7 +530,7 @@ Errors MUST NOT leak filesystem paths, stack traces, tokens or credentials.
 
 ## Control guarantee
 
-The server cannot modify NovaGuard state by itself. Control is a request the app carries out with its own callbacks and the six commands of §8.11 only; everything in §19 is unreachable by construction and refused by name.
+The server cannot modify NovaGuard state by itself. Control is a request the app carries out with its own callbacks and the seven commands of §8.11 only; everything in §19 is unreachable by construction and refused by name.
 
 ## Authentication
 
@@ -531,6 +540,8 @@ Two bearer tokens, generated on the device with a CSPRNG and compared by SHA-256
 - **control token** — read tools plus §8.11, honoured only while the device's control switch is on and until it expires.
 
 Loopback reads need no token; loopback control does.
+
+Transport is plain HTTP unless the owner turns on HTTPS (§5): the tokens then travel encrypted, under a device authority the client trusts once.
 
 The control token has a lifetime chosen on the device — 1 h, 24 h (default) or none — counted from when it is issued or the lifetime changed. The server enforces it: past its end the token grants nothing, not even reading (a LAN caller gets `NOVAGUARD_AUTH_REQUIRED`, "expired"). While control is possible, the surveillance notification carries **Couper le pilotage**: one tap drops the control token in the server at once, answers a call in flight with `NOVAGUARD_AUTH_FORBIDDEN`, and turns the device switch off.
 
@@ -627,16 +638,16 @@ Control is limited to what the owner can undo at a glance; anything whose damage
 ### "Que s'est-il passé cette nuit ?"
 
 ```text
-novaguard.search_events
-  from = previous 22:00
-  to   = today 07:00
-  sort = timestamp_asc
+prompts/get night_report            → the window is computed in the phone's time zone
+novaguard_get_status                → an empty night means nothing from a covered camera
+novaguard_search_events from/to as the prompt gives, sort = timestamp_asc
+novaguard_get_event_frames eventId = first event of each passage, framing = subject
 ```
 
 ### "Y a-t-il eu des personnes aujourd'hui ?"
 
 ```text
-novaguard.search_events
+novaguard_search_events
   kind = Personne
   from = start of local day
   to   = now
@@ -645,25 +656,33 @@ novaguard.search_events
 ### "Montre-moi la dernière détection."
 
 ```text
-novaguard.get_latest_events
-  limit = 1
+novaguard_get_latest_events limit = 1
+novaguard_get_event_frames  eventId = <id>, framing = subject
 ```
 
-The client can then explicitly fetch the thumbnail/video resource.
-
-### "Combien d'animaux cette semaine ?"
+### "Qu'est-ce que la caméra voit maintenant ?"
 
 ```text
-novaguard.get_statistics
-  from = start of 7-day period
-  to   = now
-  groupBy = kind
+novaguard_get_live_frame            → only if the owner turned on the live view
 ```
 
-### "Le téléphone manque-t-il d'espace ?"
+### "Préviens-moi dès que quelqu'un arrive."
 
 ```text
-novaguard.get_storage
+novaguard_wait_for_event kind = Personne   → call again with afterEventId = latestEventId
+```
+
+### "Ce passage était le facteur, note-le."
+
+```text
+novaguard_annotate_event eventId = <id>, verdict = expected, note = "Facteur, colis déposé."
+```
+
+### "Le téléphone manque-t-il d'espace ? Rate-t-il des passages ?"
+
+```text
+novaguard_get_storage
+novaguard_get_diagnostics           → or prompts/get diagnose_camera
 ```
 
 # 21. Test strategy
@@ -684,43 +703,38 @@ Datasets SHOULD cover 1,000, 10,000 and 100,000 events. Searches MUST remain pag
 
 ```text
 android/app/src/main/java/com/novaguard/surveillance/
-├── McpServerModule.kt   # HTTP transport, JSON-RPC, auth, tools, control bridge, wait_for_event, DNS-SD
+├── McpServerModule.kt   # HTTP(S) transport, JSON-RPC, auth, tools, control bridge, wait_for_event, DNS-SD
 ├── McpCatalog.kt        # advertised tools/resources/prompts and the validation derived from them
 ├── McpSnapshot.kt       # what reads answer from
-├── McpFrames.kt         # stills for get_event_frames
+├── McpFrames.kt         # stills for get_event_frames, whole or cropped to the subject
+├── LiveFramePlugin.kt   # get_live_frame: frame processor plugin, idle until a request is pending
+├── McpTls.kt            # device authority (Android Keystore) and per-address server certificates
+├── McpCertificates.java # X.509 builder, tested on the JVM with a real TLS handshake
 ├── McpPrompts.java      # prompts and their time windows, tested on the JVM
 ├── McpRules.java        # pure decisions, tested on the JVM (scripts/test-presence-native.sh)
 └── SurveillanceService.kt  # notification action "Couper le pilotage"
 src/surveillance/
-├── mcpServer.ts         # snapshot (diagnostics included) and native bridge
-├── mcpCommands.ts       # the six control commands
-├── mcpControl.ts        # control token lifetime
+├── mcpServer.ts         # snapshot (diagnostics, subject trail, agent notes) and native bridge
+├── mcpCommands.ts       # the seven control commands
+├── mcpControl.ts        # control token lifetime, live-view gating
+├── mcpServices.ts       # what the "Services MCP" page lists, checked against McpCatalog.kt
 └── agentLog.ts          # the owner-visible log of control calls
+src/recording/subjectTrail.ts  # where the subject was in each clip, for framing "subject"
 src/utils/qr.ts          # QR encoder for the client configuration
 ```
 
 # 23. Evolution path
 
+Done since v1: passage grouping, recording and camera diagnostics (`get_diagnostics`), the `timeline` resource, stills cropped to the subject, the live view, HTTPS.
+
 Future versions MAY add:
 
-- event grouping by passage/session;
-- activity heatmaps;
-- hourly/daily activity profiles;
+- activity heatmaps and hourly/daily activity profiles;
 - storage forecast;
-- recording diagnostics;
-- camera health diagnostics;
-- detection pipeline performance metrics;
-- model/version information;
+- model/version information and detection pipeline metrics beyond the self-tuning figures;
 - local-stream health status;
+- server push (`resources/subscribe` over a streamed transport) in place of the `wait_for_event` long poll;
 - event similarity search, provided it does not become biometric identification.
-
-A useful future resource is:
-
-```text
-novaguard://timeline/{date}
-```
-
-for efficient chronological summaries.
 
 # 24. Acceptance criteria
 
@@ -730,8 +744,11 @@ for efficient chronological summaries.
 - [x] No operation can delete an event or recording, or change zone, retention, PIN or token.
 - [x] Every control call logged on the device.
 - [x] Confidence on `[0,1]`; `Personne` / `Animal` preserved.
-- [x] Agents see stills (`get_event_frames`) without loading clips in memory.
-- [ ] Verified on a device: control from the foreground, refusal from the background, `wait_for_event` wake-up, 9th concurrent client refused.
+- [x] Agents see stills (`get_event_frames`) without loading clips in memory, cropped to the subject on request.
+- [x] Live view behind its own switch, off by default; the frame path is idle until a request is pending.
+- [x] Control token time-limited, enforced by the server, revocable from the notification.
+- [x] Optional HTTPS under a device authority whose key never leaves the Android Keystore; certificates verified on the JVM by a real TLS handshake.
+- [ ] Verified on a device (`docs/DEVICE_CHECKS.md`): control from the foreground, refusal from the background, `wait_for_event` wake-up, 9th concurrent client refused, live view orientation, subject crop with the front camera, HTTPS across an IP change.
 
 # 25. Architectural decision
 
@@ -740,6 +757,7 @@ for efficient chronological summaries.
 ```text
 REAL-TIME   Camera → EfficientDet-Lite → Tracking → DetectionEvent → MP4/JPEG
 READ        App snapshot → McpServerModule → MCP client
+LIVE        MCP client → McpServerModule → McpLiveFrame ← LiveFramePlugin (frame processor, idle until asked)
 CONTROL     MCP client → McpServerModule → app (executeMcpCommand) → same callbacks as the UI
 ```
 

@@ -29,12 +29,13 @@ Avant de proposer une pull request, vérifiez que le projet est propre :
 
 ```sh
 npm run typecheck   # types (tsc --noEmit)
-npm run lint        # ESLint
+npm run lint        # ESLint (0 erreur, 0 avertissement)
 npm test            # Jest (unitaires)
+bash scripts/test-presence-native.sh   # Java pur sur la JVM : fenêtre de présence, règles MCP, prompts, certificats
 npm run test:e2e    # Maestro (tests UI E2E sur émulateur/appareil)
 ```
 
-Ces trois vérifications tournent aussi automatiquement en CI (GitHub Actions) sur chaque pull request — voir [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+Typecheck, lint, Jest et les tests Java tournent aussi en CI (GitHub Actions) sur chaque pull request — voir [`.github/workflows/ci.yml`](.github/workflows/ci.yml) ; une PR qui touche du code Android y construit en plus un APK, seul moyen de compiler le Kotlin. Ce qu'aucun test ne prouve est dans [`docs/DEVICE_CHECKS.md`](docs/DEVICE_CHECKS.md).
 
 ## Dépendances : ce qui est volontairement figé
 

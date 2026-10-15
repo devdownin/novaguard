@@ -31,8 +31,11 @@ the device. **None of this processing goes over a network.**
 
 ## Nothing is transmitted
 
-The app does not even ask for the `INTERNET` permission: it is technically
-incapable of opening a network connection. There is therefore:
+The app declares the `INTERNET` permission for one reason only: two optional
+local servers, **off by default** — Wi-Fi live view and the MCP server. They
+only listen on the local network and answer only devices you connect to them
+yourself. NovaGuard itself never opens an outgoing connection, to any server.
+There is therefore:
 
 - no account, no sign-up, no identifier;
 - no telemetry, no usage statistics, no remote crash reporting;
@@ -41,7 +44,15 @@ incapable of opening a network connection. There is therefore:
 
 ### MCP Server (Optional)
 
-If you choose to enable the MCP (*Model Context Protocol*) server in the settings, NovaGuard provides a token-secured, read-only consultation interface on the local network (port 8081 by default). When an external AI assistant queries the MCP server, surveillance metadata and explicitly requested videos are transmitted to the user's selected AI client. The MCP server is strictly read-only and cannot alter the surveillance state or mutate your data.
+If you turn on the MCP (*Model Context Protocol*) server in the settings, an AI assistant of your choice can query NovaGuard from this device or, with an access token, from the local network (port 8081 by default). It receives the surveillance metadata, stills and videos **it explicitly asks for**; if that assistant relies on a remote model, this data then leaves the device for the service you chose — never for NovaGuard.
+
+Two further capabilities are off by default and are turned on separately:
+
+- **live view**: the assistant can ask for a picture of what the camera sees during surveillance; nothing is recorded;
+- **control**: with a separate control token, time-limited and revocable from the notification, the assistant can start or stop surveillance, set the sensitivity and thresholds, keep a passage, acknowledge an alert and leave a note on an event. It can **delete nothing**, nor change the zone, retention or a token. Every action is logged in the settings.
+
+The “What an AI assistant can see and do” page (Settings) lists it all.
+
 
 ## Who can open the history
 

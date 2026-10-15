@@ -83,6 +83,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   @Volatile private var controlDigest: ByteArray? = null
   /** Epoch ms after which the control token stops working; 0 for never. */
   @Volatile private var controlExpiresAt: Long = 0
+  /** HTTPS under the device authority (`McpTls`); off, plain HTTP as before. */
+  @Volatile private var tls: Boolean = false
   /** The DNS-SD registration while the socket is on the LAN, so a client finds a moved address. */
   private var nsdListener: NsdManager.RegistrationListener? = null
   @Volatile private var snapshot: Snapshot = Snapshot.empty()
@@ -106,7 +108,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun startServer(
-    port: Int, token: String?, controlToken: String?, controlEnabled: Boolean, controlExpiresAt: Double, promise: Promise,
+    port: Int, token: String?, controlToken: String?, controlEnabled: Boolean, controlExpiresAt: Double, tls: Boolean,
+    promise: Promise,
   ) {
     try {
       if (isServerRunning) stopServerInternal()
@@ -126,7 +129,11 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       val bindAddress =
         if (boundToLoopbackOnly) InetAddress.getByName("127.0.0.1") else null
 
-      serverSocket = ServerSocket().apply {
+      this.tls = tls
+      // The certificate is chosen per handshake for the addresses of the
+      // moment, so a socket opened on one DHCP lease keeps working on the next.
+      val factory = if (tls) McpTls.context(reactContext) { certificateAddresses() }.serverSocketFactory else null
+      serverSocket = (factory?.createServerSocket() ?: ServerSocket()).apply {
         reuseAddress = true
         bind(InetSocketAddress(bindAddress, currentPort))
       }
@@ -223,6 +230,22 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     }
   }
 
+  private fun certificateAddresses(): List<String> =
+    listOfNotNull("127.0.0.1", "::1", if (boundToLoopbackOnly) null else localIpAddress())
+
+  /** The device authority's certificate, PEM, for the owner to install on the client. */
+  @ReactMethod
+  fun getCaCertificate(promise: Promise) {
+    try {
+      promise.resolve(Arguments.createMap().apply {
+        putString("pem", McpTls.pem(reactContext))
+        putString("fingerprint", McpTls.fingerprint(reactContext))
+      })
+    } catch (e: Exception) {
+      promise.reject("MCP_TLS_ERROR", "Device certificate unavailable: ${e.message}")
+    }
+  }
+
   private fun controlAvailable(): Boolean =
     controlDigest != null && McpRules.controlLive(controlExpiresAt, System.currentTimeMillis())
 
@@ -240,6 +263,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       port = currentPort
       setAttribute("path", "/mcp")
       setAttribute("auth", "bearer")
+      setAttribute("scheme", if (tls) "https" else "http")
     }
     val listener = object : NsdManager.RegistrationListener {
       override fun onServiceRegistered(registered: NsdServiceInfo) { Log.i(TAG, "Advertised as ${registered.serviceName}") }
@@ -288,7 +312,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     putBoolean("running", isServerRunning)
     putInt("port", currentPort)
     putString("ipAddress", ip)
-    putString("url", if (isServerRunning) "http://$host:$currentPort/mcp" else null)
+    putString("url", if (isServerRunning) "${if (tls) "https" else "http"}://$host:$currentPort/mcp" else null)
+    putBoolean("tls", tls)
     putBoolean("hasToken", tokenDigest != null)
     putBoolean("controlEnabled", controlAvailable())
     putBoolean("advertised", nsdListener != null)
@@ -433,7 +458,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   }
 
   private fun isAllowedOrigin(origin: String): Boolean =
-    expectedAuthorities().any { origin == "http://$it" }
+    expectedAuthorities().any { origin == "${if (tls) "https" else "http"}://$it" }
 
   private fun isAllowedHost(host: String?): Boolean {
     if (host == null) return false
@@ -514,7 +539,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       when (method) {
         "initialize" -> successResponse(id, initializeResult(params))
         "ping" -> successResponse(id, JSONObject())
-        "tools/list" -> successResponse(id, JSONObject().put("tools", McpCatalog.tools(controlAvailable())))
+        "tools/list" -> successResponse(id, JSONObject().put("tools", McpCatalog.tools(controlAvailable(), snapshot.liveFrameAllowed)))
         "tools/call" -> successResponse(id, callToolReportingFailures(params, principal))
         "resources/list" -> successResponse(id, JSONObject().put("resources", McpCatalog.resources(snapshot)))
         "resources/templates/list" -> successResponse(id, JSONObject().put("resourceTemplates", McpCatalog.resourceTemplates()))
@@ -551,7 +576,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     // it rather than becoming a result the model is invited to work around.
     val rawName = params.optString("name")
     assertNotForbidden(rawName)
-    if (!McpCatalog.isKnownTool(rawName, controlAvailable())) {
+    if (!McpCatalog.isKnownTool(rawName, controlAvailable(), snapshot.liveFrameAllowed)) {
       throw McpException("NOVAGUARD_INVALID_ARGUMENT", "Unknown tool: '$rawName'", -32602)
     }
     // Refused before anything runs, like an unknown tool: no argument would
@@ -614,6 +639,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     McpCatalog.validateArguments(name, args)
     if (name == "get_event_frames") return eventFrames(args)
     if (name == "wait_for_event") return toolResult(waitForEvent(args))
+    if (name == McpCatalog.LIVE_TOOL) return liveFrame(args)
     if (name in McpCatalog.CONTROL_TOOLS) return toolResult(runCommand(name, args))
 
     val payload: Any = when (name) {
@@ -761,7 +787,10 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     val frames: List<McpFrame>
     val source: String
     if (video != null) {
-      frames = McpFrames.fromVideo(video, count, maxEdge)
+      // Framing "subject" without a recorded trail (an older clip) falls back to
+      // whole frames, and the summary says which the caller got.
+      val subject = if (args.optString("framing") == "subject") event.subject else emptyList()
+      frames = McpFrames.fromVideo(video, count, maxEdge, subject)
       source = "video"
     } else {
       val still = mediaFile(event.thumbPath, MAX_THUMBNAIL_BYTES, idText)
@@ -776,10 +805,31 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       .put("eventId", event.id)
       .put("source", source)
       .put("frames", JSONArray().apply {
-        frames.forEachIndexed { i, f -> put(JSONObject().put("index", i).put("offsetSeconds", f.offsetMs / 1000.0)) }
+        frames.forEachIndexed { i, f ->
+          put(JSONObject().put("index", i).put("offsetSeconds", f.offsetMs / 1000.0).put("cropped", f.cropped))
+        }
       })
     val content = JSONArray().put(JSONObject().put("type", "text").put("text", summary.toString()))
     frames.forEach { content.put(JSONObject().put("type", "image").put("mimeType", "image/jpeg").put("data", it.jpegBase64)) }
+    return JSONObject().put("content", content).put("isError", false).put("structuredContent", summary)
+  }
+
+  /**
+   * The scene now, as an image. Refused rather than attempted when surveillance
+   * is stopped: the frame processor is what hands the still over, and it only
+   * runs with the camera.
+   */
+  private fun liveFrame(args: JSONObject): JSONObject {
+    if (!snapshot.isSurveillanceActive()) {
+      throw McpException("NOVAGUARD_DEVICE_UNAVAILABLE", "Surveillance is stopped: there is no camera feed to look at", -32603)
+    }
+    val edge = McpFrames.clampEdge(args.optInt("maxEdge", McpFrames.DEFAULT_MAX_EDGE))
+    val (jpeg, at) = McpLiveFrame.capture(edge, LIVE_FRAME_TIMEOUT_MS)
+      ?: throw McpException("NOVAGUARD_TIMEOUT", "No camera frame arrived in time; the camera may be interrupted", -32603)
+    val summary = JSONObject().put("capturedAt", isoOf(at)).put("status", snapshot.statusJson())
+    val content = JSONArray()
+      .put(JSONObject().put("type", "text").put("text", summary.toString()))
+      .put(JSONObject().put("type", "image").put("mimeType", "image/jpeg").put("data", jpeg))
     return JSONObject().put("content", content).put("isError", false).put("structuredContent", summary)
   }
 
@@ -1000,6 +1050,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     private const val MAX_CONNECTIONS = 8
     private const val COMMAND_EVENT = "McpCommand"
     private const val COMMAND_TIMEOUT_MS = 5_000L
+    /** Twice a second at the frame processor, and a JPEG after: 3 s is several chances. */
+    private const val LIVE_FRAME_TIMEOUT_MS = 3_000L
     private const val REVOKED_EVENT = "McpControlRevoked"
     private const val REVOKED_OUTCOME = "{\"ok\":false,\"code\":\"NOVAGUARD_AUTH_FORBIDDEN\",\"message\":\"Control was revoked on the device\"}"
     private const val SERVICE_NAME = "NovaGuard"

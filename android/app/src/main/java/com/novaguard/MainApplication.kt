@@ -11,6 +11,7 @@ import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.novaguard.surveillance.SurveillanceServicePackage
 import com.novaguard.surveillance.PresenceFramePlugin
+import com.novaguard.surveillance.LiveFramePlugin
 import com.novaguard.surveillance.StreamFramePlugin
 import com.mrousavy.camera.frameprocessors.FrameProcessorPluginRegistry
 
@@ -38,6 +39,7 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
     FrameProcessorPluginRegistry.addFrameProcessorPlugin("novaguardStream") { _, _ -> StreamFramePlugin() }
+    FrameProcessorPluginRegistry.addFrameProcessorPlugin("novaguardLive") { _, _ -> LiveFramePlugin() }
     FrameProcessorPluginRegistry.addFrameProcessorPlugin("novaguardPresence") { _, _ -> PresenceFramePlugin() }
     loadReactNative(this)
   }

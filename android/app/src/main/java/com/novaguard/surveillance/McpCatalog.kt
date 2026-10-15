@@ -28,11 +28,19 @@ internal object McpCatalog {
   private const val PREFIX = "novaguard_"
 
   /** Control tools are advertised only while the device allows control. */
-  fun tools(controlEnabled: Boolean): JSONArray {
+  /** Control tools only while the device allows control; the live view only while the owner allows it. */
+  fun tools(controlEnabled: Boolean, liveEnabled: Boolean): JSONArray {
     val list = readTools()
+    if (liveEnabled) list.put(liveTool())
     if (controlEnabled) controlTools().forEach { list.put(it) }
     return list
   }
+
+  private fun liveTool(): JSONObject = tool(
+    "get_live_frame",
+    "Returns what the camera sees right now, as one JPEG image: use it to check the camera is not covered or turned, or to look at the scene after an alert. Only while surveillance is running, and only if the owner allowed the live view on the device. Nothing is recorded.",
+    JSONObject().put("maxEdge", intProp(160, 1280, "Longest side, in pixels. Defaults to ${McpFrames.DEFAULT_MAX_EDGE}."))
+  )
 
   private fun controlTools(): List<JSONObject> = listOf(
     tool(
@@ -61,6 +69,15 @@ internal object McpCatalog {
         .put("eventId", longProp(0, McpRules.MAX_EVENT_ID, "Identifier of any event of the passage."))
         .put("kept", boolProp("true to keep, false to release.")),
       required = listOf("eventId", "kept")
+    ),
+    tool(
+      "annotate_event",
+      "Leaves your verdict on an event, shown to the owner in the history: false_alarm, expected, attention (worth the owner's look) or note, with an optional short note. Needs the control token. Replaces your previous note on that event; the owner can clear it. Look at the frames first.",
+      JSONObject()
+        .put("eventId", longProp(0, McpRules.MAX_EVENT_ID, "Identifier of the event you looked at."))
+        .put("verdict", enumProp(VERDICTS, "false_alarm, expected, attention or note."))
+        .put("note", JSONObject().put("type", "string").put("maxLength", NOTE_MAX).put("description", "What you saw, in one or two sentences, in the owner's language.")),
+      required = listOf("eventId", "verdict")
     ),
     tool(
       "acknowledge_alert",
@@ -123,11 +140,12 @@ internal object McpCatalog {
     .put(
       tool(
         "get_event_frames",
-        "Returns JPEG stills sampled across an event's clip, as images you can look at: use it to see who or what was filmed. Frames are taken at the middle of equal slices of the clip. Falls back to the event's thumbnail when the clip is gone. Prefer this over the video resource, which most clients cannot read.",
+        "Returns JPEG stills sampled across an event's clip, as images you can look at: use it to see who or what was filmed. Frames are taken at the middle of equal slices of the clip. Falls back to the event's thumbnail when the clip is gone. Prefer this over the video resource, which most clients cannot read. framing \"subject\" crops each still around where the subject was (with context), when the event recorded it (subjectTracked); otherwise whole frames are returned and each frame says cropped false.",
         JSONObject()
           .put("eventId", longProp(0, McpRules.MAX_EVENT_ID, "Identifier of the event, as returned by the other tools."))
           .put("count", intProp(1, McpRules.MAX_FRAMES, "How many frames. Defaults to ${McpRules.DEFAULT_FRAMES}."))
-          .put("maxEdge", intProp(160, 1280, "Longest side of each frame, in pixels. Defaults to ${McpFrames.DEFAULT_MAX_EDGE}.")),
+          .put("maxEdge", intProp(160, 1280, "Longest side of each frame, in pixels. Defaults to ${McpFrames.DEFAULT_MAX_EDGE}."))
+          .put("framing", enumProp(FRAMINGS, "full (default) or subject.")),
         required = listOf("eventId")
       )
     )
@@ -194,17 +212,21 @@ internal object McpCatalog {
   internal val TOOL_PREFIXES = listOf("novaguard_", "novaguard.")
 
   /** Whether the catalogue advertises this name, under either prefix, given the device's control switch. */
-  fun isKnownTool(rawName: String, controlEnabled: Boolean): Boolean {
+  fun isKnownTool(rawName: String, controlEnabled: Boolean, liveEnabled: Boolean): Boolean {
     val operation = TOOL_PREFIXES.firstNotNullOfOrNull { prefix ->
       if (rawName.startsWith(prefix)) rawName.removePrefix(prefix) else null
     } ?: return false
     if (operation in CONTROL_TOOLS) return controlEnabled
+    if (operation == LIVE_TOOL) return liveEnabled
     return ARGUMENT_SPECS.containsKey(operation)
   }
+
+  const val LIVE_TOOL = "get_live_frame"
 
   /** Tools that change the device, and so need the control token. */
   val CONTROL_TOOLS = setOf(
     "start_surveillance", "stop_surveillance", "set_sensitivity", "set_thresholds", "keep_event", "acknowledge_alert",
+    "annotate_event",
   )
 
   /**
@@ -239,6 +261,13 @@ internal object McpCatalog {
     if (allowed != null && !allowed.contains(value)) invalid(key, "must be one of ${allowed.joinToString(", ")}")
   }
 
+  /** Free text, possibly empty, at most `max` characters. */
+  private fun textRule(max: Int): (JSONObject, String) -> Unit = { args, key ->
+    val value = args.opt(key)
+    if (value !is String) invalid(key, "must be a string")
+    if (value.length > max) invalid(key, "must be at most $max characters")
+  }
+
   private fun intRule(min: Int, max: Int): (JSONObject, String) -> Unit = { args, key ->
     val value = args.opt(key)
     if (value !is Int && value !is Long) invalid(key, "must be an integer")
@@ -268,6 +297,10 @@ internal object McpCatalog {
   private val SORTS = listOf("timestamp_desc", "timestamp_asc")
   private val GROUPS = listOf("hour", "day", "kind")
   private val SENSITIVITIES = listOf("Basse", "Moyenne", "Haute")
+  private val FRAMINGS = listOf("full", "subject")
+  private val VERDICTS = listOf("false_alarm", "expected", "attention", "note")
+  /** Same bound as `AGENT_NOTE_MAX` in `mcpCommands.ts`. */
+  private const val NOTE_MAX = 280
 
   private val ARGUMENT_SPECS: Map<String, Map<String, (JSONObject, String) -> Unit>> = mapOf(
     "get_status" to emptyMap(),
@@ -275,12 +308,14 @@ internal object McpCatalog {
     "get_configuration" to emptyMap(),
     "get_camera_info" to emptyMap(),
     "get_diagnostics" to emptyMap(),
+    "get_live_frame" to mapOf("maxEdge" to intRule(160, 1280)),
     // Ids are epoch milliseconds: an Int bound refused every event ever recorded.
     "get_event" to mapOf("eventId" to longRule(0, McpRules.MAX_EVENT_ID)),
     "get_event_frames" to mapOf(
       "eventId" to longRule(0, McpRules.MAX_EVENT_ID),
       "count" to intRule(1, McpRules.MAX_FRAMES),
-      "maxEdge" to intRule(160, 1280)
+      "maxEdge" to intRule(160, 1280),
+      "framing" to stringRule(FRAMINGS)
     ),
     "wait_for_event" to mapOf(
       "afterEventId" to longRule(0, McpRules.MAX_EVENT_ID),
@@ -293,6 +328,9 @@ internal object McpCatalog {
     "set_thresholds" to mapOf("person" to numberRule(0.5, 0.95), "animal" to numberRule(0.5, 0.95)),
     "keep_event" to mapOf("eventId" to longRule(0, McpRules.MAX_EVENT_ID), "kept" to boolRule),
     "acknowledge_alert" to emptyMap(),
+    "annotate_event" to mapOf(
+      "eventId" to longRule(0, McpRules.MAX_EVENT_ID), "verdict" to stringRule(VERDICTS), "note" to textRule(NOTE_MAX)
+    ),
     "get_latest_events" to mapOf("kind" to stringRule(KINDS), "limit" to intRule(1, 20)),
     "get_statistics" to mapOf(
       "from" to stringRule(), "to" to stringRule(), "groupBy" to stringRule(GROUPS)
@@ -309,6 +347,7 @@ internal object McpCatalog {
     "get_event_frames" to listOf("eventId"),
     "set_sensitivity" to listOf("sensitivity"),
     "keep_event" to listOf("eventId", "kept"),
+    "annotate_event" to listOf("eventId", "verdict"),
     "get_statistics" to listOf("from", "to")
   )
 

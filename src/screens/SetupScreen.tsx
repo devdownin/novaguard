@@ -17,6 +17,7 @@ import { SettingRow, StaticValue, ValueButton } from '../components/SetupRows';
 import { Switch } from '../components/Switch';
 import { SegmentedControl } from '../components/SegmentedControl';
 import { PrimaryOutlineButton, SecondaryOutlineButton } from '../components/OutlineButton';
+import { getMcpCaCertificate } from '../surveillance/mcpServer';
 import { QrCode } from '../components/QrCode';
 import { controlLive } from '../surveillance/mcpControl';
 import { ShieldCheckIcon } from '../components/icons';
@@ -61,7 +62,14 @@ export function SetupScreen() {
   // The server's own address, not the streaming server's. Without a token it
   // binds to loopback only, so it reports 127.0.0.1 and the row must say that
   // rather than advertise a LAN address nothing is listening on.
-  const mcpServerUrl = s.mcpStatus.url ?? `http://127.0.0.1:${settings.mcpPort}/mcp`;
+  const mcpServerUrl = s.mcpStatus.url ?? `${settings.mcpTls ? 'https' : 'http'}://127.0.0.1:${settings.mcpPort}/mcp`;
+  const [caCertificate, setCaCertificate] = React.useState<{ pem: string; fingerprint: string } | null>(null);
+  React.useEffect(() => {
+    if (!settings.mcpEnabled || !settings.mcpTls) return;
+    let live = true;
+    getMcpCaCertificate().then(ca => { if (live) setCaCertificate(ca); });
+    return () => { live = false; };
+  }, [settings.mcpEnabled, settings.mcpTls]);
 
   const copyToClipboard = (text: string, label: string) => {
     try {
@@ -435,6 +443,14 @@ export function SetupScreen() {
             <StaticValue label={t(controlActive ? 'setup.mcpMode.control' : 'setup.mcpMode.readOnly')} />
           </SettingRow>
 
+          <SettingRow label={t('setup.mcpLiveFrame')} subtitle={t('setup.mcpLiveFrame.sub')}>
+            <Switch
+              value={settings.mcpLiveFrameEnabled}
+              onValueChange={s.toggleMcpLiveFrame}
+              accessibilityLabel={t('setup.mcpLiveFrame')}
+            />
+          </SettingRow>
+
           <SettingRow label={t('setup.mcpControl')} subtitle={t('setup.mcpControl.sub')}>
             <Switch
               value={settings.mcpControlEnabled}
@@ -497,6 +513,21 @@ export function SetupScreen() {
                 ))}
               </View>
             </>
+          ) : null}
+
+          <SettingRow label={t('setup.mcpTls')} subtitle={t('setup.mcpTls.sub')}>
+            <Switch value={settings.mcpTls} onValueChange={s.toggleMcpTls} accessibilityLabel={t('setup.mcpTls')} />
+          </SettingRow>
+          {settings.mcpTls && caCertificate ? (
+            <View style={styles.subBlock} testID="mcp-ca">
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.subLabel}>{t('setup.mcpTls.fingerprint')}</Text>
+              <Text style={styles.fingerprint} selectable>{caCertificate.fingerprint}</Text>
+              <Text style={styles.hint}>{t('setup.mcpTls.trust')}</Text>
+              <SecondaryOutlineButton
+                label={copiedLabel === 'ca' ? t('setup.mcpCopy.copied') : t('setup.mcpTls.copyPem')}
+                onPress={() => copyToClipboard(caCertificate.pem, 'ca')}
+              />
+            </View>
           ) : null}
 
           <SettingRow label={t('setup.mcpPort')}>
@@ -608,6 +639,8 @@ export function SetupScreen() {
             <PrimaryOutlineButton label={t('setup.privacy.perms')} onPress={() => s.openInfo('perms')} style={styles.flex1} />
             <SecondaryOutlineButton label={t('setup.privacy.data')} onPress={() => s.openInfo('data')} style={styles.flex1} />
           </View>
+          {/* Always here, server on or off: the page is what an owner reads to decide whether to turn it on. */}
+          <SecondaryOutlineButton label={t('setup.privacy.mcp')} onPress={() => s.openInfo('mcp')} style={styles.thirdPartyButton} />
         </LinearGradient>
 
         <CollapsibleSection title={t('setup.section.about')} expanded={settings.exp.about} onToggle={() => s.toggleSection('about')}>
@@ -653,6 +686,13 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 620,
     alignSelf: 'center',
+  },
+  fingerprint: {
+    fontFamily: 'monospace',
+    fontSize: 11,
+    lineHeight: 16,
+    color: color.text,
+    marginVertical: 6,
   },
   qr: {
     alignItems: 'center',

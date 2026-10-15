@@ -12,11 +12,12 @@ import { controlLive } from './mcpControl';
  */
 export const READ_TOOLS = [
   'get_status', 'get_diagnostics', 'search_events', 'get_latest_events', 'get_event', 'get_event_frames',
-  'wait_for_event', 'get_statistics', 'get_storage', 'get_configuration', 'get_camera_info',
+  'wait_for_event', 'get_live_frame', 'get_statistics', 'get_storage', 'get_configuration', 'get_camera_info',
 ] as const;
 
 export const CONTROL_TOOLS = [
   'start_surveillance', 'stop_surveillance', 'set_sensitivity', 'set_thresholds', 'keep_event', 'acknowledge_alert',
+  'annotate_event',
 ] as const;
 
 export const PROMPTS = ['night_report', 'review_alerts', 'diagnose_camera'] as const;
