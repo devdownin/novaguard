@@ -10,23 +10,28 @@ interface ButtonProps {
   disabled?: boolean;
   /** For the end-to-end flows, which have no other handle on a button. */
   testID?: string;
-  /** Drawn before the label, in the label's own colour. */
+  /** Drawn in the label's own colour, before it or above it. */
   icon?: React.ComponentType<IconProps>;
+  /** `top` stacks the icon over the label, as the tab bar does; for narrow buttons sharing a row. */
+  iconPosition?: 'start' | 'top';
 }
 
 /** The label, preceded by its icon when there is one. The icon is drawn, never read: the label names the action. */
-function Content({ label, tint, icon: Icon }: { label: string; tint: string; icon?: React.ComponentType<IconProps> }) {
+function Content({ label, tint, icon: Icon, iconPosition = 'start' }: {
+  label: string; tint: string; icon?: React.ComponentType<IconProps>; iconPosition?: 'start' | 'top';
+}) {
   const text = <Text style={[styles.text, { color: tint }]}>{label}</Text>;
   if (!Icon) return text;
+  const top = iconPosition === 'top';
   return (
-    <View style={styles.row}>
-      <Icon size={13} color={tint} />
+    <View style={top ? styles.stack : styles.row}>
+      <Icon size={top ? 18 : 13} color={tint} />
       {text}
     </View>
   );
 }
 
-export function PrimaryOutlineButton({ label, onPress, style, disabled, testID, icon }: ButtonProps) {
+export function PrimaryOutlineButton({ label, onPress, style, disabled, testID, icon, iconPosition }: ButtonProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -42,12 +47,12 @@ export function PrimaryOutlineButton({ label, onPress, style, disabled, testID, 
         style,
       ]}
     >
-      <Content label={label} tint={color.accent} icon={icon} />
+      <Content label={label} tint={color.accent} icon={icon} iconPosition={iconPosition} />
     </Pressable>
   );
 }
 
-export function SecondaryOutlineButton({ label, onPress, style, disabled, testID, icon }: ButtonProps) {
+export function SecondaryOutlineButton({ label, onPress, style, disabled, testID, icon, iconPosition }: ButtonProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -63,12 +68,12 @@ export function SecondaryOutlineButton({ label, onPress, style, disabled, testID
         style,
       ]}
     >
-      <Content label={label} tint={color.neutral300} icon={icon} />
+      <Content label={label} tint={color.neutral300} icon={icon} iconPosition={iconPosition} />
     </Pressable>
   );
 }
 
-export function TextButton({ label, onPress, style, disabled, testID, icon }: ButtonProps) {
+export function TextButton({ label, onPress, style, disabled, testID, icon, iconPosition }: ButtonProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -78,7 +83,7 @@ export function TextButton({ label, onPress, style, disabled, testID, icon }: Bu
       accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => [styles.base, styles.text_, pressed && { opacity: 0.6 }, style]}
     >
-      <Content label={label} tint={color.neutral500} icon={icon} />
+      <Content label={label} tint={color.neutral500} icon={icon} iconPosition={iconPosition} />
     </Pressable>
   );
 }
@@ -138,6 +143,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  stack: {
+    alignItems: 'center',
+    gap: 4,
   },
   text: {
     fontFamily: font.regular,

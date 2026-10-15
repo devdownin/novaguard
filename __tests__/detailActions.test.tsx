@@ -7,7 +7,7 @@
 
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppStateProvider, useAppState } from '../src/state/AppStateContext';
 import { VideoDetailSheet } from '../src/components/VideoDetailSheet';
@@ -56,4 +56,20 @@ it('keeps the label as the text the button is read by', () => {
   for (const label of [t('detail.share'), t('detail.close')]) {
     expect(button(label).findAll(c => c.type === Text && c.props.children === label)).not.toHaveLength(0);
   }
+});
+
+/** The layout the icon sits in: stacked over its label, or beside it. */
+function placement(label: string, icon: React.ElementType): 'top' | 'start' {
+  const holder = button(label).findByType(icon).parent!;
+  const style = StyleSheet.flatten(holder.props.style) ?? {};
+  return style.flexDirection === 'row' ? 'start' : 'top';
+}
+
+it('stacks the icon above the label in the action row, as the tab bar does', () => {
+  expect(placement(t('detail.share'), ShareIcon)).toBe('top');
+  expect(placement(t('detail.keep'), BookmarkIcon)).toBe('top');
+  expect(placement(t('detail.deleteSequence'), TrashIcon)).toBe('top');
+  expect(placement(t('detail.close'), CloseIcon)).toBe('top');
+  // A full-width button keeps its icon inline: there is room beside the label.
+  expect(placement(t('detail.playPassage'), PlayIcon)).toBe('start');
 });
