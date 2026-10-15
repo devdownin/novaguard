@@ -321,6 +321,7 @@ export const en: Record<StringKey, string> = {
   'setup.privacy.body': 'Detection runs on the device. Videos stay on your phone and are never sent to a server.',
   'setup.privacy.perms': 'Permissions',
   'setup.privacy.data': 'Stored data',
+  'setup.privacy.mcp': 'What an AI assistant can see and do',
 
   // ── info sheets ──────────────────────────────────────────────────────
   'a11y.setting': '{name}: {value}',

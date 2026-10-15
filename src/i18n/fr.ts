@@ -323,6 +323,7 @@ export const fr = {
   'setup.privacy.body': "La détection s'exécute sur l'appareil. Les vidéos restent sur votre téléphone et ne sont jamais envoyées sur un serveur.",
   'setup.privacy.perms': 'Permissions',
   'setup.privacy.data': 'Données stockées',
+  'setup.privacy.mcp': 'Ce qu’un assistant IA peut voir et faire',
 
   // ── what a screen reader says, where the visible text is not enough ──
   'a11y.setting': '{name} : {value}',

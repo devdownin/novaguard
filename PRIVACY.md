@@ -32,8 +32,11 @@ traitements ne passe par un réseau.**
 
 ## Aucune transmission
 
-L'application ne demande même pas la permission `INTERNET` : elle est
-techniquement incapable d'établir une connexion réseau. Il n'y a donc :
+L'application déclare la permission `INTERNET` pour une seule raison : deux
+serveurs locaux optionnels, **éteints par défaut** — le direct Wi-Fi et le
+serveur MCP. Ils ne font qu'écouter sur le réseau local et ne répondent qu'aux
+appareils que vous y connectez vous-même. NovaGuard n'ouvre elle-même aucune
+connexion sortante, vers aucun serveur. Il n'y a donc :
 
 - aucun compte, aucune inscription, aucun identifiant ;
 - aucune télémétrie, aucune statistique d'usage, aucun rapport de plantage

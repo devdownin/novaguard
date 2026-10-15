@@ -6,6 +6,10 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ## [Non publié]
 
+### Confidentialité
+- La politique de confidentialité, la fiche Play et la réponse au formulaire *Data safety* disent enfin vrai : la permission `INTERNET` est déclarée, pour les deux serveurs locaux optionnels (direct Wi-Fi, serveur MCP), éteints par défaut ; l’application n’ouvre aucune connexion sortante, et un test le vérifie dans tout le code.
+- « Ce qu’un assistant IA peut voir et faire » (Réglages, bloc confidentialité) ouvre la page « Services MCP » même serveur éteint.
+
 ### Serveur MCP
 - Page « Services MCP » (Réglages → Serveur MCP → « Voir les services MCP ») : chaque outil de lecture et de pilotage, les prompts, les ressources et ce qu’aucun agent ne peut faire, avec l’état du serveur et ce qui empêche le pilotage le cas échéant (serveur arrêté, non autorisé, sans jeton, jeton expiré).
 - Jeton de pilotage à durée limitée (1 h, 24 h par défaut, ou sans limite), appliquée par le serveur : expiré, il n’ouvre plus rien. Tant qu’un agent peut piloter, la notification de surveillance propose « Couper le pilotage », qui le révoque d’un geste, écran verrouillé compris.

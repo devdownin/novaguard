@@ -1,8 +1,8 @@
 # NovaGuard
 
 Caméra de surveillance Android, locale et open source. React Native 0.81 /
-React 19 / TypeScript. Rien ne quitte l'appareil : pas de réseau, pas de compte,
-pas de télémétrie. Le code est commenté en anglais, l'interface est en français.
+React 19 / TypeScript. Rien ne quitte l'appareil sans un geste du propriétaire :
+pas de compte, pas de télémétrie, aucune connexion sortante. Le code est commenté en anglais, l'interface est en français.
 
 ## Capture des présences : contrat actuel
 
@@ -19,7 +19,7 @@ Vérifier la politique native avec `scripts/test-presence-native.sh`, les transi
 ```bash
 npm ci                 # les tests et le typecheck en dépendent
 npm run typecheck      # tsc --noEmit
-npm run lint           # eslint (0 erreur attendu ; 33 avertissements no-inline-styles connus)
+npm run lint           # eslint (0 erreur, 0 avertissement)
 npm test               # jest
 npm run android        # build + déploiement sur un appareil ou un émulateur
 ```
@@ -630,9 +630,13 @@ ne s'apprennent pas au moment où on en a besoin :
 - **R8 reste désactivé.** Toutes les dépendances lourdes atteignent du natif par
   leur nom : l'activer sans règles vérifiées sur matériel échange des mégaoctets
   contre un crash qu'aucun test unitaire ne voit.
-- **Aucune permission `INTERNET`.** Le formulaire *Data safety* répond « aucune
-  donnée collectée » sur cette foi, et chaque type de service de premier plan
-  doit être couvert par sa permission ; `playRelease.test.ts` tient la liste.
+- **`INTERNET` est déclarée, et seulement pour écouter.** Le direct Wi-Fi et le
+  serveur MCP sont deux serveurs locaux éteints par défaut ; rien n'ouvre de
+  connexion sortante, et `playRelease.test.ts` le vérifie dans les sources JS et
+  Kotlin. Le formulaire *Data safety* et `PRIVACY.md` reposent sur cette
+  affirmation-là — longtemps ils ont affirmé l'absence de la permission, qui
+  était fausse. Chaque type de service de premier plan doit être couvert par sa
+  permission ; le même test tient la liste.
 - **`bundleRelease` échoue sans la clé d'upload, et c'est voulu.** Un bundle
   mal signé coûte un `versionCode` définitivement brûlé dans la Play Console.
 
@@ -642,6 +646,10 @@ Jest, avec des mocks pour tout ce qui est natif (`__mocks__/`,
 `src/surveillance/__mocks__/`). `testing/mountProvider.tsx` monte
 `AppStateProvider` — lisez l'état à travers le handle, pas une copie
 déstructurée, qui fige le premier rendu.
+
+Ce qu'aucun mock ne prouve — capteur, encodeur, réseau, Android qui bride
+l'application — est listé dans `docs/DEVICE_CHECKS.md`, à dérouler sur
+téléphone avant une release qui y touche.
 
 Écrire un test qui ne peut pas échouer est pire que ne pas en écrire : plusieurs
 l'ont été ici et ont dû être réécrits. Vérifiez par mutation — cassez le code,

@@ -87,7 +87,7 @@ The server answers reads from a snapshot the app pushes when the history, the st
 
 ## 6. Android networking/privacy impact
 
-The current release intentionally does not declare Android `INTERNET`. Adding an HTTP read API is therefore an explicit privacy/architecture change.
+The app declares Android `INTERNET` only so that the two optional local servers (MCP and Wi-Fi live view) can listen; both are off by default and NovaGuard opens no outgoing connection (`__tests__/playRelease.test.ts` checks the sources).
 
 Default state:
 

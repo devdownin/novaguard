@@ -31,8 +31,11 @@ the device. **None of this processing goes over a network.**
 
 ## Nothing is transmitted
 
-The app does not even ask for the `INTERNET` permission: it is technically
-incapable of opening a network connection. There is therefore:
+The app declares the `INTERNET` permission for one reason only: two optional
+local servers, **off by default** — Wi-Fi live view and the MCP server. They
+only listen on the local network and answer only devices you connect to them
+yourself. NovaGuard itself never opens an outgoing connection, to any server.
+There is therefore:
 
 - no account, no sign-up, no identifier;
 - no telemetry, no usage statistics, no remote crash reporting;

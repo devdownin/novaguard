@@ -192,9 +192,13 @@ describe('the card shows the clip, not a decoration', () => {
     // "Aujourd'hui" is the day heading; repeating it on the card underneath is
     // words that carry nothing. The full instant is still what the reader is
     // given, and what the detail sheet shows.
-    expect(texts(handle)).toContain('18:00');
-    const onCards = texts(handle).filter(text => typeof text === 'string' && text.includes('18:00'));
-    expect(onCards).toEqual(['18:00']);
+    // Read on the event card itself: the day summary above the list also names
+    // the last passage's time once the wall clock is past it, which made this
+    // test pass in the morning and fail every evening.
+    const card = handle.renderer.root.findByType(EventCard);
+    const onCard = card.findAllByType(Text).map(n => n.props.children)
+      .filter(text => typeof text === 'string' && text.includes('18:00'));
+    expect(onCard).toEqual(['18:00']);
   });
 
   it('falls back when the still is gone from disk', async () => {

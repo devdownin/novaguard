@@ -608,6 +608,8 @@ export function SetupScreen() {
             <PrimaryOutlineButton label={t('setup.privacy.perms')} onPress={() => s.openInfo('perms')} style={styles.flex1} />
             <SecondaryOutlineButton label={t('setup.privacy.data')} onPress={() => s.openInfo('data')} style={styles.flex1} />
           </View>
+          {/* Always here, server on or off: the page is what an owner reads to decide whether to turn it on. */}
+          <SecondaryOutlineButton label={t('setup.privacy.mcp')} onPress={() => s.openInfo('mcp')} style={styles.thirdPartyButton} />
         </LinearGradient>
 
         <CollapsibleSection title={t('setup.section.about')} expanded={settings.exp.about} onToggle={() => s.toggleSection('about')}>
