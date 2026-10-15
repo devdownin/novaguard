@@ -204,6 +204,7 @@ interface AppStateValue {
   saveZone: (zone: DetectionZone | null) => void;
   setSensitivity: (s: Sensitivity) => void;
   setThreshold: (v: number) => void;
+  setAnimalThreshold: (v: number) => void;
   cyclePost: () => void;
   setPresenceMode: (mode: PresenceMode) => void;
   cycleTolerance: () => void;
@@ -1154,7 +1155,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // buys frames and pays for them in corroboration it can no longer afford.
     const running = tunedSettings(settingsRef.current, autoTuneRef.current);
     const next = updateTracks(tracksRef.current, watched, frameAt,
-      trackerOptionsFor(running.sens, running.threshold));
+      trackerOptionsFor(running.sens, running.threshold, running.animalThreshold));
     tracksRef.current = next;
     // Scenery — a confirmed subject that has not moved for minutes, a coat or a
     // poster as far as the camera can tell — neither opens nor holds a session,
@@ -1847,6 +1848,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const setSensitivity = useCallback((s: Sensitivity) => patchSettings({ sens: s }), [patchSettings]);
   const setThreshold = useCallback((v: number) => patchSettings({ threshold: v }), [patchSettings]);
+  const setAnimalThreshold = useCallback((v: number) => patchSettings({ animalThreshold: v }), [patchSettings]);
   const setRetention = useCallback((r: Retention) => patchSettings({ retention: r }), [patchSettings]);
 
   // ── info panel ───────────────────────────────────────────────────────
@@ -1931,7 +1933,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
-    setSensitivity, setThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
+    setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
     toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo,
     onb, perms, onbNext, onbFinish, grantPermission,
@@ -1943,7 +1945,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
-    setSensitivity, setThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
+    setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
     toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo, onb, perms, onbNext, onbFinish, grantPermission,
   ]);

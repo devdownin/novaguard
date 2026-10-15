@@ -196,8 +196,9 @@ export const en: Record<StringKey, string> = {
   'setup.sens.hint.Basse': '1 frame per second — frugal: one frame is enough to trigger, but it has to be a clearer one',
   'setup.sens.hint.Moyenne': '3 frames per second — confirms a subject over two consecutive frames',
   'setup.sens.hint.Haute': '5 frames per second — quickest to react and most forgiving, heaviest on the battery',
-  'setup.threshold': 'Confidence threshold',
-  'setup.threshold.summary': 'Confidence threshold: {value}% · set in Advanced',
+  'setup.threshold': 'Confidence threshold · people',
+  'setup.threshold.summary': 'Confidence threshold: {person}% people, {animal}% animals · set in Advanced',
+  'setup.threshold.animal': 'Confidence threshold · animals',
 
   'setup.post': 'Tolerance margin',
   'setup.post.sub': 'Maximum time kept after the last positive detection.',

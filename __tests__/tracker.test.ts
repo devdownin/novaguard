@@ -557,3 +557,33 @@ describe('following a subject that moves', () => {
     expect(tracks).toHaveLength(2);
   });
 });
+
+describe('entry gates per kind and size', () => {
+  const at = (options: Partial<typeof DEFAULT_TRACKER_OPTIONS>) => ({ ...DEFAULT_TRACKER_OPTIONS, ...options });
+
+  it('opens an animal track against its own threshold, not the person one', () => {
+    const options = at({ startConfidence: 0.8, animalStartConfidence: 0.5 });
+    expect(updateTracks([], [animal(0.3, 0.6)], 0, options)).toHaveLength(1);
+    expect(updateTracks([], [person(0.3, 0.3, 0.6)], 0, options)).toHaveLength(0);
+    const strict = at({ startConfidence: 0.5, animalStartConfidence: 0.8 });
+    expect(updateTracks([], [animal(0.3, 0.6)], 0, strict)).toHaveLength(0);
+  });
+
+  it('falls back to the person threshold when no animal one is given', () => {
+    const options = at({ startConfidence: 0.7, animalStartConfidence: undefined });
+    expect(updateTracks([], [animal(0.3, 0.6)], 0, options)).toHaveLength(0);
+  });
+
+  it('opens nothing on a box a few pixels across, but follows a subject down to it', () => {
+    const tiny: FrameDetection = { kind: 'Personne', confidence: 0.9, box: box(0.5, 0.5, 0.015, 0.025) };
+    expect(updateTracks([], [tiny], 0)).toHaveLength(0);
+    // A subject first seen at a usable size and shrinking as they walk away.
+    const walking: FrameDetection = { kind: 'Personne', confidence: 0.9, box: box(0.5, 0.5, 0.02, 0.04) };
+    const open = updateTracks([], [walking], 0);
+    expect(open).toHaveLength(1);
+    const after = updateTracks(open, [tiny], 300);
+    expect(after).toHaveLength(1);
+    expect(after[0].id).toBe(open[0].id);
+    expect(after[0].misses).toBe(0);
+  });
+});

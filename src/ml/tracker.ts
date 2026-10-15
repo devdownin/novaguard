@@ -96,6 +96,21 @@ export interface TrackerOptions {
    */
   startConfidence: number;
   /**
+   * The same gate for animals, which the user sets apart: a cat at the far end
+   * of a room scores well under a person at the same distance, while shadows
+   * and folded clothes read as dogs. One number cannot serve both. Defaults to
+   * `startConfidence`.
+   */
+  animalStartConfidence?: number;
+  /**
+   * Smallest longer side, as a fraction of the frame, a detection must have to
+   * *open* a track. Below it a box is a handful of pixels in the model's input:
+   * what the detector produces there is mostly texture, and one such look is
+   * enough to open a recording at "Basse". A track already open still follows
+   * its subject down to `MIN_BOX_SIDE` as they walk away.
+   */
+  minStartSide: number;
+  /**
    * How fast a subject's centre may travel and still be recognised once the
    * boxes no longer overlap: multiples of its own diagonal **per second**.
    *
@@ -124,6 +139,7 @@ export const DEFAULT_TRACKER_OPTIONS: TrackerOptions = {
   confirmAfter: 2,
   dropAfterMs: 1200,
   startConfidence: 0.6,
+  minStartSide: 0.03,
   maxTravelPerSecond: 3,
 };
 
@@ -392,7 +408,11 @@ export function updateTracks(
     if (takenDetections.has(d)) return;
     // A weak detection may keep a track alive but never start one: an unmatched
     // box below the user's threshold is, as far as this app can tell, noise.
-    if (detection.confidence < options.startConfidence) return;
+    const gate = detection.kind === 'Animal'
+      ? options.animalStartConfidence ?? options.startConfidence
+      : options.startConfidence;
+    if (detection.confidence < gate) return;
+    if (Math.max(detection.box.width, detection.box.height) < options.minStartSide) return;
     next.push({
       id: nextId++,
       kind: detection.kind,

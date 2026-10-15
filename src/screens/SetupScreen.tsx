@@ -169,7 +169,7 @@ export function SetupScreen() {
           {/* The threshold moved to Avancé, its value did not leave: it still
               decides what can open a recording, so it is read here. */}
           <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.hint}>
-            {t('setup.threshold.summary', { value: settings.threshold })}
+            {t('setup.threshold.summary', { person: settings.threshold, animal: settings.animalThreshold })}
           </Text>
         </CollapsibleSection>
 
@@ -311,6 +311,25 @@ export function SetupScreen() {
               step={5}
               value={settings.threshold}
               onSlidingComplete={s.setThreshold}
+              minimumTrackTintColor={color.accent}
+              maximumTrackTintColor={color.neutral800}
+              thumbTintColor={color.accent}
+            />
+          </View>
+          <View style={[styles.subBlock, styles.thresholdBlock]}>
+            <View style={styles.thresholdRow}>
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.subLabel}>{t('setup.threshold.animal')}</Text>
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.thresholdValue}>{t('detail.percent', { value: settings.animalThreshold })}</Text>
+            </View>
+            <Slider
+              accessibilityRole="adjustable"
+              accessibilityLabel={t('setup.threshold.animal')}
+              accessibilityValue={{ min: 50, max: 95, now: settings.animalThreshold }}
+              minimumValue={50}
+              maximumValue={95}
+              step={5}
+              value={settings.animalThreshold}
+              onSlidingComplete={s.setAnimalThreshold}
               minimumTrackTintColor={color.accent}
               maximumTrackTintColor={color.neutral800}
               thumbTintColor={color.accent}

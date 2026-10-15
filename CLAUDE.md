@@ -287,7 +287,7 @@ seul seuil manque ces passages ou enregistre le bruit. Les deux rôles sont
 séparés : `floorConfidence` (`interpretDetections`, constante basse) décide ce
 qui est **associé**, `startConfidence` (`tracker.ts`, le réglage utilisateur)
 décide ce qui peut **ouvrir** une piste. Une piste ouverte survit donc aux
-regards faibles. Conséquence à ne pas reperdre : le réglage n'atteint plus le
+regards faibles. Il y a deux portes, une par genre (`animalThreshold`, `animalStartConfidence`) : un chat lointain est noté bien en dessous d'une personne à la même distance, quand ombres et vêtements pliés se lisent en chiens. Et une boîte plus petite que `minStartSide` n'ouvre rien — ce sont quelques pixels dans l'entrée du modèle — mais une piste ouverte la suit jusqu'à `MIN_BOX_SIDE`. Conséquence à ne pas reperdre : le réglage n'atteint plus le
 worklet, il est lu par `reportDetections` — à travers `settingsRef`, comme tout
 le reste sur ce chemin — ce qui est aussi ce qui le rend enfin testable
 (`settingsWiring.test.tsx`), le worklet étant hors de portée sous Jest.

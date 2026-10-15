@@ -82,6 +82,16 @@ describe('trackerOptionsFor', () => {
     expect(seen('Haute')).toBe(false);
   });
 
+  it('gives animals their own gate, with the same sensitivity bonus and clamp', () => {
+    for (const s of ALL) {
+      const { startConfidence, animalStartConfidence } = trackerOptionsFor(s, 60, 80);
+      expect(animalStartConfidence! - startConfidence).toBeCloseTo(0.2);
+    }
+    expect(trackerOptionsFor('Basse', 60, 95).animalStartConfidence).toBe(1);
+    // Without its own value, the animal gate is the person one.
+    expect(trackerOptionsFor('Moyenne', 70).animalStartConfidence).toBe(trackerOptionsFor('Moyenne', 70).startConfidence);
+  });
+
   it('leaves everything the setting has no business changing alone', () => {
     const options = trackerOptionsFor('Haute', 60);
     expect(options.iouThreshold).toBe(DEFAULT_TRACKER_OPTIONS.iouThreshold);
