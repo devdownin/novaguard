@@ -55,6 +55,9 @@ describe('the two catalogues', () => {
       'setup.privacy.perms',
       'setup.section.not',
       'setup.version',
+      // Durations written the same way in both.
+      'value.controlTtl.1 h',
+      'value.controlTtl.24 h',
       'value.kind.Animal',
     ]);
   });

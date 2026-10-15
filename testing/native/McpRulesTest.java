@@ -51,12 +51,19 @@ public final class McpRulesTest {
     long[] unknown = McpRules.frameTimesUs(0, 4);
     check(unknown.length == 1 && unknown[0] == 0L, "unknown duration: the first frame only");
 
-    check(McpRules.principal(true, false, false) == McpRules.PRINCIPAL_CONTROL, "the control token controls");
-    check(McpRules.principal(true, true, true) == McpRules.PRINCIPAL_CONTROL, "whatever else is true");
-    check(McpRules.principal(false, true, false) == McpRules.PRINCIPAL_READ, "the read token only reads");
-    check(McpRules.principal(false, false, true) == McpRules.PRINCIPAL_READ, "loopback reads without a token");
-    check(McpRules.principal(false, false, true) != McpRules.PRINCIPAL_CONTROL, "but never controls without one");
-    check(McpRules.principal(false, false, false) == McpRules.PRINCIPAL_NONE, "a LAN caller without a token is nobody");
+    check(McpRules.principal(true, true, false, false) == McpRules.PRINCIPAL_CONTROL, "the control token controls");
+    check(McpRules.principal(true, true, true, true) == McpRules.PRINCIPAL_CONTROL, "whatever else is true");
+    check(McpRules.principal(false, true, true, false) == McpRules.PRINCIPAL_READ, "the read token only reads");
+    check(McpRules.principal(false, true, false, true) == McpRules.PRINCIPAL_READ, "loopback reads without a token");
+    check(McpRules.principal(false, true, false, true) != McpRules.PRINCIPAL_CONTROL, "but never controls without one");
+    check(McpRules.principal(false, true, false, false) == McpRules.PRINCIPAL_NONE, "a LAN caller without a token is nobody");
+    check(McpRules.principal(true, false, false, false) == McpRules.PRINCIPAL_NONE, "an expired control token grants nothing");
+    check(McpRules.principal(true, false, false, true) == McpRules.PRINCIPAL_READ, "on loopback it is just a local reader");
+    check(McpRules.principal(true, false, true, false) == McpRules.PRINCIPAL_READ, "and the read token still reads");
+
+    check(McpRules.controlLive(0, 9_000), "no expiry lives forever");
+    check(McpRules.controlLive(10_000, 9_999), "alive until its end");
+    check(!McpRules.controlLive(10_000, 10_000), "and dead from it");
 
     check(McpRules.waitBudgetMs(10) == 10_000L, "budget in ms");
     check(McpRules.waitBudgetMs(600) == McpRules.MAX_WAIT_SECONDS * 1000L, "a long wait is capped");

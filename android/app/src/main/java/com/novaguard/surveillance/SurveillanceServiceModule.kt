@@ -19,10 +19,10 @@ class SurveillanceServiceModule(reactContext: ReactApplicationContext) :
 
   override fun getName(): String = NAME
 
-  override fun start(title: String, body: String) {
+  override fun start(title: String, body: String, revokeLabel: String) {
     // Android only allows a camera-type foreground service to be started while
     // the app is visible, which is the case here: monitoring is started by a tap.
-    SurveillanceService.start(reactApplicationContext, title, body)
+    SurveillanceService.start(reactApplicationContext, title, body, revokeLabel)
   }
 
   override fun stop() {

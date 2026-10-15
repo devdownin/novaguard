@@ -8,6 +8,7 @@ import { AppStateProvider, useAppState } from '../src/state/AppStateContext';
 import { SetupScreen } from '../src/screens/SetupScreen';
 import { defaultSettings } from '../src/state/defaults';
 import { t } from '../src/i18n';
+import { formatWhen } from '../src/utils/date';
 import { Settings } from '../src/state/types';
 
 jest.mock('../src/surveillance/foregroundService');
@@ -52,5 +53,40 @@ describe('night mode', () => {
     expect(texts()).toContain(t('setup.night.sub'));
     expect(switchFor(t('setup.night')).props.accessibilityState).toMatchObject({ checked: true, disabled: false });
     expect(state.settings.night).toBe(true);
+  });
+});
+
+describe('MCP client setup', () => {
+  const controlToken = 'mcp_' + 'k'.repeat(32);
+  const mcp = (over: Partial<Settings>) => mount({
+    mcpEnabled: true, mcpControlEnabled: true, mcpControlToken: controlToken,
+    exp: { ...defaultSettings.exp, mcp: true }, ...over,
+  });
+  const qrValue = async () => {
+    const button = tree.root.find(node => node.props.label === t('setup.mcpQr.show') && node.props.onPress);
+    await ReactTestRenderer.act(async () => { button.props.onPress(); });
+    return JSON.parse(tree.root.findByProps({ testID: 'mcp-qr' }).parent!.props.value);
+  };
+
+  it('puts the control token in the QR code while it lives', async () => {
+    const expiresAt = Date.now() + 3_600_000;
+    await mcp({ mcpControlExpiresAt: expiresAt });
+    expect(texts()).toContain(t('setup.mcpControlToken.expires', { time: formatWhen(expiresAt) }));
+    const config = await qrValue();
+    expect(config.mcpServers.novaguard.headers.Authorization).toBe(`Bearer ${controlToken}`);
+    expect(texts()).toContain(t('setup.mcpQr.hint'));
+  });
+
+  it('says an expired token is expired, and stops handing it out', async () => {
+    await mcp({ mcpControlExpiresAt: Date.now() - 1, mcpToken: 'mcp_' + 'r'.repeat(32) });
+    expect(texts()).toContain(t('setup.mcpControlToken.expired'));
+    expect(texts()).toContain(t('setup.mcpMode.readOnly'));
+    const config = await qrValue();
+    expect(config.mcpServers.novaguard.headers.Authorization).toBe(`Bearer mcp_${'r'.repeat(32)}`);
+  });
+
+  it('shows a token without expiry as such', async () => {
+    await mcp({ mcpControlExpiresAt: 0 });
+    expect(texts()).toContain(t('setup.mcpControlToken.forever'));
   });
 });

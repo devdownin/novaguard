@@ -72,15 +72,23 @@ public final class McpRules {
   public static final int PRINCIPAL_CONTROL = 2;
 
   /**
-   * The control token alone grants control, and it grants reading too. A
-   * loopback caller reads without a token — anything on the phone could open
-   * the app — but never controls without one: an app sitting on 127.0.0.1 must
-   * not be able to switch the camera off.
+   * The control token alone grants control, and it grants reading too — while
+   * it lives. A loopback caller reads without a token — anything on the phone
+   * could open the app — but never controls without one: an app sitting on
+   * 127.0.0.1 must not be able to switch the camera off. An expired control
+   * token grants nothing, not even reading: it is the credential the owner
+   * meant to stop working, and quietly downgrading it would keep a forgotten
+   * agent watching.
    */
-  public static int principal(boolean controlTokenMatches, boolean readTokenMatches, boolean loopback) {
-    if (controlTokenMatches) return PRINCIPAL_CONTROL;
+  public static int principal(boolean controlTokenMatches, boolean controlLive, boolean readTokenMatches, boolean loopback) {
+    if (controlTokenMatches && controlLive) return PRINCIPAL_CONTROL;
     if (readTokenMatches || loopback) return PRINCIPAL_READ;
     return PRINCIPAL_NONE;
+  }
+
+  /** `expiresAt` 0 means the owner chose no expiry; otherwise epoch ms. */
+  public static boolean controlLive(long expiresAt, long now) {
+    return expiresAt <= 0 || now < expiresAt;
   }
 
   /** `wait_for_event` long-poll bounds, in seconds. */

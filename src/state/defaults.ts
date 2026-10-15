@@ -49,6 +49,9 @@ export const defaultSettings: Settings = {
   mcpToken: '',
   mcpControlEnabled: false,
   mcpControlToken: '',
+  // A night, not forever: a token copied into a client config outlives the reason it was copied.
+  mcpControlTtl: '24 h',
+  mcpControlExpiresAt: 0,
   exp: { surv: true, det: false, rec: false, sto: false, not: false, stream: false, mcp: false, adv: false, about: false },
 };
 

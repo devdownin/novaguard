@@ -2,6 +2,8 @@ package com.novaguard.surveillance
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.Instant
+import java.time.ZoneId
 
 /**
  * What the server advertises, and what it accepts.
@@ -148,6 +150,13 @@ internal object McpCatalog {
       )
     )
     .put(tool("get_camera_info", "Returns safe diagnostic information about the active camera.", JSONObject()))
+    .put(
+      tool(
+        "get_diagnostics",
+        "Returns why the camera may miss or cut passages: the measured gap between consecutive clips of one passage (finalize is the encoder's, restart is the app's), the settings the app gave up to keep its analysis rate and the rate measured against its target, whether the camera session is interrupted, the analysis step a previous launch crashed in, and the device's thermal status (0 none … 6 shutdown, -1 unknown) and battery.",
+        JSONObject()
+      )
+    )
 
   private fun tool(name: String, description: String, properties: JSONObject, required: List<String> = emptyList()): JSONObject {
     val schema = JSONObject()
@@ -265,6 +274,7 @@ internal object McpCatalog {
     "get_storage" to emptyMap(),
     "get_configuration" to emptyMap(),
     "get_camera_info" to emptyMap(),
+    "get_diagnostics" to emptyMap(),
     // Ids are epoch milliseconds: an Int bound refused every event ever recorded.
     "get_event" to mapOf("eventId" to longRule(0, McpRules.MAX_EVENT_ID)),
     "get_event_frames" to mapOf(
@@ -301,6 +311,50 @@ internal object McpCatalog {
     "keep_event" to listOf("eventId", "kept"),
     "get_statistics" to listOf("from", "to")
   )
+
+  // ------------------------------------------------------------------ prompts
+
+  fun prompts(): JSONArray = JSONArray().apply {
+    McpPrompts.all().forEach { p ->
+      put(
+        JSONObject()
+          .put("name", p.name)
+          .put("title", p.title)
+          .put("description", p.description)
+          .put("arguments", JSONArray().apply {
+            p.arguments.forEach { a ->
+              put(JSONObject().put("name", a.name).put("description", a.description).put("required", a.required))
+            }
+          })
+      )
+    }
+  }
+
+  /**
+   * `prompts/get`. A bad name or argument is `-32602`, as the specification
+   * gives it: no prompt ran, and the caller has to change what it sent.
+   */
+  fun renderPrompt(params: JSONObject, zone: ZoneId, now: Instant): JSONObject {
+    val name = params.optString("name")
+    val raw = params.optJSONObject("arguments") ?: JSONObject()
+    val args = HashMap<String, String>()
+    for (key in raw.keys()) {
+      val value = raw.opt(key)
+      if (value !is String && value !is Number) invalid(key, "must be a string")
+      args[key] = value.toString()
+    }
+    val text = try {
+      McpPrompts.render(name, args, zone, now)
+    } catch (e: IllegalArgumentException) {
+      throw McpException("NOVAGUARD_INVALID_ARGUMENT", e.message ?: "Invalid prompt request", -32602)
+    }
+    val prompt = McpPrompts.find(name)!!
+    return JSONObject()
+      .put("description", prompt.description)
+      .put("messages", JSONArray().put(
+        JSONObject().put("role", "user").put("content", JSONObject().put("type", "text").put("text", text))
+      ))
+  }
 
   // ---------------------------------------------------------------- resources
 

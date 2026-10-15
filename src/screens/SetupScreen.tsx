@@ -17,6 +17,8 @@ import { SettingRow, StaticValue, ValueButton } from '../components/SetupRows';
 import { Switch } from '../components/Switch';
 import { SegmentedControl } from '../components/SegmentedControl';
 import { PrimaryOutlineButton, SecondaryOutlineButton } from '../components/OutlineButton';
+import { QrCode } from '../components/QrCode';
+import { controlLive } from '../surveillance/mcpControl';
 import { ShieldCheckIcon } from '../components/icons';
 import { StringKey, t, tValue } from '../i18n';
 import { useLandscape } from '../utils/useLandscape';
@@ -53,6 +55,7 @@ export function SetupScreen() {
   const showServers = settings.exp.adv === true || settings.mcpEnabled || settings.localStreamEnabled;
 
   const [showToken, setShowToken] = React.useState(false);
+  const [showQr, setShowQr] = React.useState(false);
   const [copiedLabel, setCopiedLabel] = React.useState<string | null>(null);
 
   // The server's own address, not the streaming server's. Without a token it
@@ -71,25 +74,27 @@ export function SetupScreen() {
     setTimeout(() => setCopiedLabel(null), 2000);
   };
 
-  const controlActive = settings.mcpControlEnabled && settings.mcpControlToken.length > 0;
+  const controlActive = settings.mcpControlEnabled && settings.mcpControlToken.length > 0
+    && controlLive(settings.mcpControlExpiresAt, Date.now());
   const clientToken = controlActive ? settings.mcpControlToken : settings.mcpToken;
 
-  const getMcpJsonConfig = () => {
-    return JSON.stringify(
-      {
-        mcpServers: {
-          novaguard: {
-            url: mcpServerUrl,
-            // The control token grants reading too, so a client set up for
-            // control needs only that one.
-            headers: clientToken ? { Authorization: `Bearer ${clientToken}` } : {},
-          },
-        },
+  const mcpClientConfig = {
+    mcpServers: {
+      novaguard: {
+        url: mcpServerUrl,
+        // The control token grants reading too, so a client set up for
+        // control needs only that one.
+        headers: clientToken ? { Authorization: `Bearer ${clientToken}` } : {},
       },
-      null,
-      2
-    );
+    },
   };
+  const getMcpJsonConfig = () => JSON.stringify(mcpClientConfig, null, 2);
+
+  const controlExpiry = !settings.mcpControlToken ? null
+    : settings.mcpControlExpiresAt <= 0 ? t('setup.mcpControlToken.forever')
+    : controlLive(settings.mcpControlExpiresAt, Date.now())
+      ? t('setup.mcpControlToken.expires', { time: formatWhen(settings.mcpControlExpiresAt) })
+      : t('setup.mcpControlToken.expired');
 
   // Share of the whole volume taken by NovaGuard's own clips. Kept visible at a
   // sliver once anything is stored, so the bar never reads as "nothing on disk".
@@ -436,7 +441,16 @@ export function SetupScreen() {
 
           {settings.mcpControlEnabled ? (
             <>
-              <SettingRow label={t('setup.mcpControlToken')}>
+              <SettingRow label={t('setup.mcpControlTtl')} subtitle={t('setup.mcpControlTtl.sub')}>
+                <ValueButton
+                  label={tValue(`value.controlTtl.${settings.mcpControlTtl}`)}
+                  onPress={s.cycleMcpControlTtl}
+                  accessibilityLabel={t('a11y.setting', {
+                    name: t('setup.mcpControlTtl'), value: tValue(`value.controlTtl.${settings.mcpControlTtl}`),
+                  })}
+                />
+              </SettingRow>
+              <SettingRow label={t('setup.mcpControlToken')} subtitle={controlExpiry ?? undefined}>
                 <StaticValue
                   label={settings.mcpControlToken
                     ? `mcp_••••••••${settings.mcpControlToken.slice(-4)}`
@@ -540,6 +554,22 @@ export function SetupScreen() {
             />
           </View>
 
+          <View style={styles.subBlock}>
+            <SecondaryOutlineButton
+              label={t(showQr ? 'setup.mcpQr.hide' : 'setup.mcpQr.show')}
+              onPress={() => setShowQr(v => !v)}
+            />
+            {/* Compact JSON: every byte saved is a smaller symbol, easier to read off a screen. */}
+            {showQr ? (
+              <View style={styles.qr}>
+                <QrCode value={JSON.stringify(mcpClientConfig)} size={220} accessibilityLabel={t('setup.mcpQr.label')} />
+                {clientToken ? <Text style={styles.hint}>{t('setup.mcpQr.hint')}</Text> : null}
+              </View>
+            ) : null}
+          </View>
+
+          {s.mcpStatus.advertised ? <Text style={styles.hint}>{t('setup.mcpAdvertised')}</Text> : null}
+
           <SettingRow label={t('setup.mcpLastActivity')}>
             <StaticValue
               label={
@@ -619,6 +649,11 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 620,
     alignSelf: 'center',
+  },
+  qr: {
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
   },
   subBlock: {
     paddingVertical: 12,

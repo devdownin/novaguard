@@ -67,6 +67,7 @@ internal class Snapshot private constructor(
   private val freeBytes: Long,
   private val totalBytes: Long,
   private val configuration: JSONObject,
+  private val diagnostics: JSONObject,
   val events: List<McpEvent>
 ) {
 
@@ -92,6 +93,9 @@ internal class Snapshot private constructor(
     .put("totalBytes", totalBytes)
 
   fun configurationJson(): JSONObject = configuration
+
+  /** A copy: the caller adds the live device figures to it. */
+  fun diagnosticsJson(): JSONObject = JSONObject(diagnostics.toString())
 
   fun cameraInfoJson(): JSONObject = JSONObject()
     .put("camera", camera)
@@ -295,7 +299,7 @@ internal class Snapshot private constructor(
     fun empty() = Snapshot(
       surveillanceActive = false, status = "inactive", statusSinceMs = 0, camera = "", lastDetectionAtMs = null, detectionsToday = 0,
       streamEnabled = false, usedBytes = 0, freeBytes = 0, totalBytes = 0,
-      configuration = JSONObject(), events = emptyList()
+      configuration = JSONObject(), diagnostics = sanitizeDiagnostics(JSONObject()), events = emptyList()
     )
 
     /**
@@ -339,8 +343,41 @@ internal class Snapshot private constructor(
         freeBytes = storage.optLong("free"),
         totalBytes = storage.optLong("total"),
         configuration = sanitizeConfiguration(json.optJSONObject("configuration") ?: JSONObject()),
+        diagnostics = sanitizeDiagnostics(json.optJSONObject("diagnostics") ?: JSONObject()),
         events = events
       )
+    }
+
+    /** Rebuilt from named keys for the same reason as the configuration. */
+    private fun sanitizeDiagnostics(raw: JSONObject): JSONObject {
+      val gap = raw.optJSONObject("clipGap") ?: JSONObject()
+      val tune = raw.optJSONObject("autoTune") ?: JSONObject()
+      fun words(list: JSONArray?) = JSONArray().apply {
+        if (list != null) for (i in 0 until list.length()) put(list.optString(i))
+      }
+      fun numberOrNull(o: JSONObject, key: String): Any =
+        if (o.isNull(key) || !o.has(key)) JSONObject.NULL else o.optDouble(key)
+      return JSONObject()
+        .put(
+          "clipGap",
+          JSONObject()
+            .put("samples", gap.optInt("samples"))
+            .put("meanMs", gap.optDouble("meanMs", 0.0))
+            .put("worstMs", gap.optDouble("worstMs", 0.0))
+            .put("lastFinalizeMs", numberOrNull(gap, "lastFinalizeMs"))
+            .put("lastRestartMs", numberOrNull(gap, "lastRestartMs"))
+        )
+        .put(
+          "autoTune",
+          JSONObject()
+            .put("enabled", tune.optBoolean("enabled"))
+            .put("given", words(tune.optJSONArray("given")))
+            .put("blocked", words(tune.optJSONArray("blocked")))
+            .put("measuredFps", numberOrNull(tune, "measuredFps"))
+            .put("targetFps", numberOrNull(tune, "targetFps"))
+        )
+        .put("cameraSession", raw.optString("cameraSession").ifEmpty { "healthy" })
+        .put("crashedStage", raw.optString("crashedStage").takeIf { it.isNotEmpty() && !raw.isNull("crashedStage") } ?: JSONObject.NULL)
     }
 
     /**

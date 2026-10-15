@@ -7,6 +7,10 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 ## [Non publié]
 
 ### Serveur MCP
+- Jeton de pilotage à durée limitée (1 h, 24 h par défaut, ou sans limite), appliquée par le serveur : expiré, il n’ouvre plus rien. Tant qu’un agent peut piloter, la notification de surveillance propose « Couper le pilotage », qui le révoque d’un geste, écran verrouillé compris.
+- Le serveur s’annonce sur le Wi-Fi (DNS-SD `_novaguard-mcp._tcp`) : un client retrouve le téléphone quand son adresse change. La configuration du client s’affiche aussi en QR code dans Réglages.
+- Nouvel outil `get_diagnostics` : trou entre deux clips, réglages abandonnés par l’auto-réglage et cadence mesurée, état de la session caméra, étape d’analyse d’un plantage précédent, état thermique et batterie.
+- Trois prompts prêts à l’emploi : rapport de la nuit, revue des alertes récentes, diagnostic de la caméra. La fenêtre de temps est calculée dans le fuseau du téléphone.
 - Pilotage par un agent, sur autorisation explicite (Réglages → Serveur MCP → « Autoriser le pilotage par un agent ») et avec un jeton de pilotage distinct : démarrer ou arrêter la surveillance, régler la sensibilité et les seuils, conserver un passage, acquitter une alerte « Champ de vue modifié ». Rien ne peut être supprimé. Chaque action, refus compris, est consignée et affichée dans Réglages.
 - Nouvel outil `wait_for_event` : l’agent attend le prochain évènement (25 s au plus) au lieu d’interroger en boucle.
 - Suppression de la passerelle Node `novaguard-mcp/` : elle appelait une API `/api/v1/*` qu’aucun appareil ne servait. Le serveur Kotlin de l’application est le seul serveur MCP.

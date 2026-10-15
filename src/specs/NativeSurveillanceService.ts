@@ -6,8 +6,11 @@ export interface Spec extends TurboModule {
    * Promotes the app to a foreground service of type camera (plus microphone
    * when that permission is held), so Android keeps the process alive and
    * allows camera access while the app is not on screen.
+   *
+   * `revokeLabel`, when not empty, adds the notification action that cuts an
+   * agent's control of the camera (see `McpServerModule.revokeControl`).
    */
-  start(title: string, body: string): void;
+  start(title: string, body: string, revokeLabel: string): void;
   stop(): void;
   isRunning(): boolean;
   /**

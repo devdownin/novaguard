@@ -2,6 +2,10 @@ import { NativeEventEmitter, NativeModules } from 'react-native';
 import type { DetectionEvent, Settings, StorageInfo } from '../state/types';
 import type { SurveillanceStatus } from './status';
 import { keptEventIds } from '../recording/library';
+import { ClipGapStats, meanGapMs } from '../recording/clipGap';
+import type { AutoTuneState } from '../camera/autoTune';
+import type { CameraHealth } from '../camera/cameraHealth';
+import type { FrameStage } from '../camera/frameTrace';
 
 export interface McpServerStatus {
   running: boolean;
@@ -9,6 +13,10 @@ export interface McpServerStatus {
   ipAddress: string | null;
   url: string | null;
   hasToken: boolean;
+  /** Whether control tools are on offer right now: switch on, token set, not expired. */
+  controlEnabled?: boolean;
+  /** Whether the server is advertised over DNS-SD (`_novaguard-mcp._tcp`). */
+  advertised?: boolean;
   /** True while no token is set: the socket is then bound to loopback only. */
   loopbackOnly: boolean;
   requestCount: number;
@@ -47,6 +55,55 @@ export interface McpSnapshotInput {
    * "nothing tonight" is the one wrong answer that reads as a right one.
    */
   status: SurveillanceStatus;
+  diagnostics: McpDiagnostics;
+}
+
+/**
+ * Why the camera may miss or cut passages, for `get_diagnostics`.
+ *
+ * Everything here already exists on the device and is shown in Réglages: the
+ * clip gap, what self-tuning gave up, the camera session's health, the step a
+ * previous launch crashed in. None of it changes per frame — the frame rate is
+ * the one taken when the self-tuning loop last decided, not the live figure —
+ * so pushing it costs nothing on the analysis path.
+ */
+export interface McpDiagnostics {
+  clipGap: {
+    samples: number; meanMs: number; worstMs: number;
+    lastFinalizeMs: number | null; lastRestartMs: number | null;
+  };
+  autoTune: {
+    enabled: boolean; given: string[]; blocked: string[];
+    measuredFps: number | null; targetFps: number | null;
+  };
+  cameraSession: CameraHealth;
+  crashedStage: FrameStage | null;
+}
+
+export function buildMcpDiagnostics(input: {
+  clipGap: ClipGapStats; autoTune: AutoTuneState; autoTuneEnabled: boolean;
+  cameraHealth: CameraHealth; crashedStage: FrameStage | null;
+}): McpDiagnostics {
+  const { clipGap, autoTune, autoTuneEnabled, cameraHealth, crashedStage } = input;
+  const round = (n: number) => Math.round(n * 10) / 10;
+  return {
+    clipGap: {
+      samples: clipGap.samples,
+      meanMs: Math.round(meanGapMs(clipGap)),
+      worstMs: Math.round(clipGap.worstMs),
+      lastFinalizeMs: clipGap.last ? Math.round(clipGap.last.finalizeMs) : null,
+      lastRestartMs: clipGap.last ? Math.round(clipGap.last.restartMs) : null,
+    },
+    autoTune: {
+      enabled: autoTuneEnabled,
+      given: [...autoTune.applied],
+      blocked: [...autoTune.blocked],
+      measuredFps: autoTune.decided ? round(autoTune.decided.measured) : null,
+      targetFps: autoTune.decided ? round(autoTune.decided.target) : null,
+    },
+    cameraSession: cameraHealth,
+    crashedStage,
+  };
 }
 
 /**
@@ -66,7 +123,7 @@ function nativeModule() {
 }
 
 export function buildMcpSnapshot(input: McpSnapshotInput): string {
-  const { settings, storage, events, surveillanceActive, detectionsToday, status } = input;
+  const { settings, storage, events, surveillanceActive, detectionsToday, status, diagnostics } = input;
   const kept = keptEventIds(events);
   return JSON.stringify({
     surveillanceActive,
@@ -75,6 +132,7 @@ export function buildMcpSnapshot(input: McpSnapshotInput): string {
     lastDetectionAt: events.length ? Math.max(...events.map(e => e.timestamp)) : null,
     detectionsToday,
     streamEnabled: settings.localStreamEnabled,
+    diagnostics,
     storage: { used: storage.used, free: storage.free, total: storage.total },
     configuration: {
       camera: settings.camera,
@@ -125,11 +183,19 @@ export function buildMcpSnapshot(input: McpSnapshotInput): string {
  * what grants control, the token only says who holds it.
  */
 export async function startMcpServer(
-  port: number, token: string, controlToken = '', controlEnabled = false,
+  port: number, token: string, controlToken = '', controlEnabled = false, controlExpiresAt = 0,
 ): Promise<McpServerStatus> {
   const module = nativeModule();
   if (!module) return { ...MCP_SERVER_STOPPED, port };
-  return module.startServer(port, token, controlToken, controlEnabled);
+  return module.startServer(port, token, controlToken, controlEnabled, controlExpiresAt);
+}
+
+/** "Couper le pilotage" was tapped on the notification; the server has already dropped control. */
+export function onMcpControlRevoked(handler: () => void): () => void {
+  const module = nativeModule();
+  if (!module) return () => {};
+  const subscription = new NativeEventEmitter(module).addListener('McpControlRevoked', handler);
+  return () => subscription.remove();
 }
 
 /** A control call the native server is waiting on (see `McpServerModule.runCommand`). */

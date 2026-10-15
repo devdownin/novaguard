@@ -158,6 +158,11 @@ export const fr = {
   'setup.mcpControlToken': 'Jeton de pilotage',
   'setup.mcpControlToken.none': 'Aucun : pilotage impossible',
   'setup.mcpControlToken.generate': 'Générer un jeton de pilotage',
+  'setup.mcpControlTtl': 'Durée du jeton de pilotage',
+  'setup.mcpControlTtl.sub': 'Compte à partir de la génération du jeton, ou du changement de durée.',
+  'setup.mcpControlToken.expires': 'Valable jusqu’à {time}',
+  'setup.mcpControlToken.expired': 'Expiré : générez-en un autre',
+  'setup.mcpControlToken.forever': 'Sans expiration',
   'setup.agentLog': 'Actions de l’agent',
   'setup.agentLog.empty': 'Aucune action pour l’instant.',
   'setup.agentLog.entry': '{time} · {command} · {outcome}',
@@ -176,6 +181,11 @@ export const fr = {
   'setup.mcpCopy.token': 'Copier le jeton',
   'setup.mcpCopy.config': 'Copier la config JSON',
   'setup.mcpCopy.copied': 'Copié !',
+  'setup.mcpQr.show': 'Afficher le QR code',
+  'setup.mcpQr.hide': 'Masquer le QR code',
+  'setup.mcpQr.label': 'QR code de la configuration MCP, jeton compris',
+  'setup.mcpQr.hint': 'Contient le jeton : ne le montrez qu’à l’appareil que vous configurez.',
+  'setup.mcpAdvertised': 'Annoncé sur le Wi-Fi sous « NovaGuard » (_novaguard-mcp._tcp) : un client qui sait chercher retrouve le téléphone si son adresse change.',
   'setup.mcpLastActivity': 'Dernière activité IA',
   'setup.mcpLastActivity.none': 'Aucune requête reçue',
   'setup.mcpPrivacyNote': 'Note de confidentialité : NovaGuard effectue toute la détection en local. Lorsque le serveur MCP est activé, les données demandées par votre assistant IA lui sont transmises.',
@@ -447,6 +457,7 @@ export const fr = {
   'notif.detail': 'À {time} · enregistrement en cours',
   'notif.since': '{status} · depuis {time}',
   'notif.resumed': '{status} · reprise à {time}',
+  'notif.revokeControl': 'Couper le pilotage',
 
   // ── third-party licence notes, shown in Setup → À propos ─────────────
   'lic.react-react-native': 'Framework applicatif',
@@ -503,6 +514,9 @@ export const fr = {
   'value.retention.30 jours': '30 jours',
   'value.retention.90 jours': '90 jours',
   'value.retention.Toujours': 'Toujours',
+  'value.controlTtl.1 h': '1 h',
+  'value.controlTtl.24 h': '24 h',
+  'value.controlTtl.Toujours': 'Toujours',
 } as const;
 
 export type StringKey = keyof typeof fr;
