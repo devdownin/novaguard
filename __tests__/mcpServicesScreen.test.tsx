@@ -64,11 +64,26 @@ it('opens from the privacy block even with every server off and Avancé folded',
     tree = ReactTestRenderer.create(<AppStateProvider><SetupScreen /><McpServicesSheet /></AppStateProvider>);
   });
   await ReactTestRenderer.act(async () => {});
-  expect(tree.root.findAll(node => node.props.label === t('setup.mcpServices') && node.props.onPress)).toHaveLength(0);
   const button = tree.root.find(node => node.props.label === t('setup.privacy.mcp') && node.props.onPress);
   await ReactTestRenderer.act(async () => { button.props.onPress(); });
   expect(texts()).toContain(t('mcpService.title'));
   expect(texts()).toContain(t('mcpService.status.stopped'));
+});
+
+it('is the first thing in Réglages, server off, and opens the page from there', async () => {
+  await AsyncStorage.setItem('@novaguard:settings', JSON.stringify(defaultSettings));
+  await ReactTestRenderer.act(async () => {
+    tree = ReactTestRenderer.create(<AppStateProvider><SetupScreen /><McpServicesSheet /></AppStateProvider>);
+  });
+  await ReactTestRenderer.act(async () => {});
+  const card = tree.root.findByProps({ testID: 'mcp-card' });
+  expect(card.findAllByType(Text).map(n => String(n.props.children))).toContain(t('setup.mcpCard.off'));
+  // Above every section: the first thing the screen draws inside its list.
+  const order = tree.root.findAll(n => n.props.testID === 'mcp-card' || n.props.title === t('setup.section.surv'));
+  expect(order[0].props.testID).toBe('mcp-card');
+  const button = card.find(n => n.props.label === t('setup.mcpServices') && typeof n.props.onPress === 'function');
+  await ReactTestRenderer.act(async () => { button.props.onPress(); });
+  expect(texts()).toContain(t('mcpService.title'));
 });
 
 it('says why an agent cannot drive the camera', async () => {
