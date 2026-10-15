@@ -236,6 +236,7 @@ interface AppStateValue {
   clearMcpControlToken: () => void;
   cycleMcpControlTtl: () => void;
   toggleMcpLiveFrame: () => void;
+  toggleMcpTls: () => void;
   /** Control calls made by agents, newest first (`agentLog.ts`). */
   agentLog: AgentAction[];
   /** Live state of the native MCP server, or MCP_SERVER_STOPPED when it is off. */
@@ -1782,13 +1783,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (settings.mcpEnabled) {
       startMcpServer(
         settings.mcpPort, settings.mcpToken, settings.mcpControlToken, settings.mcpControlEnabled, settings.mcpControlExpiresAt,
+        settings.mcpTls,
       ).then(setMcpStatus).catch(() => {
         setMcpStatus({ ...MCP_SERVER_STOPPED, port: settings.mcpPort });
       });
     } else {
       stopMcpServer().then(() => setMcpStatus({ ...MCP_SERVER_STOPPED, port: settings.mcpPort }));
     }
-  }, [hydrated, settings.mcpEnabled, settings.mcpPort, settings.mcpToken, settings.mcpControlToken, settings.mcpControlEnabled, settings.mcpControlExpiresAt]);
+  }, [hydrated, settings.mcpEnabled, settings.mcpPort, settings.mcpToken, settings.mcpControlToken, settings.mcpControlEnabled, settings.mcpControlExpiresAt, settings.mcpTls]);
 
   /**
    * The last time a client actually asked something.
@@ -1834,6 +1836,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       ...(settings.mcpControlToken ? { mcpControlExpiresAt: controlExpiry(mcpControlTtl, Date.now()) } : {}),
     });
   }, [patchSettings, settings.mcpControlTtl, settings.mcpControlToken]);
+
+  const toggleMcpTls = useCallback(() => {
+    patchSettings({ mcpTls: !settings.mcpTls });
+  }, [patchSettings, settings.mcpTls]);
 
   const toggleMcpLiveFrame = useCallback(() => {
     patchSettings({ mcpLiveFrameEnabled: !settings.mcpLiveFrameEnabled });
@@ -2115,7 +2121,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo,
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
@@ -2127,7 +2133,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo, onb, perms, onbNext, onbFinish, grantPermission,
   ]);
 

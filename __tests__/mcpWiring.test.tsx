@@ -68,7 +68,7 @@ it('starts the native server when the setting is switched on, and stops it again
   await ReactTestRenderer.act(async () => { handle.state.toggleMcpServer(); });
   await ReactTestRenderer.act(async () => {});
 
-  expect(native.startServer).toHaveBeenCalledWith(defaultSettings.mcpPort, '', '', false, 0);
+  expect(native.startServer).toHaveBeenCalledWith(defaultSettings.mcpPort, '', '', false, 0, false);
   expect(handle.state.mcpStatus.running).toBe(true);
 
   await ReactTestRenderer.act(async () => { handle.state.toggleMcpServer(); });
@@ -88,7 +88,7 @@ it('restarts the server with the new token when one is generated', async () => {
 
   // A token is what lets the server leave loopback, so a token the running
   // server does not have is a token that does nothing.
-  expect(native.startServer).toHaveBeenLastCalledWith(defaultSettings.mcpPort, 'mcp_' + 'a'.repeat(32), '', false, 0);
+  expect(native.startServer).toHaveBeenLastCalledWith(defaultSettings.mcpPort, 'mcp_' + 'a'.repeat(32), '', false, 0, false);
 });
 
 it('pushes a snapshot when the history changes', async () => {

@@ -170,6 +170,11 @@ export const fr = {
 
   'setup.mcpEnabled': 'Serveur MCP',
   'setup.mcpEnabled.sub': 'Interface Model Context Protocol (2026-07-28) pour assistants IA',
+  'setup.mcpTls': 'Chiffrer les connexions (HTTPS)',
+  'setup.mcpTls.sub': 'Certificat émis par une autorité propre à ce téléphone. Le client doit lui faire confiance une fois.',
+  'setup.mcpTls.fingerprint': 'Empreinte SHA-256 de l’autorité',
+  'setup.mcpTls.trust': 'Sur l’ordinateur de l’agent, installez ce certificat dans le magasin du système, ou pour un client Node : NODE_EXTRA_CA_CERTS=novaguard-ca.pem. Vérifiez que l’empreinte affichée par l’ordinateur est la même.',
+  'setup.mcpTls.copyPem': 'Copier le certificat (PEM)',
   'setup.mcpPort': 'Port MCP',
   'setup.mcpMode': 'Mode de fonctionnement',
   'setup.mcpMode.readOnly': 'Lecture seule strict',

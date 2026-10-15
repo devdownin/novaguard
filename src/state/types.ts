@@ -225,6 +225,8 @@ export interface Settings {
   mcpControlTtl: ControlLifetime;
   /** Lets an agent ask for what the camera sees now (`get_live_frame`). Off by default. */
   mcpLiveFrameEnabled: boolean;
+  /** HTTPS under the device's own authority (`McpTls.kt`). Off by default: a client must be told to trust it. */
+  mcpTls: boolean;
   /** Epoch ms the control token stops working; 0 for never. Set when it is issued. */
   mcpControlExpiresAt: number;
   exp: ExpandedSections;

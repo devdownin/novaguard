@@ -135,9 +135,10 @@ Réponses, toutes vérifiables dans le code :
   dépend d'une interprétation.
 - Aucune catégorie à cocher (ni photos/vidéos, ni audio, ni position, ni
   identifiants, ni diagnostics).
-- **Les données sont-elles chiffrées en transit ?** → **Non** pour les deux
-  serveurs locaux, qui parlent HTTP sur le réseau local ; rien ne transite par
-  Internet.
+- **Les données sont-elles chiffrées en transit ?** → **Non** par défaut : les
+  deux serveurs locaux parlent HTTP sur le réseau local, et rien ne transite par
+  Internet. Le serveur MCP propose HTTPS (autorité propre à l'appareil), mais
+  c'est une option éteinte par défaut, et le formulaire porte sur le défaut.
 - **L'utilisateur peut-il demander la suppression de ses données ?** → oui, tout
   est local : suppression unitaire, « Tout supprimer », rétention automatique, et
   la désinstallation efface tout.

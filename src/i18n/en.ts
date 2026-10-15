@@ -168,6 +168,11 @@ export const en: Record<StringKey, string> = {
 
   'setup.mcpEnabled': 'MCP server',
   'setup.mcpEnabled.sub': 'Model Context Protocol interface (2026-07-28) for AI assistants',
+  'setup.mcpTls': 'Encrypt connections (HTTPS)',
+  'setup.mcpTls.sub': 'Certificate issued by an authority belonging to this phone. The client must trust it once.',
+  'setup.mcpTls.fingerprint': 'Authority SHA-256 fingerprint',
+  'setup.mcpTls.trust': 'On the agent’s computer, install this certificate in the system store, or for a Node client: NODE_EXTRA_CA_CERTS=novaguard-ca.pem. Check that the fingerprint the computer shows is the same.',
+  'setup.mcpTls.copyPem': 'Copy the certificate (PEM)',
   'setup.mcpPort': 'MCP Port',
   'setup.mcpMode': 'Operating mode',
   'setup.mcpMode.readOnly': 'Strict read-only',

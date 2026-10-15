@@ -65,11 +65,11 @@ it('listens for control calls only while the device allows control', async () =>
   await ReactTestRenderer.act(async () => { handle.state.generateMcpControlToken(); });
   await ReactTestRenderer.act(async () => {});
   expect(mockHandlers.length).toBeGreaterThan(0);
-  expect(native.startServer).toHaveBeenLastCalledWith(8081, '', 'mcp_' + 'c'.repeat(32), true, expect.any(Number));
+  expect(native.startServer).toHaveBeenLastCalledWith(8081, '', 'mcp_' + 'c'.repeat(32), true, expect.any(Number), false);
 
   await ReactTestRenderer.act(async () => { handle.state.toggleMcpControl(); });
   expect(mockUnsubscribe).toHaveBeenCalled();
-  expect(native.startServer).toHaveBeenLastCalledWith(8081, '', 'mcp_' + 'c'.repeat(32), false, expect.any(Number));
+  expect(native.startServer).toHaveBeenLastCalledWith(8081, '', 'mcp_' + 'c'.repeat(32), false, expect.any(Number), false);
 });
 
 it('carries a call out with the screens’ own callbacks, answers it, and logs it', async () => {
@@ -106,7 +106,7 @@ describe('control token lifetime', () => {
     await ReactTestRenderer.act(async () => {});
     expect(handle.state.settings.mcpControlTtl).toBe('24 h');
     expect(handle.state.settings.mcpControlExpiresAt).toBe(issuedAt + 24 * HOUR);
-    expect(native.startServer).toHaveBeenLastCalledWith(8081, '', 'mcp_' + 'c'.repeat(32), true, issuedAt + 24 * HOUR);
+    expect(native.startServer).toHaveBeenLastCalledWith(8081, '', 'mcp_' + 'c'.repeat(32), true, issuedAt + 24 * HOUR, false);
   });
 
   it('counts a new lifetime from now, and "Toujours" means no end', async () => {

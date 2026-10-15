@@ -54,6 +54,9 @@ export const defaultSettings: Settings = {
   mcpControlExpiresAt: 0,
   // Seeing the room on demand is more than reviewing what was filmed: asked for, not assumed.
   mcpLiveFrameEnabled: false,
+  // Off until the owner has a client that trusts the device certificate: on by
+  // default, every existing client would stop connecting.
+  mcpTls: false,
   exp: { surv: true, det: false, rec: false, sto: false, not: false, stream: false, mcp: false, adv: false, about: false },
 };
 

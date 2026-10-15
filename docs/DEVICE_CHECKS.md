@@ -73,6 +73,17 @@ tool() {  # tool <jeton> <outil sans préfixe> [arguments JSON]
       notification → l'appel suivant est refusé, l'interrupteur est éteint
       dans Réglages, l'action a disparu de la notification.
 
+## Serveur MCP : HTTPS
+
+- [ ] « Chiffrer les connexions » activé : copier le PEM dans `novaguard-ca.pem`, puis
+      `openssl x509 -in novaguard-ca.pem -noout -fingerprint -sha256` affiche l'empreinte de Réglages.
+- [ ] `curl --cacert novaguard-ca.pem https://$PHONE:8081/health` répond `{"status":"ok"}` ;
+      sans `--cacert`, curl refuse le certificat.
+- [ ] Changer d'adresse IP (autre Wi-Fi, ou bail renouvelé) sans relancer l'application :
+      la même commande, avec la nouvelle adresse, répond toujours.
+- [ ] Claude Desktop lancé avec `NODE_EXTRA_CA_CERTS=novaguard-ca.pem` et l'URL `https://…` : les outils se chargent.
+- [ ] Désinstaller et réinstaller l'application : nouvelle autorité, nouvelle empreinte ; l'ancien PEM est refusé.
+
 ## Serveur MCP : découverte et clients
 
 - [ ] `dns-sd -B _novaguard-mcp._tcp` (macOS) ou `avahi-browse -r _novaguard-mcp._tcp`

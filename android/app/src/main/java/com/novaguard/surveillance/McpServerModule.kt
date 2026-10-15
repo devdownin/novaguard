@@ -83,6 +83,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   @Volatile private var controlDigest: ByteArray? = null
   /** Epoch ms after which the control token stops working; 0 for never. */
   @Volatile private var controlExpiresAt: Long = 0
+  /** HTTPS under the device authority (`McpTls`); off, plain HTTP as before. */
+  @Volatile private var tls: Boolean = false
   /** The DNS-SD registration while the socket is on the LAN, so a client finds a moved address. */
   private var nsdListener: NsdManager.RegistrationListener? = null
   @Volatile private var snapshot: Snapshot = Snapshot.empty()
@@ -106,7 +108,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun startServer(
-    port: Int, token: String?, controlToken: String?, controlEnabled: Boolean, controlExpiresAt: Double, promise: Promise,
+    port: Int, token: String?, controlToken: String?, controlEnabled: Boolean, controlExpiresAt: Double, tls: Boolean,
+    promise: Promise,
   ) {
     try {
       if (isServerRunning) stopServerInternal()
@@ -126,7 +129,11 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       val bindAddress =
         if (boundToLoopbackOnly) InetAddress.getByName("127.0.0.1") else null
 
-      serverSocket = ServerSocket().apply {
+      this.tls = tls
+      // The certificate is chosen per handshake for the addresses of the
+      // moment, so a socket opened on one DHCP lease keeps working on the next.
+      val factory = if (tls) McpTls.context(reactContext) { certificateAddresses() }.serverSocketFactory else null
+      serverSocket = (factory?.createServerSocket() ?: ServerSocket()).apply {
         reuseAddress = true
         bind(InetSocketAddress(bindAddress, currentPort))
       }
@@ -223,6 +230,22 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     }
   }
 
+  private fun certificateAddresses(): List<String> =
+    listOfNotNull("127.0.0.1", "::1", if (boundToLoopbackOnly) null else localIpAddress())
+
+  /** The device authority's certificate, PEM, for the owner to install on the client. */
+  @ReactMethod
+  fun getCaCertificate(promise: Promise) {
+    try {
+      promise.resolve(Arguments.createMap().apply {
+        putString("pem", McpTls.pem(reactContext))
+        putString("fingerprint", McpTls.fingerprint(reactContext))
+      })
+    } catch (e: Exception) {
+      promise.reject("MCP_TLS_ERROR", "Device certificate unavailable: ${e.message}")
+    }
+  }
+
   private fun controlAvailable(): Boolean =
     controlDigest != null && McpRules.controlLive(controlExpiresAt, System.currentTimeMillis())
 
@@ -240,6 +263,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       port = currentPort
       setAttribute("path", "/mcp")
       setAttribute("auth", "bearer")
+      setAttribute("scheme", if (tls) "https" else "http")
     }
     val listener = object : NsdManager.RegistrationListener {
       override fun onServiceRegistered(registered: NsdServiceInfo) { Log.i(TAG, "Advertised as ${registered.serviceName}") }
@@ -288,7 +312,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     putBoolean("running", isServerRunning)
     putInt("port", currentPort)
     putString("ipAddress", ip)
-    putString("url", if (isServerRunning) "http://$host:$currentPort/mcp" else null)
+    putString("url", if (isServerRunning) "${if (tls) "https" else "http"}://$host:$currentPort/mcp" else null)
+    putBoolean("tls", tls)
     putBoolean("hasToken", tokenDigest != null)
     putBoolean("controlEnabled", controlAvailable())
     putBoolean("advertised", nsdListener != null)
@@ -433,7 +458,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   }
 
   private fun isAllowedOrigin(origin: String): Boolean =
-    expectedAuthorities().any { origin == "http://$it" }
+    expectedAuthorities().any { origin == "${if (tls) "https" else "http"}://$it" }
 
   private fun isAllowedHost(host: String?): Boolean {
     if (host == null) return false

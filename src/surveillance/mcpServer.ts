@@ -17,6 +17,8 @@ export interface McpServerStatus {
   controlEnabled?: boolean;
   /** Whether the server is advertised over DNS-SD (`_novaguard-mcp._tcp`). */
   advertised?: boolean;
+  /** HTTPS under the device authority. */
+  tls?: boolean;
   /** True while no token is set: the socket is then bound to loopback only. */
   loopbackOnly: boolean;
   requestCount: number;
@@ -188,11 +190,22 @@ export function buildMcpSnapshot(input: McpSnapshotInput): string {
  * what grants control, the token only says who holds it.
  */
 export async function startMcpServer(
-  port: number, token: string, controlToken = '', controlEnabled = false, controlExpiresAt = 0,
+  port: number, token: string, controlToken = '', controlEnabled = false, controlExpiresAt = 0, tls = false,
 ): Promise<McpServerStatus> {
   const module = nativeModule();
   if (!module) return { ...MCP_SERVER_STOPPED, port };
-  return module.startServer(port, token, controlToken, controlEnabled, controlExpiresAt);
+  return module.startServer(port, token, controlToken, controlEnabled, controlExpiresAt, tls);
+}
+
+/** The device authority a client must trust for HTTPS: PEM to install, fingerprint to compare. */
+export async function getMcpCaCertificate(): Promise<{ pem: string; fingerprint: string } | null> {
+  const module = nativeModule();
+  if (!module?.getCaCertificate) return null;
+  try {
+    return await module.getCaCertificate();
+  } catch {
+    return null;
+  }
 }
 
 /** "Couper le pilotage" was tapped on the notification; the server has already dropped control. */
