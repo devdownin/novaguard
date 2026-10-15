@@ -6,6 +6,7 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.modules.core.DeviceEventManagerModule
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -23,16 +24,21 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * NovaGuard's MCP server, on the device.
  *
- * The TypeScript server under `novaguard-mcp/` is Node: it imports `http`,
- * `dns` and `net` and allocates `Buffer`s, none of which exist in Hermes. It
+ * A TypeScript server once lived under `novaguard-mcp/`. It was Node: it imported `http`,
+ * `dns` and `net` and allocated `Buffer`s, none of which exist in Hermes. It
  * could therefore never be what the Setup toggle started, and for a while the
  * toggle started nothing at all — it wrote a setting no code read, which is
  * the inert-section failure this repository has already shipped once.
@@ -42,9 +48,11 @@ import java.util.concurrent.atomic.AtomicLong
  * history or the settings change, so nothing here touches the frame path: the
  * analysis pipeline never waits on a socket.
  *
- * Read-only is structural, not a policy check bolted on top: this module holds
- * no reference able to modify surveillance state. It reads a snapshot and two
- * directories of files, and that is the whole of its reach.
+ * It holds no reference able to modify surveillance state. Reading is from a
+ * snapshot and the recordings directory; control — only when the device's own
+ * switch allows it, and only for a caller holding the control token — is a
+ * request handed to JavaScript, which carries it out with the screens' own
+ * callbacks or refuses it (`mcpCommands.ts`). Nothing destructive is reachable.
  */
 class McpServerModule(private val reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext) {
@@ -65,7 +73,16 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   @Volatile private var isServerRunning: Boolean = false
   /** SHA-256 of the bearer token, so the token itself is not held in memory. */
   @Volatile private var tokenDigest: ByteArray? = null
+  /** SHA-256 of the control token; null while the device does not allow control. */
+  @Volatile private var controlDigest: ByteArray? = null
   @Volatile private var snapshot: Snapshot = Snapshot.empty()
+  /** Signalled on every snapshot push, for `wait_for_event`. */
+  private val snapshotLock = ReentrantLock()
+  private val snapshotPushed = snapshotLock.newCondition()
+
+  /** Control calls waiting on JavaScript, by request id. */
+  private val pendingCommands = ConcurrentHashMap<String, CompletableFuture<String>>()
+  private val commandSerial = AtomicLong(0)
 
   private val requestCount = AtomicLong(0)
   private val lastActivityAt = AtomicLong(0)
@@ -74,18 +91,21 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   // ---------------------------------------------------------------- lifecycle
 
   @ReactMethod
-  fun startServer(port: Int, token: String?, promise: Promise) {
+  fun startServer(port: Int, token: String?, controlToken: String?, controlEnabled: Boolean, promise: Promise) {
     try {
       if (isServerRunning) stopServerInternal()
 
       currentPort = if (port in 1024..65535) port else DEFAULT_PORT
       val trimmed = token?.trim().orEmpty()
       tokenDigest = if (trimmed.length >= MIN_TOKEN_LENGTH) sha256(trimmed) else null
+      // The device switch grants control; the token only says who holds it.
+      val control = controlToken?.trim().orEmpty()
+      controlDigest = if (controlEnabled && control.length >= MIN_TOKEN_LENGTH) sha256(control) else null
 
       // No token means no way to tell a caller apart, so there is nothing to
       // expose to: the socket stays on loopback, reachable only by something
       // already running on this phone. A LAN bind is what a token buys.
-      boundToLoopbackOnly = tokenDigest == null
+      boundToLoopbackOnly = tokenDigest == null && controlDigest == null
       val bindAddress =
         if (boundToLoopbackOnly) InetAddress.getByName("127.0.0.1") else null
 
@@ -151,7 +171,11 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   @ReactMethod
   fun updateSnapshot(json: String) {
     try {
-      snapshot = Snapshot.parse(JSONObject(json), snapshot, System.currentTimeMillis())
+      val next = Snapshot.parse(JSONObject(json), snapshot, System.currentTimeMillis())
+      snapshotLock.withLock {
+        snapshot = next
+        snapshotPushed.signalAll()
+      }
     } catch (e: Exception) {
       Log.w(TAG, "Ignored malformed MCP snapshot: ${e.message}")
     }
@@ -172,6 +196,11 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     serverSocket = null
     rateLimiter.clear()
     tokenDigest = null
+    controlDigest = null
+    // A control call in flight is answered rather than left to time out.
+    pendingCommands.values.forEach { it.complete(STOPPED_OUTCOME) }
+    pendingCommands.clear()
+    snapshotLock.withLock { snapshotPushed.signalAll() }
     Log.i(TAG, "MCP server stopped")
   }
 
@@ -183,6 +212,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     putString("ipAddress", ip)
     putString("url", if (isServerRunning) "http://$host:$currentPort/mcp" else null)
     putBoolean("hasToken", tokenDigest != null)
+    putBoolean("controlEnabled", controlDigest != null)
     putBoolean("loopbackOnly", boundToLoopbackOnly)
     putDouble("requestCount", requestCount.get().toDouble())
     val last = lastActivityAt.get()
@@ -308,8 +338,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
         return respond(output, 400, parseErrorResponse())
       }
 
-      val authorized = isAuthorized(authHeader, remote)
-      val response = dispatch(request, authorized)
+      val principal = principalFor(authHeader, remote)
+      val response = dispatch(request, principal)
         ?: return respond(output, 202, "") // a notification: accepted, no body
 
       val status = httpStatusFor(response)
@@ -362,21 +392,16 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     return window.count <= MAX_REQUESTS_PER_WINDOW
   }
 
-  private fun isAuthorized(authHeader: String?, remote: String): Boolean {
-    val expected = tokenDigest
+  private fun principalFor(authHeader: String?, remote: String): Int {
     val presented = authHeader
       ?.let { if (it.startsWith("Bearer ", ignoreCase = true)) it.substring(7) else it }
       ?.trim()
       .orEmpty()
-
-    if (expected != null && presented.isNotEmpty()) {
-      // Digest comparison through MessageDigest.isEqual: a token must not be
-      // recoverable one byte at a time from how long the comparison took.
-      if (MessageDigest.isEqual(expected, sha256(presented))) return true
-    }
-    // Loopback needs no token: the caller is already running on this device,
-    // where it could read the clips directly. Anything off the device does.
-    return isLoopback(remote)
+    // Digest comparison through MessageDigest.isEqual: a token must not be
+    // recoverable one byte at a time from how long the comparison took.
+    val digest = if (presented.isNotEmpty()) sha256(presented) else null
+    fun matches(expected: ByteArray?) = expected != null && digest != null && MessageDigest.isEqual(expected, digest)
+    return McpRules.principal(matches(controlDigest), matches(tokenDigest), isLoopback(remote))
   }
 
   private fun isLoopback(remote: String): Boolean =
@@ -385,7 +410,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   // ----------------------------------------------------------------- protocol
 
   /** Returns null for a notification, which JSON-RPC forbids answering. */
-  private fun dispatch(request: JSONObject, authorized: Boolean): JSONObject? {
+  private fun dispatch(request: JSONObject, principal: Int): JSONObject? {
     val id: Any? = if (request.has("id") && !request.isNull("id")) request.get("id") else null
     val method = request.optString("method")
     val isNotification = !request.has("id")
@@ -396,7 +421,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     }
     if (method.startsWith("notifications/")) return null
 
-    if (!authorized) {
+    if (principal == McpRules.PRINCIPAL_NONE) {
       return errorResponse(id, -32603, "NOVAGUARD_AUTH_REQUIRED", "Authentication token is required for non-loopback connections")
     }
 
@@ -405,8 +430,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       when (method) {
         "initialize" -> successResponse(id, initializeResult(params))
         "ping" -> successResponse(id, JSONObject())
-        "tools/list" -> successResponse(id, JSONObject().put("tools", McpCatalog.tools()))
-        "tools/call" -> successResponse(id, callToolReportingFailures(params))
+        "tools/list" -> successResponse(id, JSONObject().put("tools", McpCatalog.tools(controlDigest != null)))
+        "tools/call" -> successResponse(id, callToolReportingFailures(params, principal))
         "resources/list" -> successResponse(id, JSONObject().put("resources", McpCatalog.resources(snapshot)))
         "resources/templates/list" -> successResponse(id, JSONObject().put("resourceTemplates", McpCatalog.resourceTemplates()))
         "resources/read" -> successResponse(id, readResource(params.optString("uri")))
@@ -433,15 +458,20 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
    * so "event 9999 does not exist" would look like the server being broken
    * rather than like an id to correct.
    */
-  private fun callToolReportingFailures(params: JSONObject): JSONObject {
+  private fun callToolReportingFailures(params: JSONObject, principal: Int): JSONObject {
     // Both checks sit outside the catch on purpose. A refused or unknown tool
     // is a protocol fault — nothing ran, and no argument a caller sends would
     // change that — so it stays a JSON-RPC error where the specification puts
     // it rather than becoming a result the model is invited to work around.
     val rawName = params.optString("name")
     assertNotForbidden(rawName)
-    if (!McpCatalog.isKnownTool(rawName)) {
+    if (!McpCatalog.isKnownTool(rawName, controlDigest != null)) {
       throw McpException("NOVAGUARD_INVALID_ARGUMENT", "Unknown tool: '$rawName'", -32602)
+    }
+    // Refused before anything runs, like an unknown tool: no argument would
+    // change the answer, only the other token.
+    if (operationOf(rawName) in McpCatalog.CONTROL_TOOLS && principal != McpRules.PRINCIPAL_CONTROL) {
+      throw McpException("NOVAGUARD_AUTH_FORBIDDEN", "'$rawName' needs the control token", -32001)
     }
     return try {
       callTool(params)
@@ -496,6 +526,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     val args = params.optJSONObject("arguments") ?: JSONObject()
     McpCatalog.validateArguments(name, args)
     if (name == "get_event_frames") return eventFrames(args)
+    if (name == "wait_for_event") return toolResult(waitForEvent(args))
+    if (name in McpCatalog.CONTROL_TOOLS) return toolResult(runCommand(name, args))
 
     val payload: Any = when (name) {
       "get_status" -> snapshot.statusJson()
@@ -509,6 +541,10 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       else -> throw McpException("NOVAGUARD_NOT_FOUND", "Unknown tool: '$rawName'", -32601)
     }
 
+    return toolResult(payload)
+  }
+
+  private fun toolResult(payload: Any): JSONObject {
     val result = JSONObject()
       .put("content", JSONArray().put(JSONObject().put("type", "text").put("text", payload.toString())))
       .put("isError", false)
@@ -518,6 +554,92 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     if (payload is JSONObject) result.put("structuredContent", payload)
     return result
   }
+
+  private fun operationOf(rawName: String): String =
+    McpCatalog.TOOL_PREFIXES.firstNotNullOfOrNull { prefix ->
+      if (rawName.startsWith(prefix)) rawName.removePrefix(prefix) else null
+    } ?: rawName
+
+  /**
+   * Holds the request until an event newer than `afterEventId` is pushed, or
+   * the budget runs out. A long poll on the existing transport: the server has
+   * no stream to push on, and an agent polling `get_latest_events` every
+   * second would cost a request — and a connection slot — per second.
+   */
+  private fun waitForEvent(args: JSONObject): JSONObject {
+    val budget = McpRules.waitBudgetMs(args.optInt("timeoutSeconds", McpRules.DEFAULT_WAIT_SECONDS))
+    val kind = args.optString("kind").takeIf { it.isNotEmpty() }
+    val after = if (args.has("afterEventId")) args.optLong("afterEventId") else snapshot.latestEventId()
+    val deadline = System.currentTimeMillis() + budget
+    var found: List<McpEvent> = emptyList()
+    snapshotLock.withLock {
+      while (true) {
+        found = snapshot.eventsAfter(after, kind)
+        val left = deadline - System.currentTimeMillis()
+        if (found.isNotEmpty() || left <= 0 || !isServerRunning) break
+        snapshotPushed.await(left, TimeUnit.MILLISECONDS)
+      }
+    }
+    val current = snapshot
+    return JSONObject()
+      .put("events", JSONArray().apply { found.forEach { put(it.toJson()) } })
+      .put("timedOut", found.isEmpty())
+      .put("latestEventId", current.latestEventId())
+      .put("status", current.statusJson())
+  }
+
+  /**
+   * A control call, carried out by JavaScript with the same callbacks the
+   * screens use, so an agent's "stop" goes through exactly what the button
+   * does. The request thread waits for the answer; the app's state is never
+   * reached from here directly, which keeps this module unable to change
+   * anything the JavaScript side has not agreed to.
+   */
+  private fun runCommand(name: String, args: JSONObject): JSONObject {
+    if (!reactContext.hasActiveReactInstance()) {
+      throw McpException("NOVAGUARD_DEVICE_UNAVAILABLE", "The app is not running", -32603)
+    }
+    val id = "c${commandSerial.incrementAndGet()}"
+    val future = CompletableFuture<String>()
+    pendingCommands[id] = future
+    try {
+      val payload = Arguments.createMap().apply {
+        putString("id", id)
+        putString("command", name)
+        putString("args", args.toString())
+      }
+      reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java).emit(COMMAND_EVENT, payload)
+      val raw = try {
+        future.get(COMMAND_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+      } catch (_: TimeoutException) {
+        throw McpException("NOVAGUARD_TIMEOUT", "The app did not answer in time", -32603)
+      }
+      val outcome = JSONObject(raw)
+      if (!outcome.optBoolean("ok")) {
+        throw McpException(
+          outcome.optString("code").ifEmpty { "NOVAGUARD_DEVICE_UNAVAILABLE" },
+          outcome.optString("message").ifEmpty { "Command failed" },
+          -32603,
+        )
+      }
+      return (outcome.optJSONObject("result") ?: JSONObject()).put("changed", outcome.optBoolean("changed"))
+    } finally {
+      pendingCommands.remove(id)
+    }
+  }
+
+  /** JavaScript's answer to a control call (see `resolveMcpCommand`). */
+  @ReactMethod
+  fun resolveCommand(id: String, outcomeJson: String) {
+    pendingCommands[id]?.complete(outcomeJson)
+  }
+
+  /** Required by `NativeEventEmitter`; the events are emitted regardless. */
+  @ReactMethod
+  fun addListener(eventName: String) {}
+
+  @ReactMethod
+  fun removeListeners(count: Double) {}
 
   /**
    * Stills from an event's clip as image content — the form a model looks at.
@@ -773,6 +895,9 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     /** Whole request line, headers and body; responses are not counted. */
     private const val REQUEST_DEADLINE_MS = 15_000L
     private const val MAX_CONNECTIONS = 8
+    private const val COMMAND_EVENT = "McpCommand"
+    private const val COMMAND_TIMEOUT_MS = 5_000L
+    private const val STOPPED_OUTCOME = "{\"ok\":false,\"code\":\"NOVAGUARD_DEVICE_UNAVAILABLE\",\"message\":\"Server stopped\"}"
     private const val MAX_CONNECTIONS_PER_PEER = 4
     private const val RATE_WINDOW_MS = 60_000L
     private const val MAX_REQUESTS_PER_WINDOW = 120
@@ -784,9 +909,9 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
      * Names this server refuses by name as well as by absence.
      *
      * Every one of them is already unreachable — no branch implements them —
-     * so this list buys one thing: a caller that asks to stop surveillance is
+     * so this list buys one thing: a caller that asks to delete a clip is
      * told it is forbidden rather than that the tool is unknown, and the day
-     * someone adds a write path they collide with this set first.
+     * someone adds a destructive path they collide with this set first.
      */
     /**
      * Failures that mean the tool ran and could not answer, as opposed to the
@@ -797,11 +922,12 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       "NOVAGUARD_NOT_FOUND", "NOVAGUARD_INVALID_ARGUMENT", "NOVAGUARD_RANGE_TOO_LARGE",
       "NOVAGUARD_LIMIT_EXCEEDED", "NOVAGUARD_MEDIA_UNAVAILABLE", "NOVAGUARD_MEDIA_TOO_LARGE",
       "NOVAGUARD_STORAGE_UNAVAILABLE", "NOVAGUARD_DEVICE_UNAVAILABLE", "NOVAGUARD_TIMEOUT",
+      "NOVAGUARD_PERMISSION_REQUIRED",
     )
 
     private val FORBIDDEN_OPERATIONS = setOf(
-      "start_surveillance", "stop_surveillance", "arm_camera", "disarm_camera",
-      "set_camera", "set_detection_threshold", "set_detection_zone", "set_sensitivity",
+      "arm_camera", "disarm_camera",
+      "set_camera", "set_detection_threshold", "set_detection_zone",
       "set_recording_quality", "set_retention", "set_notification_settings",
       "delete_event", "delete_video", "clear_history", "change_stream_pin",
       "restart_camera", "update_configuration"

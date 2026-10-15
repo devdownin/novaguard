@@ -66,6 +66,31 @@ public final class McpRules {
     }
   }
 
+  /** Who a request is from, in increasing privilege. */
+  public static final int PRINCIPAL_NONE = 0;
+  public static final int PRINCIPAL_READ = 1;
+  public static final int PRINCIPAL_CONTROL = 2;
+
+  /**
+   * The control token alone grants control, and it grants reading too. A
+   * loopback caller reads without a token — anything on the phone could open
+   * the app — but never controls without one: an app sitting on 127.0.0.1 must
+   * not be able to switch the camera off.
+   */
+  public static int principal(boolean controlTokenMatches, boolean readTokenMatches, boolean loopback) {
+    if (controlTokenMatches) return PRINCIPAL_CONTROL;
+    if (readTokenMatches || loopback) return PRINCIPAL_READ;
+    return PRINCIPAL_NONE;
+  }
+
+  /** `wait_for_event` long-poll bounds, in seconds. */
+  public static final int DEFAULT_WAIT_SECONDS = 20;
+  public static final int MAX_WAIT_SECONDS = 25;
+
+  public static long waitBudgetMs(int requestedSeconds) {
+    return Math.max(1, Math.min(MAX_WAIT_SECONDS, requestedSeconds)) * 1000L;
+  }
+
   /** Frames one `get_event_frames` call may return, and the default. */
   public static final int MAX_FRAMES = 8;
   public static final int DEFAULT_FRAMES = 4;

@@ -51,6 +51,17 @@ public final class McpRulesTest {
     long[] unknown = McpRules.frameTimesUs(0, 4);
     check(unknown.length == 1 && unknown[0] == 0L, "unknown duration: the first frame only");
 
+    check(McpRules.principal(true, false, false) == McpRules.PRINCIPAL_CONTROL, "the control token controls");
+    check(McpRules.principal(true, true, true) == McpRules.PRINCIPAL_CONTROL, "whatever else is true");
+    check(McpRules.principal(false, true, false) == McpRules.PRINCIPAL_READ, "the read token only reads");
+    check(McpRules.principal(false, false, true) == McpRules.PRINCIPAL_READ, "loopback reads without a token");
+    check(McpRules.principal(false, false, true) != McpRules.PRINCIPAL_CONTROL, "but never controls without one");
+    check(McpRules.principal(false, false, false) == McpRules.PRINCIPAL_NONE, "a LAN caller without a token is nobody");
+
+    check(McpRules.waitBudgetMs(10) == 10_000L, "budget in ms");
+    check(McpRules.waitBudgetMs(600) == McpRules.MAX_WAIT_SECONDS * 1000L, "a long wait is capped");
+    check(McpRules.waitBudgetMs(0) == 1_000L, "and a zero one raised");
+
     System.out.println("McpRulesTest passed");
   }
 }

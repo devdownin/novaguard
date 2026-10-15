@@ -1,36 +1,33 @@
-# NovaGuard — MCP Read-Only Server Specification
+# NovaGuard — MCP Server Specification
 
-**Version:** 1.0.0  
-**Status:** Proposed  
+**Version:** 2.0.0  
+**Status:** Implemented (`McpServerModule.kt`)  
 **Target MCP specification:** `2026-07-28`  
-**Scope:** Read-only access to NovaGuard surveillance data
+**Scope:** Read access to NovaGuard surveillance data; opt-in, non-destructive control by an agent
 
 ## 1. Purpose
 
-Define a read-only Model Context Protocol (MCP) interface for NovaGuard. NovaGuard performs person/animal detection, tracking and recording locally on Android. MCP must remain outside the real-time vision path and must never modify surveillance state.
+Define the Model Context Protocol (MCP) interface of NovaGuard. NovaGuard performs person/animal detection, tracking and recording locally on Android; the MCP server lets an AI agent **analyse** what was recorded and, when the owner allows it on the device, **pilot** the camera. MCP stays outside the real-time vision path.
 
-Typical queries:
+Typical requests:
 
-- What happened last night?
+- What happened last night? Show me who came in.
 - Were there any people detected today?
-- Show me the last animal detection.
-- How many detections occurred this week?
-- Show me the video for event 1042.
-- How much storage is available?
-
-The MCP server MUST NOT start/stop surveillance, change settings, delete events, delete recordings, alter retention, change detection zones or otherwise mutate NovaGuard state.
+- Is the camera actually seeing anything right now?
+- Tell me as soon as someone is detected.
+- Start surveillance; raise the threshold for animals; keep that passage.
 
 ## 2. Architectural principles
 
-1. **Read-only by construction.** No write/control tools.
-2. **Local-first.** Detection and recording remain on Android.
-3. **MCP is not part of computer vision.** It cannot block capture, inference, tracking or recording.
-4. **Least privilege.** Expose only required metadata/media.
-5. **Privacy by default.** No public endpoint and no cloud upload by NovaGuard.
-6. **Explicit media retrieval.** Event queries return resource URIs; MP4 bytes are fetched only when explicitly requested.
-7. **No identity inference.** MCP exposes NovaGuard's `Personne` / `Animal` classification and confidence only.
-8. **Bounded queries.** Searches are paginated and time-bounded.
-9. **Stable contract.** The MCP model is derived from NovaGuard's current local event model.
+1. **Read by default, control by consent.** Every read tool is available to a read token. Control tools exist only while the device's own switch "Autoriser le pilotage par un agent" is on, and answer only to the separate control token.
+2. **Nothing destructive, ever.** No tool deletes an event or a recording, edits the detection zone, the retention, a PIN or a token (§19).
+3. **Control goes through the app.** The server holds no reference able to modify state; a control call is handed to the app, which carries it out with the same callbacks as its own buttons, or refuses it.
+4. **Every control call is logged** on the device, refused ones included, and shown to the owner.
+5. **Local-first.** Detection and recording remain on Android. MCP cannot block capture, inference, tracking or recording.
+6. **Least privilege, privacy by default.** No public endpoint and no cloud upload by NovaGuard; only required metadata and media are exposed.
+7. **Images, not files, for analysis.** `get_event_frames` returns stills as MCP image content; the MP4 resource exists to hand the file on.
+8. **No identity inference.** MCP exposes NovaGuard's `Personne` / `Animal` classification and confidence only.
+9. **Bounded queries.** Searches are paginated and time-bounded; long polls are capped.
 
 ## 3. Current NovaGuard model
 
@@ -63,60 +60,29 @@ interface StorageInfo {
 
 The current settings also contain camera, sensitivity, threshold, auto-zoom, CPU/GPU, precise detection, detection zone, post-roll, maximum duration, recording quality, retention, automatic deletion, notifications and local-stream configuration. Only safe diagnostic values may be exposed; `localStreamPin` MUST NEVER be exposed.
 
-## 4. Target architecture
+## 4. Architecture
 
 ```text
-                         READ-ONLY PATH
-
-┌────────────────────────── Android / NovaGuard ─────────────────────────┐
-│                                                                        │
-│ Camera → VisionCamera → TFLite → Tracking → DetectionEvent            │
-│                                                    │                   │
-│                                                    ├→ MP4              │
-│                                                    ├→ Thumbnail        │
-│                                                    └→ Local persistence │
-│                                                        │               │
-│                                                        ▼               │
-│                                              NovaGuard Read API        │
-└──────────────────────────────────────────────────────┬─────────────────┘
-                                                       │ authenticated
-                                                       ▼
-                                          ┌─────────────────────────┐
-                                          │ NovaGuard MCP Gateway   │
-                                          │ tools + resources       │
-                                          └────────────┬────────────┘
-                                                       │ MCP
-                                                       ▼
-                                                MCP Client / LLM
+┌──────────────────────────── Android / NovaGuard ───────────────────────────┐
+│ Camera → VisionCamera → TFLite → Tracking → DetectionEvent → MP4/JPEG      │
+│                                                   │                        │
+│ AppStateContext ── snapshot (history, status, settings) ──► McpServerModule│
+│        ▲                                                    (Kotlin, HTTP) │
+│        └──── control call (start/stop, thresholds…) ◄────────── │          │
+└──────────────────────────────────────────────────────────────────┼─────────┘
+                                                                   │ MCP / HTTP
+                                                                   ▼
+                                                         MCP client / agent
 ```
 
-### Responsibilities
-
-**Android:** capture, inference, tracking, event creation, recording, thumbnails, retention, local persistence.
-
-**Read API:** expose a narrow read-only domain API; validate queries; never expose arbitrary filesystem paths or credentials.
-
-**MCP gateway:** translate MCP tools/resources to the read API; enforce bounds, authentication and authorization; return structured MCP results.
-
-**LLM/client:** interpret natural language and request read-only information.
+The server answers reads from a snapshot the app pushes when the history, the status or the settings change — never per frame. A control call is emitted to the app (`McpCommand`), executed by `executeMcpCommand`, and answered back; the HTTP request waits at most 5 s.
 
 ## 5. Deployment
 
-### 5.1 Recommended: companion MCP gateway on trusted LAN
-
-```text
-Android phone ── HTTPS/read-only ──> NovaGuard MCP Gateway ── MCP ──> AI client
-```
-
-The Android read API is enabled only when explicitly configured. HTTPS is preferred. Authentication is mandatory for non-loopback access. Public Internet exposure and port forwarding are prohibited by default.
-
-### 5.2 Loopback
-
-For local development, bind the gateway/read API to loopback where possible.
-
-### 5.3 Remote deployment
-
-A remote gateway is allowed only with authenticated encrypted transport. The Android read API MUST NOT be directly exposed to the public Internet.
+- **Loopback** (no token): the socket binds `127.0.0.1` only. Reading needs no token there; control always needs the control token, so another app on the phone cannot switch the camera off.
+- **LAN** (a read or control token is set): the socket binds all interfaces; every non-loopback request needs a token. Plain HTTP: the token is readable on a shared Wi-Fi, so use a trusted network.
+- Public Internet exposure and port forwarding are not supported.
+- The server lives in the app's process. Android only lets a camera foreground service start while the app is on screen, so `start_surveillance` from the background is refused with a clear message; stopping works at any time.
 
 ## 6. Android networking/privacy impact
 
@@ -131,7 +97,7 @@ MCP disabled → no listening socket → no network exposure
 Enabled state:
 
 ```text
-MCP read API → read-only → authenticated → loopback/LAN only
+MCP enabled → reads authenticated beyond loopback → control only with the device switch and the control token
 ```
 
 Documentation MUST explain why networking is required, where the server listens, how authentication works, whether traffic can leave the device, and how the feature is disabled.
@@ -149,11 +115,11 @@ Target protocol: MCP `2026-07-28`.
 }
 ```
 
-No control prompts are exposed. The server SHOULD remain stateless with respect to surveillance data.
+No prompts are exposed. Control tools appear in `tools/list` only while control is enabled on the device.
 
 # 8. MCP Tools
 
-All tools are read-only.
+§8.1–§8.10 are read tools. §8.11 lists the control tools.
 
 ## 8.1 `novaguard.get_status`
 
@@ -387,6 +353,23 @@ Input:
 
 Output: a `text` block `{"eventId","source":"video"|"thumbnail","frames":[{"index","offsetSeconds"}]}`, then one `image/jpeg` block per frame. Frames sit at the middle of `count` equal slices of the clip (default 4, longest side default 768 px), decoded already scaled, one extraction at a time. Without a clip, the event's thumbnail is returned; without either, the result carries `isError` and `NOVAGUARD_MEDIA_UNAVAILABLE`.
 
+## 8.10 `novaguard.wait_for_event`
+
+Long poll: returns as soon as an event newer than `afterEventId` is recorded (default: the newest at call time), or after `timeoutSeconds` (1–25, default 20). Output: `{"events":[…],"timedOut":bool,"latestEventId":n,"status":{…}}`. Passing the previous `latestEventId` back never misses an event.
+
+## 8.11 Control tools (control token, device switch on)
+
+| Tool | Arguments | Effect |
+|---|---|---|
+| `start_surveillance` | — | Starts surveillance. Refused if the camera permission is missing or the app is not on screen. |
+| `stop_surveillance` | — | Stops surveillance. |
+| `set_sensitivity` | `sensitivity`: `Basse`/`Moyenne`/`Haute` | Same as the Réglages control. |
+| `set_thresholds` | `person`, `animal` ∈ [0.5, 0.95], at least one | Entry thresholds per kind. |
+| `keep_event` | `eventId`, `kept` | Keeps or releases the event's whole passage (exempt from retention and automatic deletion). |
+| `acknowledge_alert` | — | Acknowledges `camera-moved`; `camera-obstructed` cannot be acknowledged, it clears when the camera sees again. |
+
+Every control tool is idempotent and returns `changed`. A call with a read token is a JSON-RPC error `NOVAGUARD_AUTH_FORBIDDEN` (HTTP 403); a refusal by the app (no permission, background, unknown event) is a result carrying `isError`.
+
 # 9. MCP Resources
 
 URI scheme:
@@ -508,56 +491,22 @@ Errors MUST NOT leak filesystem paths, stack traces, tokens or credentials.
 
 # 13. Security
 
-## Read-only guarantee
+## Control guarantee
 
-The MCP server MUST have no credential capable of modifying NovaGuard state. The upstream API SHOULD expose only read endpoints rather than generic CRUD.
-
-Required API surface:
-
-```text
-GET /api/v1/status
-GET /api/v1/events
-GET /api/v1/events/{id}
-GET /api/v1/events/{id}/thumbnail
-GET /api/v1/events/{id}/video
-GET /api/v1/statistics
-GET /api/v1/storage
-GET /api/v1/configuration
-```
-
-No POST/PUT/PATCH/DELETE endpoint is required.
+The server cannot modify NovaGuard state by itself. Control is a request the app carries out with its own callbacks and the six commands of §8.11 only; everything in §19 is unreachable by construction and refused by name.
 
 ## Authentication
 
-Authentication is mandatory beyond loopback. Preferred options:
+Two bearer tokens, generated on the device with a CSPRNG and compared by SHA-256 digest in constant time:
 
-1. mTLS in controlled deployments;
-2. OAuth/OIDC at the MCP gateway for multi-user deployments;
-3. strong bearer token for simple single-user LAN deployment;
-4. loopback-only for development.
+- **read token** — every read tool and resource;
+- **control token** — read tools plus §8.11, honoured only while the device's control switch is on.
 
-## Authorization
-
-Preferred scope:
-
-```text
-novaguard:read
-```
-
-Optional:
-
-```text
-novaguard:events:read
-novaguard:statistics:read
-novaguard:media:read
-novaguard:configuration:read
-```
-
-A principal with event-read but no media-read MUST still be able to query metadata.
+Loopback reads need no token; loopback control does.
 
 ## Audit
 
-Gateway SHOULD log timestamp, principal, MCP operation, event ID, response status, duration and media bytes. It MUST NOT log video contents, bearer tokens or credential-bearing URLs.
+Every control call is logged on the device (time, command, applied / unchanged / refused), kept across restarts and shown in Réglages → Serveur MCP. Tokens and media are never logged.
 
 # 14. Privacy
 
@@ -620,33 +569,16 @@ Example:
 
 This is expected and MUST be handled gracefully.
 
-# 18. REST-to-MCP mapping
-
-| REST | MCP |
-|---|---|
-| `GET /status` | `novaguard.get_status` / `novaguard://status` |
-| `GET /events` | `novaguard.search_events` |
-| `GET /events/{id}` | `novaguard.get_event` / `novaguard://event/{id}` |
-| latest query | `novaguard.get_latest_events` |
-| `GET /statistics` | `novaguard.get_statistics` |
-| `GET /storage` | `novaguard.get_storage` |
-| `GET /configuration` | `novaguard.get_configuration` |
-| `GET /events/{id}/thumbnail` | `novaguard://thumbnail/{id}` |
-| `GET /events/{id}/video` | `novaguard://video/{id}` |
-
 # 19. Explicitly forbidden MCP operations
 
-The following MUST NOT exist in v1:
+The following MUST NOT exist:
 
 ```text
-start_surveillance
-stop_surveillance
 arm_camera
 disarm_camera
 set_camera
 set_detection_threshold
 set_detection_zone
-set_sensitivity
 set_recording_quality
 set_retention
 set_notification_settings
@@ -658,7 +590,7 @@ restart_camera
 update_configuration
 ```
 
-NovaGuard MCP is an observability interface, not a control plane.
+Control is limited to what the owner can undo at a glance; anything whose damage would only be discovered later stays out.
 
 # 20. Natural-language examples
 
@@ -718,38 +650,24 @@ Mandatory: path traversal, arbitrary URI, arbitrary media identifier, token leak
 
 Datasets SHOULD cover 1,000, 10,000 and 100,000 events. Searches MUST remain paginated and MUST NOT load the entire video archive into memory.
 
-# 22. Implementation recommendation
-
-A small dedicated MCP gateway is preferred over embedding the complete MCP stack into React Native.
+# 22. Implementation
 
 ```text
-novaguard-mcp/
-├── transport/              # MCP HTTP transport
-├── tools/
-│   ├── get_status
-│   ├── search_events
-│   ├── get_event
-│   ├── get_latest_events
-│   ├── get_statistics
-│   ├── get_storage
-│   └── get_configuration
-├── resources/
-│   ├── event
-│   ├── timeline
-│   ├── thumbnail
-│   └── video
-├── client/                 # NovaGuardReadApiClient
-├── security/
-│   ├── authentication
-│   └── authorization
-└── tests/
+android/app/src/main/java/com/novaguard/surveillance/
+├── McpServerModule.kt   # HTTP transport, JSON-RPC, auth, tools, control bridge, wait_for_event
+├── McpCatalog.kt        # advertised tools/resources and the validation derived from them
+├── McpSnapshot.kt       # what reads answer from
+├── McpFrames.kt         # stills for get_event_frames
+└── McpRules.java        # pure decisions, tested on the JVM (scripts/test-presence-native.sh)
+src/surveillance/
+├── mcpServer.ts         # snapshot builder and native bridge
+├── mcpCommands.ts       # the six control commands
+└── agentLog.ts          # the owner-visible log of control calls
 ```
-
-The gateway should remain stateless with respect to surveillance data; NovaGuard remains the source of truth.
 
 # 23. Evolution path
 
-Future read-only versions MAY add:
+Future versions MAY add:
 
 - event grouping by passage/session;
 - activity heatmaps;
@@ -772,42 +690,26 @@ for efficient chronological summaries.
 
 # 24. Acceptance criteria
 
-- [ ] MCP `2026-07-28` supported by the selected SDK/transport.
-- [ ] Only read-only tools/resources exposed.
-- [ ] No operation can modify NovaGuard state.
-- [ ] No operation can delete an event or recording.
-- [ ] `localStreamPin` never exposed.
-- [ ] No arbitrary filesystem path is addressable.
-- [ ] Event searches are bounded and paginated.
-- [ ] ISO-8601 timezone-aware timestamps.
-- [ ] `Personne` / `Animal` preserved exactly.
-- [ ] Confidence remains `[0,1]`.
-- [ ] Events without recordings handled correctly.
-- [ ] Expired recordings return controlled errors.
-- [ ] Media is fetched explicitly, not embedded in every event response.
-- [ ] Authentication required outside loopback.
-- [ ] MCP credentials cannot modify NovaGuard.
-- [ ] MCP cannot block camera/inference/tracking/recording.
-- [ ] Security tests cover traversal and arbitrary media access.
-- [ ] Performance tested with at least 10,000 events.
-- [ ] Privacy documentation explains remote-LLM data transfer implications.
+- [x] Read tools and resources bounded, paginated, timezone-aware.
+- [x] `localStreamPin` and filesystem paths never exposed.
+- [x] Control tools absent unless the device switch is on, and refused without the control token.
+- [x] No operation can delete an event or recording, or change zone, retention, PIN or token.
+- [x] Every control call logged on the device.
+- [x] Confidence on `[0,1]`; `Personne` / `Animal` preserved.
+- [x] Agents see stills (`get_event_frames`) without loading clips in memory.
+- [ ] Verified on a device: control from the foreground, refusal from the background, `wait_for_event` wake-up, 9th concurrent client refused.
 
 # 25. Architectural decision
 
-**Decision:** NovaGuard MCP v1 is a **read-only observability interface** over the existing local surveillance event model.
-
-Canonical separation:
+**Decision (v2):** NovaGuard MCP is a read interface over the local surveillance model plus an **opt-in, non-destructive control plane**, carried out by the app itself.
 
 ```text
-REAL-TIME
-Camera → VisionCamera → EfficientDet-Lite → Tracking
-       → DetectionEvent → MP4/thumbnail → Local persistence
-
-READ
-Local persistence → NovaGuard Read API → MCP Gateway → MCP Client → LLM
+REAL-TIME   Camera → EfficientDet-Lite → Tracking → DetectionEvent → MP4/JPEG
+READ        App snapshot → McpServerModule → MCP client
+CONTROL     MCP client → McpServerModule → app (executeMcpCommand) → same callbacks as the UI
 ```
 
-This preserves NovaGuard's core local-processing model while providing a natural-language interface over history, statistics, storage, configuration diagnostics and explicitly requested recordings.
+v1 was read-only by construction; v2 keeps that construction for the server and moves every change of state into the app, behind a device switch and a separate token.
 
 ## References
 

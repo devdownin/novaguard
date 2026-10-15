@@ -499,11 +499,10 @@ glisse — c'est le retour. Une seule vibration existe dans l'application, sur
 démarrage/arrêt de la surveillance, et elle coûte `VIBRATE` au manifeste :
 `src/utils/haptics.ts` est toute la justification de cette ligne.
 
-**Le serveur MCP qui tourne est celui en Kotlin.** `novaguard-mcp/` est du Node —
-`http`, `dns`, `net`, `Buffer` — donc il ne peut pas s'exécuter dans Hermes et ne
-pouvait pas être ce que l'interrupteur de Setup allumait ; il ne l'allumait rien,
-et la section a vécu inerte comme NOTIFICATIONS avant elle. Le serveur de
-l'appareil est `android/…/surveillance/McpServerModule.kt`, et il répond depuis un
+**Le serveur MCP est en Kotlin, sur l'appareil.** Une passerelle Node a existé
+(`novaguard-mcp/`) : elle ne pouvait pas tourner dans Hermes, appelait une API
+`/api/v1/*` qu'aucun téléphone ne servait, et était pourtant la partie la mieux
+testée — elle a été supprimée. Le serveur est `android/…/surveillance/McpServerModule.kt`, et il répond depuis un
 **instantané** que `AppStateContext` pousse quand l'historique ou les réglages
 changent — jamais depuis le chemin d'image : une requête ne doit pas coûter une
 image à l'analyse, ni l'analyse bloquer une requête. Les chemins de fichiers
@@ -528,8 +527,10 @@ lance pas Gradle — donc il se vérifie en construisant un APK.
 
 Trois erreurs y ont faussé ce qu'un agent lisait, sans qu'aucune requête n'échoue. Les identifiants d'évènement sont des **millisecondes epoch** (`nextEventId`) : une borne `Int` refusait chaque évènement réel de `get_event`. La confiance est stockée en **pourcentage** et promise sur `[0,1]` : `unitConfidence` convertit dans l'instantané, sinon `minConfidence: 0.6` gardait tout. Et `surveillanceActive` seul disait « caméra active » d'un objectif masqué : l'instantané porte `surveillanceStatus`, et `statusSince` est tenu côté natif d'une poussée à l'autre. Ce qui se décide sans Android vit dans `McpRules.java`, compilé et testé par `scripts/test-presence-native.sh` en CI — c'est le seul morceau du serveur qu'une PR ordinaire exécute. Enfin les connexions passent par `McpRules.ConnectionGate` (8 au total, 4 par pair) et une échéance de 15 s par requête : un délai par lecture se renouvelle à chaque octet, donc un pair du Wi-Fi qui en envoyait un par seconde gardait un thread pour toujours, dans le processus qui fait tourner la caméra. Un agent regarde une vidéo par **images**, pas par fichier : la ressource `video/` part en base64 d'un bloc (plafonnée à 20 Mo, illisible pour la plupart des clients), alors que `get_event_frames` rend des blocs `image` — le format qu'un modèle voit. Les images sont décodées **déjà réduites** (`getScaledFrameAtTime` : une image 4K pleine taille, c'est 33 Mo de bitmap), une extraction à la fois (`McpFrames.decoding`), parce que le décodage prend les mêmes cœurs que l'analyse.
 
+**Un agent pilote la caméra à travers l'application, jamais à côté.** Le pilotage existe parce qu'un agent qui ne peut que lire ne peut ni relancer une surveillance arrêtée ni relever un seuil qui enregistre le bruit. Trois verrous le tiennent, et aucun n'est décoratif. L'**interrupteur de l'appareil** (`mcpControlEnabled`, éteint par défaut) décide si les outils de pilotage existent — absents de `tools/list` sinon ; le **jeton de pilotage**, distinct du jeton de lecture, décide qui s'en sert, et la boucle locale lit sans jeton mais ne pilote jamais sans lui (`McpRules.principal`) : une autre app du téléphone ne doit pas pouvoir éteindre la caméra. Et le serveur ne touche à rien : une commande part en évènement vers le JS, `executeMcpCommand` l'exécute avec **les mêmes callbacks que les boutons** et répond — un « stop » d'agent est donc exactement le « stop » de l'écran, son de confirmation et journal compris. Six commandes, toutes réversibles d'un coup d'œil ; ce dont le dommage ne se découvre qu'après (suppression, zone, rétention, PIN, jeton) reste refusé par nom. Chaque appel, refus compris, va dans `agentLog.ts`, affiché dans Réglages. Le prix assumé : Android ne laisse démarrer un service caméra qu'application au premier plan, donc `start_surveillance` depuis l'arrière-plan est refusé avec la raison plutôt que tenté. `wait_for_event` est une longue attente (25 s au plus) sur le transport existant : le serveur n'a pas de flux pour pousser, et un agent qui interroge chaque seconde coûterait une requête et une place de connexion par seconde.
+
 **Une erreur d'outil et une erreur de protocole ne vont pas au même endroit.**
-Les deux serveurs partagent ce partage, et il n'est pas cosmétique : un outil qui
+Ce partage n'est pas cosmétique : un outil qui
 s'exécute et ne peut pas répondre rend un **résultat** portant `isError`, seule
 forme que le modèle qui a posé la question voit — en erreur JSON-RPC elle lui est
 invisible, et « l'évènement 9999 n'existe pas » ressemble alors à un serveur cassé
@@ -545,24 +546,14 @@ un 200. La validation dérive du schéma annoncé, jamais d'une table posée à 
 deux copies du contrat divergent au premier paramètre ajouté.
 
 **Un contrôle de sécurité qui marche et un qui protège ne se distinguent pas à
-l'usage.** Aucun des points qui suivent n'empêchait une requête d'aboutir, et
-c'est pourquoi aucun n'avait de test : un jeton comparé par `===` authentifie
-exactement les mêmes appelants qu'un jeton comparé à temps constant, et une
-table non bornée est correcte jusqu'à ce que le processus manque de mémoire.
-Quatre décisions à ne pas reperdre. Les jetons sont stockés **et** comparés par
-empreinte SHA-256 : `timingSafeEqual` sur deux tampons de même taille ne fuit ni
-par le préfixe commun ni par la longueur, et une table indexée par empreinte ne
-détient pas l'identifiant qu'un vidage mémoire rendrait. `Origin` n'est envoyé
-que par les navigateurs, donc son absence est acceptée et **`Host` est le
-contrôle qui couvre les autres** — les deux ensemble sont la défense contre le
-*DNS rebinding*, et un `401` porte `WWW-Authenticate` sans quoi un client
-n'apprend rien de ce qui le rendrait autorisé. Un nom d'hôte doit résoudre là où
-sa catégorie le dit — `localhost` était exempté du contrôle, donc le seul nom
-que la liste d'autorisation laisse passer était le seul que rien ne vérifiait —
-et la connexion est **épinglée** sur l'adresse validée, parce que résoudre à
-nouveau au moment de se connecter rouvre la fenêtre que la validation venait de
-fermer. Enfin un plafond de taille descend **avec** la requête : l'appliquer au
-retour, c'est rapporter huit mégaoctets pour en refuser deux.
+l'usage.** Un jeton comparé par `==` authentifie exactement les mêmes appelants
+qu'un jeton comparé à temps constant, et une table non bornée est correcte
+jusqu'à ce que le processus manque de mémoire. Les jetons sont donc gardés **et**
+comparés par empreinte SHA-256 (`MessageDigest.isEqual`), la table de débit est
+élaguée, et `Origin` n'est envoyé que par les navigateurs : son absence est
+acceptée et **`Host` est le contrôle qui couvre les autres** — les deux ensemble
+sont la défense contre le *DNS rebinding*. Un `401` porte `WWW-Authenticate`,
+sans quoi un client n'apprend rien de ce qui le rendrait autorisé.
 
 **Un clip conservé n'appartient plus aux balayages.** `kept` se pose par passage (`keptEventIds` étend le drapeau aux segments écrits après) et retire l'évènement de `expiredEvents` comme de `eventsToReclaim` : un disque plein arrête d'enregistrer, il n'efface jamais une preuve. Seule une suppression explicite l'atteint.
 
@@ -578,9 +569,8 @@ toute la bibliothèque. Ce qui peut détruire quelque chose lit à travers
 clé qu'il n'a pas su lire.
 
 **Les frontières de jour se calculent en jours calendaires**, via
-`startOfDayBefore` — et `novaguard-mcp/calendar.ts` pour les ressources MCP,
-qui les calculaient en UTC pour la timeline et en local pour les statistiques,
-donc pas le même jour d'une ressource à l'autre ni vis-à-vis du serveur natif.
+`startOfDayBefore` — et côté serveur MCP, en jours locaux aussi (`Snapshot.timeline`,
+`statisticsForPeriod`), pour que « aujourd'hui » désigne le même jour partout.
 Soustraire 86 400 000 ms ne décale pas d'une heure mais peut changer de jour :
 au 31 mars 2025, le 30 ne dure que 23 h, donc le retrait naïf atterrit sur le 29.
 C'est la rétention — donc une suppression — qui en dépend. `jest.config.js` fixe
@@ -593,16 +583,6 @@ ajouté depuis. Elle gardait aussi tout champ *retiré* depuis : il restait dans
 l'état, était réécrit à la sauvegarde suivante et survivait au code qui le
 lisait, si bien qu'un réglage ne pouvait qu'être ignoré, jamais supprimé.
 `mergeStoredSettings` ne retient que les clés des défauts.
-
-**Une fixture n'a rien à faire dans une classe de production.** Le client MCP
-Node portait le chemin HTTP et une branche répondant depuis un jeu de données
-factice, testée en tête de chaque méthode : un objet livrable avec un
-interrupteur qui lui fait servir des évènements de surveillance inventés, et une
-suite qui ne prenait que cette branche — donc le chemin qui tourne réellement
-n'était presque pas exercé. `NovaGuardReadApi` est le contrat, le client n'est
-que le transport, `InMemoryNovaGuardApi` vit sous `testing/`, et les bornes de
-requête sont partagées (`queryGuards.ts`) : une fixture plus permissive que
-l'appareil est un test qui ne prouve rien.
 
 **Un réglage se vérifie de bout en bout.** Ce dépôt a déjà livré une section
 NOTIFICATIONS entièrement inerte. Un réglage doit être exposé, persisté *et*

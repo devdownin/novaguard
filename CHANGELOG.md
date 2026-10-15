@@ -7,6 +7,9 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 ## [Non publié]
 
 ### Serveur MCP
+- Pilotage par un agent, sur autorisation explicite (Réglages → Serveur MCP → « Autoriser le pilotage par un agent ») et avec un jeton de pilotage distinct : démarrer ou arrêter la surveillance, régler la sensibilité et les seuils, conserver un passage, acquitter une alerte « Champ de vue modifié ». Rien ne peut être supprimé. Chaque action, refus compris, est consignée et affichée dans Réglages.
+- Nouvel outil `wait_for_event` : l’agent attend le prochain évènement (25 s au plus) au lieu d’interroger en boucle.
+- Suppression de la passerelle Node `novaguard-mcp/` : elle appelait une API `/api/v1/*` qu’aucun appareil ne servait. Le serveur Kotlin de l’application est le seul serveur MCP.
 - Nouvel outil `get_event_frames` : jusqu’à 8 images JPEG prises au milieu de tranches égales du clip, renvoyées comme images qu’un agent peut regarder (repli sur la vignette si le clip a disparu). Décodées directement à la taille demandée, une extraction à la fois.
 - `get_event` accepte enfin les identifiants réels (millisecondes, 13 chiffres) ; il refusait tout évènement enregistré.
 - Confiance des évènements et seuils (personnes, animaux) exprimés sur `[0,1]` comme le contrat l’annonce ; `minConfidence` filtre réellement.

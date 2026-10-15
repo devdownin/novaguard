@@ -99,6 +99,12 @@ internal class Snapshot private constructor(
     .put("status", status)
     .put("streamEnabled", streamEnabled)
 
+  fun latestEventId(): Long = events.maxOfOrNull { it.id } ?: 0L
+
+  /** Events newer than `afterId`, oldest first, bounded like every list here. */
+  fun eventsAfter(afterId: Long, kind: String?): List<McpEvent> =
+    events.filter { it.id > afterId && (kind == null || it.kind == kind) }.sortedBy { it.id }.take(WAIT_LIMIT)
+
   fun requireEvent(id: Long): McpEvent =
     events.firstOrNull { it.id == id }
       ?: throw McpException("NOVAGUARD_NOT_FOUND", "Event $id not found", -32603)
@@ -284,6 +290,7 @@ internal class Snapshot private constructor(
     private const val DAY_MS = 24L * 60 * 60 * 1000
     private const val MAX_RANGE_MS = 90L * DAY_MS
     private const val TIMELINE_LIMIT = 500
+    private const val WAIT_LIMIT = 20
 
     fun empty() = Snapshot(
       surveillanceActive = false, status = "inactive", statusSinceMs = 0, camera = "", lastDetectionAtMs = null, detectionsToday = 0,

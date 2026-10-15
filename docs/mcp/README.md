@@ -2,8 +2,8 @@
 
 > Ce dossier ne documente **pas** le serveur MCP de NovaGuard. Sa spécification
 > est [`mcp.md`](../../mcp.md) à la racine ; l'implémentation qui tourne sur
-> l'appareil est `android/app/src/main/java/com/novaguard/surveillance/McpServerModule.kt`,
-> et `novaguard-mcp/` est la passerelle Node. Ce qui suit est une étude
+> l'appareil est `android/app/src/main/java/com/novaguard/surveillance/McpServerModule.kt`.
+> Ce qui suit est une étude
 > sans rapport, sur les serveurs MCP pour Kafka.
 
 | Document | Contenu |

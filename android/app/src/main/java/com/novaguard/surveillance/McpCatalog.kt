@@ -25,7 +25,49 @@ internal object McpCatalog {
    */
   private const val PREFIX = "novaguard_"
 
-  fun tools(): JSONArray = JSONArray()
+  /** Control tools are advertised only while the device allows control. */
+  fun tools(controlEnabled: Boolean): JSONArray {
+    val list = readTools()
+    if (controlEnabled) controlTools().forEach { list.put(it) }
+    return list
+  }
+
+  private fun controlTools(): List<JSONObject> = listOf(
+    tool(
+      "start_surveillance",
+      "Starts surveillance. Needs the control token. Android only lets the camera start while NovaGuard is on screen; otherwise the result says so. Idempotent: changed is false if it was already running.",
+      JSONObject()
+    ),
+    tool("stop_surveillance", "Stops surveillance. Needs the control token. Idempotent.", JSONObject()),
+    tool(
+      "set_sensitivity",
+      "Sets the detection sensitivity (analysis rate and how much corroboration a detection needs). Needs the control token.",
+      JSONObject().put("sensitivity", enumProp(SENSITIVITIES, "Basse, Moyenne or Haute.")),
+      required = listOf("sensitivity")
+    ),
+    tool(
+      "set_thresholds",
+      "Sets the confidence a detection needs to start a recording, per kind. Needs the control token. Give at least one.",
+      JSONObject()
+        .put("person", numberProp(0.5, 0.95, "Entry threshold for people, in [0.5, 0.95]."))
+        .put("animal", numberProp(0.5, 0.95, "Entry threshold for animals, in [0.5, 0.95]."))
+    ),
+    tool(
+      "keep_event",
+      "Marks an event's whole passage as kept (exempt from retention and automatic deletion) or releases it. Needs the control token. Nothing is ever deleted by this server.",
+      JSONObject()
+        .put("eventId", longProp(0, McpRules.MAX_EVENT_ID, "Identifier of any event of the passage."))
+        .put("kept", boolProp("true to keep, false to release.")),
+      required = listOf("eventId", "kept")
+    ),
+    tool(
+      "acknowledge_alert",
+      "Acknowledges a camera-moved alert: the current view becomes the one watched. Needs the control token. A black-picture alert cannot be acknowledged; it clears when the camera sees again.",
+      JSONObject()
+    ),
+  )
+
+  private fun readTools(): JSONArray = JSONArray()
     .put(
       tool(
         "get_status",
@@ -87,6 +129,16 @@ internal object McpCatalog {
         required = listOf("eventId")
       )
     )
+    .put(
+      tool(
+        "wait_for_event",
+        "Waits until a new surveillance event is recorded, or the timeout passes, and returns it with the current status. Use it to watch the camera without polling. Pass the latestEventId of the previous answer as afterEventId to never miss one.",
+        JSONObject()
+          .put("afterEventId", longProp(0, McpRules.MAX_EVENT_ID, "Return events newer than this id. Defaults to the newest event at the time of the call."))
+          .put("timeoutSeconds", intProp(1, McpRules.MAX_WAIT_SECONDS, "How long to wait. Defaults to ${McpRules.DEFAULT_WAIT_SECONDS}."))
+          .put("kind", enumProp(KINDS, "Wait only for this kind."))
+      )
+    )
     .put(tool("get_storage", "Returns used, free and total bytes, plus event and clip counts.", JSONObject()))
     .put(
       tool(
@@ -132,13 +184,19 @@ internal object McpCatalog {
   /** Both spellings a caller may use for a tool. Only the first is advertised. */
   internal val TOOL_PREFIXES = listOf("novaguard_", "novaguard.")
 
-  /** Whether the catalogue advertises this name, under either prefix. */
-  fun isKnownTool(rawName: String): Boolean {
+  /** Whether the catalogue advertises this name, under either prefix, given the device's control switch. */
+  fun isKnownTool(rawName: String, controlEnabled: Boolean): Boolean {
     val operation = TOOL_PREFIXES.firstNotNullOfOrNull { prefix ->
       if (rawName.startsWith(prefix)) rawName.removePrefix(prefix) else null
     } ?: return false
+    if (operation in CONTROL_TOOLS) return controlEnabled
     return ARGUMENT_SPECS.containsKey(operation)
   }
+
+  /** Tools that change the device, and so need the control token. */
+  val CONTROL_TOOLS = setOf(
+    "start_surveillance", "stop_surveillance", "set_sensitivity", "set_thresholds", "keep_event", "acknowledge_alert",
+  )
 
   /**
    * Enforces the schema the tool list advertised.
@@ -200,6 +258,7 @@ internal object McpCatalog {
   private val KINDS = listOf("Personne", "Animal")
   private val SORTS = listOf("timestamp_desc", "timestamp_asc")
   private val GROUPS = listOf("hour", "day", "kind")
+  private val SENSITIVITIES = listOf("Basse", "Moyenne", "Haute")
 
   private val ARGUMENT_SPECS: Map<String, Map<String, (JSONObject, String) -> Unit>> = mapOf(
     "get_status" to emptyMap(),
@@ -213,6 +272,17 @@ internal object McpCatalog {
       "count" to intRule(1, McpRules.MAX_FRAMES),
       "maxEdge" to intRule(160, 1280)
     ),
+    "wait_for_event" to mapOf(
+      "afterEventId" to longRule(0, McpRules.MAX_EVENT_ID),
+      "timeoutSeconds" to intRule(1, McpRules.MAX_WAIT_SECONDS),
+      "kind" to stringRule(KINDS)
+    ),
+    "start_surveillance" to emptyMap(),
+    "stop_surveillance" to emptyMap(),
+    "set_sensitivity" to mapOf("sensitivity" to stringRule(SENSITIVITIES)),
+    "set_thresholds" to mapOf("person" to numberRule(0.5, 0.95), "animal" to numberRule(0.5, 0.95)),
+    "keep_event" to mapOf("eventId" to longRule(0, McpRules.MAX_EVENT_ID), "kept" to boolRule),
+    "acknowledge_alert" to emptyMap(),
     "get_latest_events" to mapOf("kind" to stringRule(KINDS), "limit" to intRule(1, 20)),
     "get_statistics" to mapOf(
       "from" to stringRule(), "to" to stringRule(), "groupBy" to stringRule(GROUPS)
@@ -227,6 +297,8 @@ internal object McpCatalog {
   private val REQUIRED_ARGUMENTS: Map<String, List<String>> = mapOf(
     "get_event" to listOf("eventId"),
     "get_event_frames" to listOf("eventId"),
+    "set_sensitivity" to listOf("sensitivity"),
+    "keep_event" to listOf("eventId", "kept"),
     "get_statistics" to listOf("from", "to")
   )
 
