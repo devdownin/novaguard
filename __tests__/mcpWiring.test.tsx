@@ -18,7 +18,13 @@ import { useCameraPermission } from 'react-native-vision-camera';
 import { NativeModules } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import { mountProvider } from '../testing/mountProvider';
-import { buildMcpSnapshot } from '../src/surveillance/mcpServer';
+import { buildMcpDiagnostics, buildMcpSnapshot } from '../src/surveillance/mcpServer';
+import { EMPTY_CLIP_GAP_STATS, recordGap } from '../src/recording/clipGap';
+import { IDLE_AUTO_TUNE } from '../src/camera/autoTune';
+
+const DIAGNOSTICS = buildMcpDiagnostics({
+  clipGap: EMPTY_CLIP_GAP_STATS, autoTune: IDLE_AUTO_TUNE, autoTuneEnabled: true, cameraHealth: 'healthy', crashedStage: null,
+});
 import { defaultSettings } from '../src/state/defaults';
 import { DetectionEvent } from '../src/state/types';
 import { FrameDetection } from '../src/ml/types';
@@ -62,7 +68,7 @@ it('starts the native server when the setting is switched on, and stops it again
   await ReactTestRenderer.act(async () => { handle.state.toggleMcpServer(); });
   await ReactTestRenderer.act(async () => {});
 
-  expect(native.startServer).toHaveBeenCalledWith(defaultSettings.mcpPort, '', '', false);
+  expect(native.startServer).toHaveBeenCalledWith(defaultSettings.mcpPort, '', '', false, 0);
   expect(handle.state.mcpStatus.running).toBe(true);
 
   await ReactTestRenderer.act(async () => { handle.state.toggleMcpServer(); });
@@ -82,7 +88,7 @@ it('restarts the server with the new token when one is generated', async () => {
 
   // A token is what lets the server leave loopback, so a token the running
   // server does not have is a token that does nothing.
-  expect(native.startServer).toHaveBeenLastCalledWith(defaultSettings.mcpPort, 'mcp_' + 'a'.repeat(32), '', false);
+  expect(native.startServer).toHaveBeenLastCalledWith(defaultSettings.mcpPort, 'mcp_' + 'a'.repeat(32), '', false, 0);
 });
 
 it('pushes a snapshot when the history changes', async () => {
@@ -149,7 +155,7 @@ describe('the snapshot handed to the native server', () => {
     storage: { used: 4_096, free: 1_000, total: 2_000 },
     events: [event()],
     detectionsToday: 1,
-    status: 'active',
+    status: 'active', diagnostics: DIAGNOSTICS,
   }));
 
   it('never carries the stream PIN', () => {
@@ -192,7 +198,7 @@ describe('the snapshot handed to the native server', () => {
       storage: { used: 0, free: 0, total: 0 },
       events: [event({ conf: 87 }), event({ id: 8, conf: 0.42 })],
       detectionsToday: 0,
-      status: 'active',
+      status: 'active', diagnostics: DIAGNOSTICS,
     }));
     expect(raw.events.map((e: { conf: number }) => e.conf)).toEqual([0.87, 0.42]);
     expect(raw.configuration.detection.threshold).toBe(0.6);
@@ -202,9 +208,38 @@ describe('the snapshot handed to the native server', () => {
   it('carries the surveillance status, so a blind camera is not an empty room', () => {
     const raw = JSON.parse(buildMcpSnapshot({
       surveillanceActive: true, settings: defaultSettings, storage: { used: 0, free: 0, total: 0 },
-      events: [], detectionsToday: 0, status: 'camera-obstructed',
+      events: [], detectionsToday: 0, status: 'camera-obstructed', diagnostics: DIAGNOSTICS,
     }));
     expect(raw.status).toBe('camera-obstructed');
+  });
+
+  it('carries the diagnostics an agent needs to explain a missed passage', () => {
+    const diagnostics = buildMcpDiagnostics({
+      clipGap: recordGap(recordGap(EMPTY_CLIP_GAP_STATS, { finalizeMs: 300, restartMs: 100 }), { finalizeMs: 500.4, restartMs: 200 }),
+      autoTune: {
+        ...IDLE_AUTO_TUNE, applied: ['autoZoom', 'sensitivity'], blocked: ['precise'],
+        decided: { measured: 2.345, target: 5 },
+      },
+      autoTuneEnabled: true,
+      cameraHealth: 'interrupted',
+      crashedStage: 'inference',
+    });
+    const raw = JSON.parse(buildMcpSnapshot({
+      surveillanceActive: true, settings: defaultSettings, storage: { used: 0, free: 0, total: 0 },
+      events: [], detectionsToday: 0, status: 'active', diagnostics,
+    }));
+    expect(raw.diagnostics).toEqual({
+      clipGap: { samples: 2, meanMs: 550, worstMs: 700, lastFinalizeMs: 500, lastRestartMs: 200 },
+      autoTune: { enabled: true, given: ['autoZoom', 'sensitivity'], blocked: ['precise'], measuredFps: 2.3, targetFps: 5 },
+      cameraSession: 'interrupted',
+      crashedStage: 'inference',
+    });
+  });
+
+  it('says nothing was measured rather than reporting zeros as measurements', () => {
+    expect(DIAGNOSTICS.clipGap.lastFinalizeMs).toBeNull();
+    expect(DIAGNOSTICS.autoTune.measuredFps).toBeNull();
+    expect(DIAGNOSTICS.crashedStage).toBeNull();
   });
 
   it('carries the passage, the kinds seen in it, and whether it is kept', () => {
@@ -215,7 +250,7 @@ describe('the snapshot handed to the native server', () => {
         event({ id: 2, passageId: 'p' }),
         event({ id: 3 }),
       ],
-      detectionsToday: 0, status: 'active',
+      detectionsToday: 0, status: 'active', diagnostics: DIAGNOSTICS,
     }));
     expect(raw.events.map((e: { passageId: string | null }) => e.passageId)).toEqual(['p', 'p', null]);
     expect(raw.events[0].kinds).toEqual(['Personne', 'Animal']);

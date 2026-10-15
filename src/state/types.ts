@@ -37,6 +37,8 @@ export type PresenceTolerance = Exclude<PostRoll, '0 s'>;
 export type MaxDuration = '1 min' | '2 min' | '5 min' | '10 min' | '15 min' | '20 min';
 export type Quality = '720p' | '1080p' | '4K';
 export type Retention = '1 jour' | '7 jours' | '30 jours' | '90 jours' | 'Toujours';
+/** How long a control token works once issued (see `mcpControl.ts`). */
+export type ControlLifetime = '1 h' | '24 h' | 'Toujours';
 
 export interface DetectionEvent {
   id: number;
@@ -205,6 +207,9 @@ export interface Settings {
    */
   mcpControlEnabled: boolean;
   mcpControlToken: string;
+  mcpControlTtl: ControlLifetime;
+  /** Epoch ms the control token stops working; 0 for never. Set when it is issued. */
+  mcpControlExpiresAt: number;
   exp: ExpandedSections;
 }
 
@@ -214,7 +219,7 @@ export interface Settings {
  * others, and two competing "which panel is up" states would be a way for both
  * to be up at once.
  */
-export type InfoPanel = 'perms' | 'data' | 'licenses' | 'autotune' | null;
+export type InfoPanel = 'perms' | 'data' | 'licenses' | 'autotune' | 'mcp' | null;
 export type OnboardingStep = 'intro' | 'perms' | null;
 
 /** Daily detection counter — the day is stored so it can reset at midnight. */

@@ -39,7 +39,7 @@ describe('with the native module present', () => {
   it('starts the service with the notification copy', () => {
     const api = load();
     expect(api.startForegroundService()).toBe(true);
-    expect(mockNative.start).toHaveBeenCalledWith(api.NOTIFICATION_TITLE, api.NOTIFICATION_BODY);
+    expect(mockNative.start).toHaveBeenCalledWith(api.NOTIFICATION_TITLE, api.NOTIFICATION_BODY, '');
   });
 
   it('stops the service', () => {

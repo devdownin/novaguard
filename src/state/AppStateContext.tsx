@@ -46,10 +46,11 @@ import {
 } from '../surveillance/localStreamServer';
 import {
   McpServerStatus, MCP_SERVER_STOPPED, generateMcpToken as mintMcpToken,
-  getMcpServerStatus, onMcpCommand, pushMcpSnapshot, resolveMcpCommand, startMcpServer, stopMcpServer,
+  buildMcpDiagnostics, getMcpServerStatus, onMcpCommand, onMcpControlRevoked, pushMcpSnapshot, resolveMcpCommand, startMcpServer, stopMcpServer,
 } from '../surveillance/mcpServer';
 import { executeMcpCommand } from '../surveillance/mcpCommands';
 import { AGENT_LOG_KEY, AgentAction, appendAgentAction, parseAgentLog } from '../surveillance/agentLog';
+import { agentControlLive, controlExpiry, nextLifetime } from '../surveillance/mcpControl';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { alertContent, passageIdFromUrl, shouldAlert } from '../surveillance/alerts';
 import { installFrameErrorGuard } from '../camera/frameErrorGuard';
@@ -231,6 +232,7 @@ interface AppStateValue {
   toggleMcpControl: () => void;
   generateMcpControlToken: () => void;
   clearMcpControlToken: () => void;
+  cycleMcpControlTtl: () => void;
   /** Control calls made by agents, newest first (`agentLog.ts`). */
   agentLog: AgentAction[];
   /** Live state of the native MCP server, or MCP_SERVER_STOPPED when it is off. */
@@ -490,6 +492,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // Changes only at a cap boundary — minutes apart — so it costs the frame path
   // nothing to hold it in ordinary state.
   const [clipGap, setClipGap] = useState<ClipGapStats>(EMPTY_CLIP_GAP_STATS);
+  /** The analysis step the previous launch never came back from, for `get_diagnostics`. */
+  const [crashedStage, setCrashedStage] = useState<FrameStage | null>(null);
   /**
    * Published on decisions only. The fold behind it runs on every closed
    * frame-rate window — twice a second's worth of evidence — and this setter
@@ -567,7 +571,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       // ends the process with nothing on screen and nothing in the log the user
       // can reach, so this is the only account of it they will ever get.
       else {
-        const diagnosis = stageDiagnosis(parseStage(lastStage));
+        const stage = parseStage(lastStage);
+        const diagnosis = stageDiagnosis(stage);
+        if (diagnosis) setCrashedStage(stage);
         if (diagnosis) setRecError(diagnosis);
       }
       setDetToday(todayCount(dt, Date.now()));
@@ -1744,13 +1750,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hydrated) return;
     if (settings.mcpEnabled) {
-      startMcpServer(settings.mcpPort, settings.mcpToken, settings.mcpControlToken, settings.mcpControlEnabled).then(setMcpStatus).catch(() => {
+      startMcpServer(
+        settings.mcpPort, settings.mcpToken, settings.mcpControlToken, settings.mcpControlEnabled, settings.mcpControlExpiresAt,
+      ).then(setMcpStatus).catch(() => {
         setMcpStatus({ ...MCP_SERVER_STOPPED, port: settings.mcpPort });
       });
     } else {
       stopMcpServer().then(() => setMcpStatus({ ...MCP_SERVER_STOPPED, port: settings.mcpPort }));
     }
-  }, [hydrated, settings.mcpEnabled, settings.mcpPort, settings.mcpToken, settings.mcpControlToken, settings.mcpControlEnabled]);
+  }, [hydrated, settings.mcpEnabled, settings.mcpPort, settings.mcpToken, settings.mcpControlToken, settings.mcpControlEnabled, settings.mcpControlExpiresAt]);
 
   /**
    * The last time a client actually asked something.
@@ -1777,11 +1785,35 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     patchSettings({ mcpControlEnabled: !settings.mcpControlEnabled });
   }, [patchSettings, settings.mcpControlEnabled]);
   const generateMcpControlToken = useCallback(() => {
-    mintMcpToken().then(mcpControlToken => patchSettings({ mcpControlToken }));
-  }, [patchSettings]);
+    const ttl = settings.mcpControlTtl;
+    mintMcpToken().then(mcpControlToken => patchSettings({
+      mcpControlToken, mcpControlExpiresAt: controlExpiry(ttl, Date.now()),
+    }));
+  }, [patchSettings, settings.mcpControlTtl]);
   const clearMcpControlToken = useCallback(() => {
-    patchSettings({ mcpControlToken: '' });
+    patchSettings({ mcpControlToken: '', mcpControlExpiresAt: 0 });
   }, [patchSettings]);
+  /**
+   * A new lifetime counts from now: choosing "1 h" on a token issued yesterday
+   * means one more hour, not a token that died twenty-three hours ago.
+   */
+  const cycleMcpControlTtl = useCallback(() => {
+    const mcpControlTtl = nextLifetime(settings.mcpControlTtl);
+    patchSettings({
+      mcpControlTtl,
+      ...(settings.mcpControlToken ? { mcpControlExpiresAt: controlExpiry(mcpControlTtl, Date.now()) } : {}),
+    });
+  }, [patchSettings, settings.mcpControlTtl, settings.mcpControlToken]);
+
+  /**
+   * "Couper le pilotage" on the notification. The native server has already
+   * dropped the token by the time this runs; switching the setting off is what
+   * keeps it off across the restart this triggers and the next launch.
+   */
+  useEffect(() => {
+    if (!hydrated || !settings.mcpEnabled || !settings.mcpControlEnabled) return;
+    return onMcpControlRevoked(() => patchSettings({ mcpControlEnabled: false }));
+  }, [hydrated, settings.mcpEnabled, settings.mcpControlEnabled, patchSettings]);
 
   const [localStreamStatus, setLocalStreamStatus] = useState<LocalServerStatus>({
     running: false, port: 8080, ipAddress: null, url: null,
@@ -2009,8 +2041,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       events,
       detectionsToday: detToday,
       status: surveillanceStatus,
+      diagnostics: buildMcpDiagnostics({
+        clipGap, autoTune, autoTuneEnabled: settings.autoTune, cameraHealth: recovery.health, crashedStage,
+      }),
     });
-  }, [hydrated, settings, monitoring, store, events, detToday, surveillanceStatus]);
+  }, [hydrated, settings, monitoring, store, events, detToday, surveillanceStatus, clipGap, autoTune, recovery.health, crashedStage]);
+  const agentControl = agentControlLive(settings, Date.now());
   const visibleError = cameraProblem ?? (analysisStalled ? t('error.analysisStalled') : null) ?? recordingProblem ?? recError;
   const faultRef = useRef<{ status: SurveillanceStatus; since: number } | null>(null);
   const resumedAtRef = useRef<number | null>(null);
@@ -2026,8 +2062,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       faultRef.current = null;
       resumedAtRef.current = now;
     }
-    startForegroundService(serviceNotice(surveillanceStatus, faultRef.current?.since ?? null, resumedAtRef.current));
-  }, [monitoring, surveillanceStatus]);
+    startForegroundService(
+      serviceNotice(surveillanceStatus, faultRef.current?.since ?? null, resumedAtRef.current),
+      agentControl ? t('notif.revokeControl') : '',
+    );
+  }, [monitoring, surveillanceStatus, agentControl]);
 
   const value = useMemo<AppStateValue>(() => ({
     hydrated,
@@ -2042,7 +2081,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo,
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
@@ -2054,7 +2093,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo, onb, perms, onbNext, onbFinish, grantPermission,
   ]);
 

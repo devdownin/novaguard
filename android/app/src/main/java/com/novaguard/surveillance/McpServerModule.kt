@@ -1,5 +1,10 @@
 package com.novaguard.surveillance
 
+import android.content.Context
+import android.net.nsd.NsdManager
+import android.net.nsd.NsdServiceInfo
+import android.os.BatteryManager
+import android.os.PowerManager
 import android.util.Log
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -12,6 +17,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.lang.ref.WeakReference
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -75,6 +81,10 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   @Volatile private var tokenDigest: ByteArray? = null
   /** SHA-256 of the control token; null while the device does not allow control. */
   @Volatile private var controlDigest: ByteArray? = null
+  /** Epoch ms after which the control token stops working; 0 for never. */
+  @Volatile private var controlExpiresAt: Long = 0
+  /** The DNS-SD registration while the socket is on the LAN, so a client finds a moved address. */
+  private var nsdListener: NsdManager.RegistrationListener? = null
   @Volatile private var snapshot: Snapshot = Snapshot.empty()
   /** Signalled on every snapshot push, for `wait_for_event`. */
   private val snapshotLock = ReentrantLock()
@@ -88,10 +98,16 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   private val lastActivityAt = AtomicLong(0)
   private val rateLimiter = ConcurrentHashMap<String, RateWindow>()
 
+  init {
+    current = WeakReference(this)
+  }
+
   // ---------------------------------------------------------------- lifecycle
 
   @ReactMethod
-  fun startServer(port: Int, token: String?, controlToken: String?, controlEnabled: Boolean, promise: Promise) {
+  fun startServer(
+    port: Int, token: String?, controlToken: String?, controlEnabled: Boolean, controlExpiresAt: Double, promise: Promise,
+  ) {
     try {
       if (isServerRunning) stopServerInternal()
 
@@ -101,6 +117,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       // The device switch grants control; the token only says who holds it.
       val control = controlToken?.trim().orEmpty()
       controlDigest = if (controlEnabled && control.length >= MIN_TOKEN_LENGTH) sha256(control) else null
+      this.controlExpiresAt = controlExpiresAt.toLong()
 
       // No token means no way to tell a caller apart, so there is nothing to
       // expose to: the socket stays on loopback, reachable only by something
@@ -120,6 +137,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       // is busy, so the excess can be refused quickly instead of queuing.
       Thread({ listenForConnections() }, "NovaGuardMcpAccept").apply { isDaemon = true; start() }
 
+      if (!boundToLoopbackOnly) advertise()
       Log.i(TAG, "MCP server listening on $currentPort (loopbackOnly=$boundToLoopbackOnly)")
       promise.resolve(statusMap())
     } catch (e: Exception) {
@@ -186,6 +204,65 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     super.invalidate()
   }
 
+  /**
+   * Control off, now — from the notification's "Couper le pilotage", which
+   * must work with the screen off and whatever state the JS side is in. The
+   * digest goes first, so no call is accepted after the tap; JavaScript is
+   * then told to switch the setting off, which restarts the server without it.
+   */
+  fun revokeControl() {
+    controlDigest = null
+    pendingCommands.values.forEach { it.complete(REVOKED_OUTCOME) }
+    try {
+      if (reactContext.hasActiveReactInstance()) {
+        reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+          .emit(REVOKED_EVENT, null)
+      }
+    } catch (e: Exception) {
+      Log.w(TAG, "Could not tell JS control was revoked: ${e.message}")
+    }
+  }
+
+  private fun controlAvailable(): Boolean =
+    controlDigest != null && McpRules.controlLive(controlExpiresAt, System.currentTimeMillis())
+
+  /**
+   * DNS-SD, `_novaguard-mcp._tcp`. The address a client was configured with is
+   * a DHCP lease, and it moves without saying so; a client that browses the
+   * service type finds the phone again. Only while the socket is on the LAN:
+   * advertising a loopback server tells the network about something it cannot reach.
+   */
+  private fun advertise() {
+    val nsd = reactContext.getSystemService(Context.NSD_SERVICE) as? NsdManager ?: return
+    val info = NsdServiceInfo().apply {
+      serviceName = SERVICE_NAME
+      serviceType = SERVICE_TYPE
+      port = currentPort
+      setAttribute("path", "/mcp")
+      setAttribute("auth", "bearer")
+    }
+    val listener = object : NsdManager.RegistrationListener {
+      override fun onServiceRegistered(registered: NsdServiceInfo) { Log.i(TAG, "Advertised as ${registered.serviceName}") }
+      override fun onRegistrationFailed(failed: NsdServiceInfo, errorCode: Int) { Log.w(TAG, "DNS-SD registration failed: $errorCode") }
+      override fun onServiceUnregistered(gone: NsdServiceInfo) {}
+      override fun onUnregistrationFailed(failed: NsdServiceInfo, errorCode: Int) {}
+    }
+    try {
+      nsd.registerService(info, NsdManager.PROTOCOL_DNS_SD, listener)
+      nsdListener = listener
+    } catch (e: Exception) {
+      Log.w(TAG, "DNS-SD unavailable: ${e.message}")
+    }
+  }
+
+  private fun withdraw() {
+    val listener = nsdListener ?: return
+    nsdListener = null
+    try {
+      (reactContext.getSystemService(Context.NSD_SERVICE) as? NsdManager)?.unregisterService(listener)
+    } catch (_: Exception) {}
+  }
+
   private fun stopServerInternal() {
     isServerRunning = false
     try {
@@ -194,6 +271,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       Log.w(TAG, "Error closing MCP socket: ${e.message}")
     }
     serverSocket = null
+    withdraw()
     rateLimiter.clear()
     tokenDigest = null
     controlDigest = null
@@ -212,7 +290,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     putString("ipAddress", ip)
     putString("url", if (isServerRunning) "http://$host:$currentPort/mcp" else null)
     putBoolean("hasToken", tokenDigest != null)
-    putBoolean("controlEnabled", controlDigest != null)
+    putBoolean("controlEnabled", controlAvailable())
+    putBoolean("advertised", nsdListener != null)
     putBoolean("loopbackOnly", boundToLoopbackOnly)
     putDouble("requestCount", requestCount.get().toDouble())
     val last = lastActivityAt.get()
@@ -338,8 +417,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
         return respond(output, 400, parseErrorResponse())
       }
 
-      val principal = principalFor(authHeader, remote)
-      val response = dispatch(request, principal)
+      val (principal, expired) = principalFor(authHeader, remote)
+      val response = dispatch(request, principal, expired)
         ?: return respond(output, 202, "") // a notification: accepted, no body
 
       val status = httpStatusFor(response)
@@ -392,7 +471,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     return window.count <= MAX_REQUESTS_PER_WINDOW
   }
 
-  private fun principalFor(authHeader: String?, remote: String): Int {
+  /** The caller's principal, and whether it presented a control token that has expired. */
+  private fun principalFor(authHeader: String?, remote: String): Pair<Int, Boolean> {
     val presented = authHeader
       ?.let { if (it.startsWith("Bearer ", ignoreCase = true)) it.substring(7) else it }
       ?.trim()
@@ -401,7 +481,9 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     // recoverable one byte at a time from how long the comparison took.
     val digest = if (presented.isNotEmpty()) sha256(presented) else null
     fun matches(expected: ByteArray?) = expected != null && digest != null && MessageDigest.isEqual(expected, digest)
-    return McpRules.principal(matches(controlDigest), matches(tokenDigest), isLoopback(remote))
+    val control = matches(controlDigest)
+    val live = McpRules.controlLive(controlExpiresAt, System.currentTimeMillis())
+    return McpRules.principal(control, live, matches(tokenDigest), isLoopback(remote)) to (control && !live)
   }
 
   private fun isLoopback(remote: String): Boolean =
@@ -410,7 +492,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   // ----------------------------------------------------------------- protocol
 
   /** Returns null for a notification, which JSON-RPC forbids answering. */
-  private fun dispatch(request: JSONObject, principal: Int): JSONObject? {
+  private fun dispatch(request: JSONObject, principal: Int, controlExpired: Boolean = false): JSONObject? {
     val id: Any? = if (request.has("id") && !request.isNull("id")) request.get("id") else null
     val method = request.optString("method")
     val isNotification = !request.has("id")
@@ -422,7 +504,9 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     if (method.startsWith("notifications/")) return null
 
     if (principal == McpRules.PRINCIPAL_NONE) {
-      return errorResponse(id, -32603, "NOVAGUARD_AUTH_REQUIRED", "Authentication token is required for non-loopback connections")
+      val why = if (controlExpired) "The control token has expired; the owner can issue a new one in Réglages"
+        else "Authentication token is required for non-loopback connections"
+      return errorResponse(id, -32603, "NOVAGUARD_AUTH_REQUIRED", why)
     }
 
     val params = request.optJSONObject("params") ?: JSONObject()
@@ -430,11 +514,13 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       when (method) {
         "initialize" -> successResponse(id, initializeResult(params))
         "ping" -> successResponse(id, JSONObject())
-        "tools/list" -> successResponse(id, JSONObject().put("tools", McpCatalog.tools(controlDigest != null)))
+        "tools/list" -> successResponse(id, JSONObject().put("tools", McpCatalog.tools(controlAvailable())))
         "tools/call" -> successResponse(id, callToolReportingFailures(params, principal))
         "resources/list" -> successResponse(id, JSONObject().put("resources", McpCatalog.resources(snapshot)))
         "resources/templates/list" -> successResponse(id, JSONObject().put("resourceTemplates", McpCatalog.resourceTemplates()))
         "resources/read" -> successResponse(id, readResource(params.optString("uri")))
+        "prompts/list" -> successResponse(id, JSONObject().put("prompts", McpCatalog.prompts()))
+        "prompts/get" -> successResponse(id, McpCatalog.renderPrompt(params, zone(), Instant.now()))
         else -> errorResponse(id, -32601, "NOVAGUARD_NOT_FOUND", "Method '$method' not found")
       }
     } catch (e: McpException) {
@@ -465,7 +551,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     // it rather than becoming a result the model is invited to work around.
     val rawName = params.optString("name")
     assertNotForbidden(rawName)
-    if (!McpCatalog.isKnownTool(rawName, controlDigest != null)) {
+    if (!McpCatalog.isKnownTool(rawName, controlAvailable())) {
       throw McpException("NOVAGUARD_INVALID_ARGUMENT", "Unknown tool: '$rawName'", -32602)
     }
     // Refused before anything runs, like an unknown tool: no argument would
@@ -505,6 +591,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
         JSONObject()
           .put("tools", JSONObject().put("listChanged", false))
           .put("resources", JSONObject().put("subscribe", false).put("listChanged", false))
+          .put("prompts", JSONObject().put("listChanged", false))
       )
       .put("serverInfo", JSONObject().put("name", "novaguard-mcp").put("version", SERVER_VERSION))
   }
@@ -538,6 +625,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       "get_latest_events" -> snapshot.latestEvents(args)
       "search_events" -> snapshot.searchEvents(args)
       "get_statistics" -> snapshot.statistics(args)
+      "get_diagnostics" -> snapshot.diagnosticsJson().put("device", deviceLoad())
       else -> throw McpException("NOVAGUARD_NOT_FOUND", "Unknown tool: '$rawName'", -32601)
     }
 
@@ -553,6 +641,21 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     // handing a client a shape the schema does not allow.
     if (payload is JSONObject) result.put("structuredContent", payload)
     return result
+  }
+
+  /**
+   * Heat and power, read when asked rather than pushed: they move over
+   * minutes, and the JS side samples them only while monitoring. -1 and null
+   * are "the platform does not say", which most of the fleet answers.
+   */
+  private fun deviceLoad(): JSONObject {
+    val power = reactContext.getSystemService(PowerManager::class.java)
+    val battery = reactContext.getSystemService(BatteryManager::class.java)
+    val level = battery?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+    return JSONObject()
+      .put("thermalStatus", power?.currentThermalStatus ?: -1)
+      .put("batteryPercent", if (level in 0..100) level else JSONObject.NULL)
+      .put("charging", battery?.isCharging ?: JSONObject.NULL)
   }
 
   private fun operationOf(rawName: String): String =
@@ -897,6 +1000,10 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     private const val MAX_CONNECTIONS = 8
     private const val COMMAND_EVENT = "McpCommand"
     private const val COMMAND_TIMEOUT_MS = 5_000L
+    private const val REVOKED_EVENT = "McpControlRevoked"
+    private const val REVOKED_OUTCOME = "{\"ok\":false,\"code\":\"NOVAGUARD_AUTH_FORBIDDEN\",\"message\":\"Control was revoked on the device\"}"
+    private const val SERVICE_NAME = "NovaGuard"
+    private const val SERVICE_TYPE = "_novaguard-mcp._tcp"
     private const val STOPPED_OUTCOME = "{\"ok\":false,\"code\":\"NOVAGUARD_DEVICE_UNAVAILABLE\",\"message\":\"Server stopped\"}"
     private const val MAX_CONNECTIONS_PER_PEER = 4
     private const val RATE_WINDOW_MS = 60_000L
@@ -932,6 +1039,13 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       "delete_event", "delete_video", "clear_history", "change_stream_pin",
       "restart_camera", "update_configuration"
     )
+
+    /** The live module, for the notification action; null once React has torn it down. */
+    @Volatile private var current: WeakReference<McpServerModule>? = null
+
+    fun revokeControlFromNotification() {
+      current?.get()?.revokeControl()
+    }
 
     internal val ISO: DateTimeFormatter = DateTimeFormatter.ISO_INSTANT
     internal fun isoOf(epochMs: Long): String = ISO.format(Instant.ofEpochMilli(epochMs))

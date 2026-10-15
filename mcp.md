@@ -1,6 +1,6 @@
 # NovaGuard — MCP Server Specification
 
-**Version:** 2.0.0  
+**Version:** 2.1.0  
 **Status:** Implemented (`McpServerModule.kt`)  
 **Target MCP specification:** `2026-07-28`  
 **Scope:** Read access to NovaGuard surveillance data; opt-in, non-destructive control by an agent
@@ -81,6 +81,7 @@ The server answers reads from a snapshot the app pushes when the history, the st
 
 - **Loopback** (no token): the socket binds `127.0.0.1` only. Reading needs no token there; control always needs the control token, so another app on the phone cannot switch the camera off.
 - **LAN** (a read or control token is set): the socket binds all interfaces; every non-loopback request needs a token. Plain HTTP: the token is readable on a shared Wi-Fi, so use a trusted network.
+- **Discovery.** On the LAN the server is advertised over DNS-SD as `NovaGuard`, type `_novaguard-mcp._tcp`, TXT `path=/mcp`, `auth=bearer`: the phone's address is a DHCP lease, and a client that browses (`dns-sd -B _novaguard-mcp._tcp`, `avahi-browse -r _novaguard-mcp._tcp`) finds it again after it moves. Réglages also shows the client configuration as a QR code.
 - Public Internet exposure and port forwarding are not supported.
 - The server lives in the app's process. Android only lets a camera foreground service start while the app is on screen, so `start_surveillance` from the background is refused with a clear message; stopping works at any time.
 
@@ -110,16 +111,27 @@ Target protocol: MCP `2026-07-28`.
 {
   "capabilities": {
     "tools": { "listChanged": false },
-    "resources": { "subscribe": false, "listChanged": false }
+    "resources": { "subscribe": false, "listChanged": false },
+    "prompts": { "listChanged": false }
   }
 }
 ```
 
-No prompts are exposed. Control tools appear in `tools/list` only while control is enabled on the device.
+Control tools appear in `tools/list` only while control is enabled on the device and the control token has not expired.
+
+## 7.1 Prompts
+
+| Prompt | Arguments | What it asks the agent |
+|---|---|---|
+| `night_report` | `date` (YYYY-MM-DD, evening the night starts on; default the last night that has begun) | Status first, then the events from 20:00 to 08:00 device time, one look at the frames per passage, a one-line conclusion. |
+| `review_alerts` | `hours` (1–168, default 24) | Classify each recent passage from its frames; list those worth attention first. |
+| `diagnose_camera` | — | Status, diagnostics and storage; say whether someone would be filmed now, and why passages may be missed. |
+
+`prompts/get` returns one `user` message whose search window is already written as instants: the night is computed in the device's time zone (DST included), which an agent cannot know. An unknown prompt or argument is JSON-RPC `-32602`.
 
 # 8. MCP Tools
 
-§8.1–§8.10 are read tools. §8.11 lists the control tools.
+§8.1–§8.10 and §8.12 are read tools. §8.11 lists the control tools.
 
 ## 8.1 `novaguard.get_status`
 
@@ -370,6 +382,22 @@ Long poll: returns as soon as an event newer than `afterEventId` is recorded (de
 
 Every control tool is idempotent and returns `changed`. A call with a read token is a JSON-RPC error `NOVAGUARD_AUTH_FORBIDDEN` (HTTP 403); a refusal by the app (no permission, background, unknown event) is a result carrying `isError`.
 
+## 8.12 `novaguard.get_diagnostics`
+
+Why the camera may miss or cut passages. No arguments.
+
+```json
+{
+  "clipGap": {"samples":3,"meanMs":420,"worstMs":610,"lastFinalizeMs":300,"lastRestartMs":110},
+  "autoTune": {"enabled":true,"given":["autoZoom"],"blocked":[],"measuredFps":2.4,"targetFps":5},
+  "cameraSession": "healthy",
+  "crashedStage": null,
+  "device": {"thermalStatus":0,"batteryPercent":81,"charging":true}
+}
+```
+
+`clipGap` is the time between two clips of one passage (`finalize` the encoder's, `restart` the app's); `null` until measured. `autoTune.given` are the settings the app gave up to keep its analysis rate, in order; `measuredFps`/`targetFps` are the figures of its last decision. `crashedStage` names the analysis step a previous launch never returned from (`camera`, `resize`, `inference`, `faces`, `report`). `device` is read at call time: `thermalStatus` is Android's `PowerManager` scale (0 none … 6 shutdown, -1 unknown).
+
 # 9. MCP Resources
 
 URI scheme:
@@ -500,9 +528,11 @@ The server cannot modify NovaGuard state by itself. Control is a request the app
 Two bearer tokens, generated on the device with a CSPRNG and compared by SHA-256 digest in constant time:
 
 - **read token** — every read tool and resource;
-- **control token** — read tools plus §8.11, honoured only while the device's control switch is on.
+- **control token** — read tools plus §8.11, honoured only while the device's control switch is on and until it expires.
 
 Loopback reads need no token; loopback control does.
+
+The control token has a lifetime chosen on the device — 1 h, 24 h (default) or none — counted from when it is issued or the lifetime changed. The server enforces it: past its end the token grants nothing, not even reading (a LAN caller gets `NOVAGUARD_AUTH_REQUIRED`, "expired"). While control is possible, the surveillance notification carries **Couper le pilotage**: one tap drops the control token in the server at once, answers a call in flight with `NOVAGUARD_AUTH_FORBIDDEN`, and turns the device switch off.
 
 ## Audit
 
@@ -654,15 +684,19 @@ Datasets SHOULD cover 1,000, 10,000 and 100,000 events. Searches MUST remain pag
 
 ```text
 android/app/src/main/java/com/novaguard/surveillance/
-├── McpServerModule.kt   # HTTP transport, JSON-RPC, auth, tools, control bridge, wait_for_event
-├── McpCatalog.kt        # advertised tools/resources and the validation derived from them
+├── McpServerModule.kt   # HTTP transport, JSON-RPC, auth, tools, control bridge, wait_for_event, DNS-SD
+├── McpCatalog.kt        # advertised tools/resources/prompts and the validation derived from them
 ├── McpSnapshot.kt       # what reads answer from
 ├── McpFrames.kt         # stills for get_event_frames
-└── McpRules.java        # pure decisions, tested on the JVM (scripts/test-presence-native.sh)
+├── McpPrompts.java      # prompts and their time windows, tested on the JVM
+├── McpRules.java        # pure decisions, tested on the JVM (scripts/test-presence-native.sh)
+└── SurveillanceService.kt  # notification action "Couper le pilotage"
 src/surveillance/
-├── mcpServer.ts         # snapshot builder and native bridge
+├── mcpServer.ts         # snapshot (diagnostics included) and native bridge
 ├── mcpCommands.ts       # the six control commands
+├── mcpControl.ts        # control token lifetime
 └── agentLog.ts          # the owner-visible log of control calls
+src/utils/qr.ts          # QR encoder for the client configuration
 ```
 
 # 23. Evolution path

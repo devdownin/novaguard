@@ -122,6 +122,7 @@ it('writes each control back to disk', async () => {
     state.cyclePost();
     state.cycleMax();
     state.cycleQuality();
+    state.cycleMcpControlTtl();
   });
 
   expect(await storedSettings()).toMatchObject({
@@ -143,6 +144,7 @@ it('writes each control back to disk', async () => {
     threshold: 42,
     animalThreshold: 85,
     retention: '1 jour',
+    mcpControlTtl: 'Toujours',
   });
 });
 

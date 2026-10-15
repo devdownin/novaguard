@@ -37,8 +37,13 @@ class SurveillanceService : Service() {
   override fun onBind(intent: Intent?): IBinder? = null
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    if (intent?.action == ACTION_REVOKE_CONTROL) {
+      revokeControl()
+      return START_NOT_STICKY
+    }
     val title = intent?.getStringExtra(EXTRA_TITLE) ?: getString(R.string.app_name)
     val body = intent?.getStringExtra(EXTRA_BODY).orEmpty()
+    val revokeLabel = intent?.getStringExtra(EXTRA_REVOKE_LABEL).orEmpty()
 
     // A foreground service of type `camera` requires the camera permission to be
     // held at the moment it starts; without it startForeground throws
@@ -50,7 +55,8 @@ class SurveillanceService : Service() {
 
     try {
       createChannel()
-      startForeground(NOTIFICATION_ID, buildNotification(title, body), foregroundTypes())
+      startForeground(NOTIFICATION_ID, buildNotification(title, body, revokeLabel), foregroundTypes())
+      shown = Shown(title, body)
     } catch (e: Exception) {
       // SecurityException (a type whose permission is missing),
       // ForegroundServiceStartNotAllowedException (started from a state Android
@@ -71,8 +77,31 @@ class SurveillanceService : Service() {
     return START_NOT_STICKY
   }
 
+  /**
+   * "Couper le pilotage", tapped on the notification: the one surface a phone
+   * left on a windowsill shows, and the one an owner who sees the camera move
+   * on its own can reach without unlocking anything. The server drops the
+   * control token first; the action disappears with the next notice JS posts,
+   * and at once here so a second tap has nothing to press.
+   */
+  private fun revokeControl() {
+    McpServerModule.revokeControlFromNotification()
+    val current = shown
+    if (!isRunning || current == null) {
+      if (!isRunning) stopSelf()
+      return
+    }
+    try {
+      getSystemService(NotificationManager::class.java)
+        .notify(NOTIFICATION_ID, buildNotification(current.title, current.body, ""))
+    } catch (e: Exception) {
+      Log.w(TAG, "Could not refresh the notification: ${e.message}")
+    }
+  }
+
   override fun onDestroy() {
     isRunning = false
+    shown = null
     super.onDestroy()
   }
 
@@ -114,7 +143,7 @@ class SurveillanceService : Service() {
     getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
   }
 
-  private fun buildNotification(title: String, body: String): Notification {
+  private fun buildNotification(title: String, body: String, revokeLabel: String): Notification {
     val open = Intent(this, MainActivity::class.java).apply {
       flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
     }
@@ -122,7 +151,7 @@ class SurveillanceService : Service() {
       this, 0, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-    return NotificationCompat.Builder(this, CHANNEL_ID)
+    val builder = NotificationCompat.Builder(this, CHANNEL_ID)
       .setContentTitle(title)
       .setContentText(body)
       // A drawable, not the launcher mipmap: that one is an <adaptive-icon>,
@@ -135,12 +164,24 @@ class SurveillanceService : Service() {
       .setPriority(NotificationCompat.PRIORITY_LOW)
       // Surveillance footage is sensitive: keep the text off the lock screen.
       .setVisibility(NotificationCompat.VISIBILITY_SECRET)
-      .build()
+    // Only while an agent may drive the camera: JS passes no label otherwise.
+    if (revokeLabel.isNotEmpty()) {
+      val revoke = PendingIntent.getService(
+        this, 1, Intent(this, SurveillanceService::class.java).setAction(ACTION_REVOKE_CONTROL),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+      )
+      builder.addAction(R.drawable.ic_notification, revokeLabel, revoke)
+    }
+    return builder.build()
   }
+
+  internal class Shown(val title: String, val body: String)
 
   companion object {
     const val EXTRA_TITLE = "title"
     const val EXTRA_BODY = "body"
+    const val EXTRA_REVOKE_LABEL = "revokeLabel"
+    private const val ACTION_REVOKE_CONTROL = "com.novaguard.surveillance.REVOKE_MCP_CONTROL"
 
     private const val TAG = "NovaGuardService"
     private const val CHANNEL_ID = "novaguard.surveillance"
@@ -154,15 +195,20 @@ class SurveillanceService : Service() {
     var isRunning: Boolean = false
       private set
 
+    /** What the notification currently says, to repost it without its action. */
+    @Volatile
+    private var shown: Shown? = null
+
     /** Why the last start was refused, or null if it went through. */
     @Volatile
     var lastError: String? = null
       private set
 
-    fun start(context: Context, title: String, body: String) {
+    fun start(context: Context, title: String, body: String, revokeLabel: String) {
       val intent = Intent(context, SurveillanceService::class.java).apply {
         putExtra(EXTRA_TITLE, title)
         putExtra(EXTRA_BODY, body)
+        putExtra(EXTRA_REVOKE_LABEL, revokeLabel)
       }
       lastError = null
       try {

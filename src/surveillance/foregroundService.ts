@@ -24,11 +24,13 @@ export const NOTIFICATION_BODY =
  * than posting a second one, which makes this the only surface the app has
  * while the screen is off. That is what a camera interrupted mid-watch has to
  * reach: the viewfinder's error chip is drawn where nobody is looking.
+ *
+ * `revokeLabel` adds the "cut agent control" action; empty, there is none.
  */
-export function startForegroundService(body: string = NOTIFICATION_BODY): boolean {
+export function startForegroundService(body: string = NOTIFICATION_BODY, revokeLabel = ''): boolean {
   if (!NativeSurveillanceService) return false;
   try {
-    NativeSurveillanceService.start(NOTIFICATION_TITLE, body);
+    NativeSurveillanceService.start(NOTIFICATION_TITLE, body, revokeLabel);
     return true;
   } catch {
     return false;
