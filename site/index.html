@@ -37,6 +37,7 @@
       <nav aria-label="Navigation principale">
         <a href="#fonctionnalites">L’application</a
         ><a href="#modes">Deux façons de veiller</a
+        ><a href="./guide-mcp.html">Guide MCP</a
         ><a href="#questions">Questions</a>
       </nav>
       <a class="button small light" href="#installer"
@@ -366,9 +367,7 @@
                   Piloter certaines fonctions, uniquement sur autorisation
                 </li>
               </ul>
-              <a
-                class="text-link"
-                href="https://github.com/devdownin/novaguard/blob/main/mcp.md"
+              <a class="text-link" href="./guide-mcp.html"
                 >Lire le guide MCP
                 <span aria-hidden="true"
                   ><svg
@@ -529,26 +528,42 @@
               <p class="eyebrow">DONNEZ UNE NOUVELLE MISSION À VOTRE ANDROID</p>
               <h2>Prêt à garder<br />un œil sur l’essentiel ?</h2>
             </div>
-            <div>
-              <a
-                class="button primary"
-                href="https://github.com/devdownin/novaguard/releases"
-                >Voir les versions et les APK
-                <span aria-hidden="true"
-                  ><svg
-                    class="inline-icon"
-                    aria-hidden="true"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.6"
-                  >
-                    <path d="M6 18 18 6M6 6h12v12" /></svg></span
-              ></a>
-              <p class="install-meta">
-                Android 16 (API 36) minimum · Installation par APK
+            <div class="download-panel">
+              <div class="requirements">
+                <strong>Avant de télécharger</strong>
+                <p>
+                  Android 16 (API 36) minimum pour la version actuelle du
+                  projet. Vérifiez la version de votre téléphone dans ses
+                  réglages.
+                </p>
+              </div>
+              <!-- release-info:start -->
+              <div
+                class="release-card"
+                aria-label="Dernière version stable publiée"
+              >
+                <p class="release-label">DERNIÈRE VERSION STABLE PUBLIÉE</p>
+                <p class="release-version">
+                  v0.9.5
+                  <span>· <time datetime="2026-09-14">14/09/2026</time></span>
+                </p>
+                <a
+                  class="button primary"
+                  href="https://github.com/devdownin/novaguard/releases/download/v0.9.5/app-release.apk"
+                  >Télécharger l’APK <span aria-hidden="true">↓</span></a
+                >
+                <p class="release-size">106,3 Mo · APK Android</p>
+                <a
+                  class="release-notes"
+                  href="https://github.com/devdownin/novaguard/releases/tag/v0.9.5"
+                  >Notes de version et autres fichiers</a
+                >
+              </div>
+              <!-- release-info:end -->
+              <p class="version-scope">
+                Le site présente les fonctions de la branche <code>main</code>.
+                Une version publiée plus ancienne peut ne pas toutes les inclure
+                ; consultez ses notes ou utilisez un APK CI récent.
               </p>
             </div>
           </div>
@@ -557,8 +572,11 @@
               <span>01</span>
               <h3>Récupérez l’application</h3>
               <p>
-                Choisissez un APK disponible dans les versions GitHub. À défaut,
-                consultez les artefacts du workflow CI.
+                Téléchargez l’APK avec le bouton ci-dessus. Ouvrez le fichier
+                sur le téléphone et, si Android le demande, autorisez cette
+                source d’installation. Désactivez cette autorisation après
+                l’installation. Pour les ajouts récents de main, consultez les
+                artefacts CI.
               </p>
               <a
                 href="https://github.com/devdownin/novaguard/actions/workflows/ci.yml"
@@ -592,8 +610,8 @@
                 Activez le serveur MCP dans les réglages, puis configurez votre
                 client compatible sur un réseau local de confiance.
               </p>
-              <a href="https://github.com/devdownin/novaguard/blob/main/mcp.md"
-                >Consulter la configuration MCP
+              <a href="./guide-mcp.html"
+                >Suivre le guide MCP pas à pas
                 <svg
                   class="inline-icon"
                   aria-hidden="true"
@@ -668,10 +686,10 @@
               Consulter les événements, les statistiques, des images de clips et
               les diagnostics. Avec votre autorisation distincte, il peut
               démarrer ou arrêter la surveillance, ajuster la sensibilité et les
-              seuils, marquer un passage à conserver et acquitter une alerte de
-              déplacement. Le démarrage exige que l’application soit à l’écran.
-              Les commandes sont journalisées ; aucune commande de suppression
-              n’est exposée.
+              seuils, marquer un passage à conserver, annoter un événement et
+              acquitter une alerte de déplacement. Le démarrage exige que
+              l’application soit à l’écran. Les commandes sont journalisées ;
+              aucune commande de suppression n’est exposée.
             </p>
           </details>
           <details>
@@ -749,7 +767,7 @@
             stroke-width="1.6"
           >
             <path d="M6 18 18 6M6 6h12v12" /></svg></a
-        ><a href="https://github.com/devdownin/novaguard/blob/main/mcp.md"
+        ><a href="./guide-mcp.html"
           >Documentation MCP
           <svg
             class="inline-icon"

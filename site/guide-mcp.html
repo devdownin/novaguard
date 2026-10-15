@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#15131c" />
+    <title>Connecter NovaGuard à un agent IA — Guide MCP</title>
+    <meta
+      name="description"
+      content="Connectez votre Android NovaGuard à un agent compatible MCP : Wi-Fi, jeton de lecture, HTTPS, configuration et première question. Vous choisissez les données accessibles."
+    />
+    <link rel="icon" href="./assets/mark.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body class="guide-page">
+    <a class="skip" href="#contenu">Aller au contenu</a>
+    <header class="header">
+      <a class="brand" href="./index.html" aria-label="NovaGuard, accueil"
+        ><img
+          src="./assets/mark.svg"
+          width="36"
+          height="36"
+          alt=""
+        />NovaGuard</a
+      >
+      <nav aria-label="Navigation principale">
+        <a href="./index.html#fonctionnalites">L’application</a
+        ><a href="./index.html#modes">Les deux modes</a
+        ><a href="./guide-mcp.html" aria-current="page">Guide MCP</a>
+      </nav>
+      <a class="button small light" href="./index.html#installer"
+        >Installer NovaGuard <span aria-hidden="true">↓</span></a
+      >
+    </header>
+    <main id="contenu">
+      <section class="guide-hero wrap">
+        <a class="guide-back" href="./index.html">← Retour à l’application</a>
+        <p class="eyebrow">PRISE EN MAIN · MODE AVEC AGENT IA</p>
+        <h1>Votre caméra observe.<br /><em>Votre agent vous éclaire.</em></h1>
+        <p class="intro">
+          Connectez NovaGuard à un client compatible MCP pour interroger les
+          passages enregistrés. Commencez avec la lecture seule : la
+          surveillance reste autonome sur le téléphone.
+        </p>
+        <div class="guide-prerequisites">
+          <span>Android 16 minimum</span
+          ><span>Un ordinateur sur le même Wi-Fi</span
+          ><span>Un client MCP HTTP avec en-têtes</span>
+        </div>
+        <p class="guide-version-note">
+          Ce guide suit la branche <code>main</code>. Les versions publiées plus
+          anciennes peuvent proposer moins d’options.
+          <a href="./index.html#installer"
+            >Choisir une version compatible avec les fonctions souhaitées.</a
+          >
+        </p>
+      </section>
+      <div class="guide-layout wrap">
+        <aside class="guide-sidebar">
+          <nav aria-label="Étapes du guide">
+            <a href="#preparer">01 · Préparer le téléphone</a
+            ><a href="#autoriser">02 · Ouvrir la lecture</a
+            ><a href="#connecter">03 · Connecter le client</a
+            ><a href="#questionner">04 · Poser une question</a
+            ><a href="#acces">05 · Choisir les accès</a
+            ><a href="#depanner">En cas de difficulté</a>
+          </nav>
+        </aside>
+        <div class="guide-content">
+          <section
+            id="preparer"
+            class="guide-step"
+            aria-labelledby="preparer-title"
+          >
+            <span class="card-index">01 / SUR VOTRE ANDROID</span>
+            <h2 id="preparer-title">Préparez une première détection.</h2>
+            <p>
+              Installez NovaGuard, autorisez la caméra et lancez la surveillance
+              depuis l’application ouverte à l’écran. Faites un passage dans le
+              champ, puis vérifiez sa présence dans <strong>Historique</strong>.
+              Vous disposerez ainsi d’un événement réel à consulter avec votre
+              agent.
+            </p>
+            <p>
+              Connectez le téléphone et l’ordinateur au même réseau Wi-Fi de
+              confiance. Le client doit accepter un serveur MCP HTTP et un
+              en-tête <code>Authorization</code> ; vérifiez cette possibilité
+              dans sa version actuelle.
+            </p>
+            <div class="guide-callout">
+              <strong>L’agent ne lance pas la détection.</strong>
+              <p>
+                Le modèle embarqué et l’enregistrement continuent sur Android.
+                MCP donne accès aux données ; il ne remplace pas la caméra ni le
+                détecteur.
+              </p>
+            </div>
+          </section>
+          <section
+            id="autoriser"
+            class="guide-step"
+            aria-labelledby="autoriser-title"
+          >
+            <span class="card-index">02 / DANS LES RÉGLAGES</span>
+            <h2 id="autoriser-title">Activez le serveur et la lecture.</h2>
+            <ol>
+              <li>
+                Ouvrez <strong>Réglages → Avancé → Serveur MCP</strong>. Si le
+                serveur est déjà actif, son bloc est également visible
+                directement dans les réglages.
+              </li>
+              <li>
+                Générez un <strong>jeton d’accès de lecture</strong>, puis
+                activez le serveur MCP. Sans jeton, le serveur reste limité au
+                téléphone (<code>127.0.0.1</code>) et n’est pas joignable depuis
+                l’ordinateur.
+              </li>
+              <li>
+                Conservez <strong>Autoriser le pilotage</strong> et
+                <strong>Vue en direct pour l’agent</strong> désactivés pour ce
+                premier essai.
+              </li>
+              <li>
+                Copiez l’adresse affichée : le port par défaut est
+                <code>8081</code> et le chemin se termine par <code>/mcp</code>.
+                Utilisez cette adresse, qui peut changer avec le Wi-Fi.
+              </li>
+            </ol>
+            <details class="guide-detail" open>
+              <summary>
+                Chiffrer la connexion avec HTTPS
+                <span aria-hidden="true">+</span>
+              </summary>
+              <div>
+                <p>
+                  Si votre version dispose de
+                  <strong>Chiffrer les connexions</strong>, activez cette
+                  option. Copiez le certificat d’autorité PEM depuis NovaGuard,
+                  comparez son empreinte SHA-256 à celle affichée sur le
+                  téléphone, puis ajoutez cette autorité de confiance au client.
+                </p>
+                <p>
+                  Les clients Node peuvent utiliser
+                  <code>NODE_EXTRA_CA_CERTS</code> avec le chemin du PEM ;
+                  redémarrez le client dans l’environnement qui définit cette
+                  variable. D’autres clients utilisent le magasin de certificats
+                  du système : suivez leur documentation. Ne désactivez pas la
+                  vérification TLS pour contourner une erreur.
+                </p>
+                <p>
+                  Si HTTPS est désactivé, l’adresse commence par
+                  <code>http://</code> et le jeton comme les données circulent
+                  sans chiffrement. Réservez ce mode à un réseau local de
+                  confiance. N’exposez pas le port sur Internet.
+                </p>
+              </div>
+            </details>
+          </section>
+          <section
+            id="connecter"
+            class="guide-step"
+            aria-labelledby="connecter-title"
+          >
+            <span class="card-index">03 / DANS VOTRE CLIENT MCP</span>
+            <h2 id="connecter-title">Importez la configuration.</h2>
+            <p>
+              La méthode à privilégier : dans NovaGuard, utilisez
+              <strong>Copier la config JSON</strong> ou le QR code, puis
+              importez ces informations dans le client. Le QR code contient le
+              jeton : traitez-le comme un mot de passe et évitez de le partager
+              dans une capture.
+            </p>
+            <p>
+              Pour un client qui accepte le format <code>mcpServers</code> avec
+              <code>url</code> et <code>headers</code>, le modèle est le
+              suivant. Dans Cursor, la configuration MCP se place par exemple
+              dans <code>.cursor/mcp.json</code> pour un projet, ou dans les
+              réglages MCP du client.
+            </p>
+            <div class="code-card">
+              <div class="code-heading">
+                <span>EXEMPLE À ADAPTER · AUCUN JETON RÉEL</span
+                ><button
+                  type="button"
+                  class="copy-button"
+                  data-copy="mcp-config"
+                  hidden
+                >
+                  Copier l’exemple
+                </button>
+              </div>
+              <pre><code id="mcp-config">{
+  "mcpServers": {
+    "novaguard": {
+      "url": "https://192.168.1.42:8081/mcp",
+      "headers": {
+        "Authorization": "Bearer REMPLACER_PAR_LE_JETON_DE_LECTURE"
+      }
+    }
+  }
+}</code></pre>
+            </div>
+            <p
+              id="copy-status"
+              class="copy-status"
+              role="status"
+              aria-live="polite"
+            ></p>
+            <p class="code-caption">
+              L’adresse ci-dessus est fictive : remplacez-la par celle copiée
+              depuis votre téléphone, avec le bon protocole HTTP ou HTTPS.
+              Remplacez aussi le jeton. Cette configuration suppose un client
+              qui prend en charge ce format ; les autres clients demandent les
+              mêmes informations dans leur interface.
+            </p>
+            <p>
+              Activez ou rechargez le serveur dans le client. Vous devriez voir
+              les outils de lecture, notamment
+              <code>novaguard_get_status</code>,
+              <code>novaguard_search_events</code> et
+              <code>novaguard_get_event_frames</code>. Les noms visibles peuvent
+              inclure un préfixe propre au client.
+            </p>
+          </section>
+          <section
+            id="questionner"
+            class="guide-step"
+            aria-labelledby="questionner-title"
+          >
+            <span class="card-index">04 / UNE PREMIÈRE QUESTION</span>
+            <h2 id="questionner-title">Partez d’un passage enregistré.</h2>
+            <blockquote>
+              « Vérifie l’état de NovaGuard, puis montre-moi la dernière
+              détection et examine les images disponibles. Signale ce que tu ne
+              peux pas vérifier. »
+            </blockquote>
+            <p>
+              L’agent consulte l’état, retrouve l’événement et demande des
+              images du clip. Une vidéo absente peut être remplacée par sa
+              vignette, si elle existe. Vérifiez sa réponse avec l’historique
+              sur le téléphone.
+            </p>
+            <div class="prompt-grid">
+              <article>
+                <h3>Comprendre la nuit</h3>
+                <p>
+                  « Que s’est-il passé cette nuit ? Distingue personnes et
+                  animaux et indique les périodes où la caméra était en défaut.
+                  »
+                </p>
+              </article>
+              <article>
+                <h3>Vérifier l’installation</h3>
+                <p>
+                  « Consulte les diagnostics et le stockage. La caméra est-elle
+                  en état de détecter un passage maintenant ? »
+                </p>
+              </article>
+            </div>
+            <p>
+              Si votre client affiche les prompts MCP, essayez
+              <code>night_report</code>, <code>review_alerts</code> ou
+              <code>diagnose_camera</code>. Une absence d’événement ne prouve
+              pas l’absence d’activité si la caméra ou l’analyse était
+              indisponible.
+            </p>
+          </section>
+          <section id="acces" class="guide-step" aria-labelledby="acces-title">
+            <span class="card-index">05 / VOUS GARDEZ LA MAIN</span>
+            <h2 id="acces-title">
+              Choisissez ce que l’agent peut voir et faire.
+            </h2>
+            <div class="access-table">
+              <table>
+                <caption>
+                  Les autorisations MCP, séparées dans les réglages
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Accès</th>
+                    <th scope="col">Ce qu’il permet</th>
+                    <th scope="col">Votre action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">Lecture</th>
+                    <td>
+                      Événements, statistiques, images des clips, diagnostics.
+                    </td>
+                    <td>
+                      Activer MCP et utiliser le jeton de lecture sur le réseau
+                      local.
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Vue en direct</th>
+                    <td>
+                      Demander une image actuelle avec
+                      <code>get_live_frame</code>, pendant la surveillance.
+                    </td>
+                    <td>
+                      Activer son interrupteur distinct ; désactivé par défaut.
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Pilotage</th>
+                    <td>
+                      Démarrer/arrêter, régler sensibilité et seuils, conserver
+                      ou annoter un passage, acquitter une alerte de
+                      déplacement.
+                    </td>
+                    <td>
+                      Autorisation distincte et jeton dédié avec durée choisie.
+                      Chaque action est journalisée.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              Le démarrage par l’agent exige que l’application soit à l’écran et
+              dispose de la permission caméra. L’agent ne peut pas supprimer un
+              clip ni changer la rétention. Vous pouvez couper le pilotage
+              depuis sa notification et désactiver le serveur dans les réglages.
+            </p>
+            <div class="guide-callout">
+              <strong
+                >Avec une IA distante, les données peuvent sortir du
+                téléphone.</strong
+              >
+              <p>
+                NovaGuard conserve son traitement local. Le client IA reçoit
+                cependant les métadonnées et images qu’il demande et peut les
+                transmettre à son fournisseur. Vérifiez ses règles de
+                confidentialité avant d’accorder l’accès.
+              </p>
+            </div>
+          </section>
+          <section
+            id="depanner"
+            class="guide-step"
+            aria-labelledby="depanner-title"
+          >
+            <span class="card-index">BESOIN D’UN COUP DE MAIN ?</span>
+            <h2 id="depanner-title">Les vérifications utiles.</h2>
+            <details>
+              <summary>
+                Le client ne trouve pas le téléphone
+                <span aria-hidden="true">+</span>
+              </summary>
+              <p>
+                Vérifiez le même Wi-Fi, l’adresse affichée, le port et le chemin
+                <code>/mcp</code>. Une adresse <code>127.0.0.1</code> n’est
+                accessible que sur le téléphone : générez un jeton pour ouvrir
+                la lecture au réseau local. Certains réseaux invités isolent les
+                appareils entre eux.
+              </p>
+            </details>
+            <details>
+              <summary>
+                Le client refuse le certificat HTTPS
+                <span aria-hidden="true">+</span>
+              </summary>
+              <p>
+                Vérifiez que l’autorité PEM du téléphone est approuvée par le
+                client et que son empreinte correspond. Utilisez l’adresse
+                actuelle affichée. Une réinstallation de l’application crée une
+                nouvelle autorité : réimportez le certificat correspondant.
+              </p>
+            </details>
+            <details>
+              <summary>
+                La lecture marche, mais le pilotage est refusé
+                <span aria-hidden="true">+</span>
+              </summary>
+              <p>
+                Le jeton de lecture n’autorise pas le pilotage. Activez son
+                interrupteur, vérifiez que son jeton dédié n’a pas expiré et
+                actualisez la configuration du client. Pour démarrer la caméra,
+                ouvrez NovaGuard à l’écran.
+              </p>
+            </details>
+            <details>
+              <summary>
+                La dernière vidéo ou le direct ne s’affiche pas
+                <span aria-hidden="true">+</span>
+              </summary>
+              <p>
+                Le média peut avoir été supprimé par la rétention. Pour analyser
+                un clip, l’agent doit demander ses images avec
+                <code>get_event_frames</code>, plutôt que charger le MP4 entier.
+                Le direct exige son autorisation distincte et une surveillance
+                en cours ; une scène vide n’est pas un résultat de diagnostic.
+              </p>
+            </details>
+            <div class="guide-next">
+              <a class="button primary" href="./index.html#installer"
+                >Installer NovaGuard <span aria-hidden="true">↓</span></a
+              ><a
+                class="text-link"
+                href="https://github.com/devdownin/novaguard/blob/main/mcp.md"
+                >Spécification MCP complète</a
+              >
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+    <footer class="footer wrap">
+      <div>
+        <a class="brand" href="./index.html"
+          ><img
+            src="./assets/mark.svg"
+            width="30"
+            height="30"
+            alt=""
+          />NovaGuard</a
+        >
+        <p>Une caméra locale. Une nouvelle perspective.</p>
+      </div>
+      <div class="footer-links">
+        <a href="./index.html">L’application</a
+        ><a href="https://github.com/devdownin/novaguard/blob/main/PRIVACY.md"
+          >Confidentialité</a
+        ><a href="https://github.com/devdownin/novaguard">GitHub</a>
+      </div>
+      <p class="footer-bottom">
+        Guide fondé sur la branche main. Vérifiez les fonctions disponibles dans
+        votre version et les capacités de votre client.
+      </p>
+    </footer>
+  </body>
+</html>

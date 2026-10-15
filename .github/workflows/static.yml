@@ -6,6 +6,12 @@ on:
     paths:
       - 'site/**'
       - '.github/workflows/static.yml'
+      - 'scripts/update-site-release.py'
+  release:
+    types: [published, edited]
+  schedule:
+    # Releases may receive their APK assets after the published event.
+    - cron: '23 6 * * *'
   workflow_dispatch:
 
 permissions:
@@ -17,10 +23,11 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'release'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      contents: read
       pages: write
       id-token: write
     environment:
@@ -29,9 +36,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Refresh the published APK download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/devdownin/novaguard/releases/latest > "$RUNNER_TEMP/novaguard-release.json"
+          python3 scripts/update-site-release.py --metadata "$RUNNER_TEMP/novaguard-release.json"
       - name: Check static entry points
         run: |
           test -s site/index.html
+          test -s site/guide-mcp.html
           test -s site/styles.css
           test -s site/app.js
           test -s site/assets/mark.svg
