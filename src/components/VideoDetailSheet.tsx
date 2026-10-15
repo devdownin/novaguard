@@ -159,12 +159,12 @@ export function VideoDetailSheet() {
 
           <View style={styles.actions}>
             {hasClip && (
-              <PrimaryOutlineButton label={t('detail.share')} icon={ShareIcon} onPress={share} style={styles.action} />
+              <PrimaryOutlineButton label={t('detail.share')} icon={ShareIcon} onPress={share} iconPosition="top" style={styles.action} />
             )}
             <SecondaryOutlineButton label={t(kept ? 'detail.unkeep' : 'detail.keep')} icon={kept ? KeptIcon : BookmarkIcon} onPress={toggleKeep}
-              style={styles.action} />
-            <SecondaryOutlineButton label={t(clips.length > 1 ? 'detail.deleteSequence' : 'detail.delete')} icon={TrashIcon} onPress={() => { updatePlayback(null); selectEvent(event.id); askDelete(); }} style={styles.action} />
-            <TextButton label={t('detail.close')} icon={CloseIcon} onPress={close} style={styles.action} />
+              iconPosition="top" style={styles.action} />
+            <SecondaryOutlineButton label={t(clips.length > 1 ? 'detail.deleteSequence' : 'detail.delete')} icon={TrashIcon} onPress={() => { updatePlayback(null); selectEvent(event.id); askDelete(); }} iconPosition="top" style={styles.action} />
+            <TextButton label={t('detail.close')} icon={CloseIcon} onPress={close} iconPosition="top" style={styles.action} />
           </View>
         </View>
       )}
