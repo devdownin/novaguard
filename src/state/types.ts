@@ -40,11 +40,26 @@ export type Retention = '1 jour' | '7 jours' | '30 jours' | '90 jours' | 'Toujou
 /** How long a control token works once issued (see `mcpControl.ts`). */
 export type ControlLifetime = '1 h' | '24 h' | 'Toujours';
 
+/**
+ * Where the subject was in a clip, `t` ms after it starts, as a fraction of the
+ * upright frame. Kept coarse on purpose (`subjectTrail.ts`): it is stored with
+ * every event, and it only has to tell a frame extractor where to look.
+ */
+export interface SubjectSample { t: number; x: number; y: number; w: number; h: number }
+
+/** An agent's verdict on an event: identifiers, written to disk, never translated. */
+export type AgentVerdict = 'false_alarm' | 'expected' | 'attention' | 'note';
+export interface AgentNote { verdict: AgentVerdict; text: string; at: number }
+
 export interface DetectionEvent {
   id: number;
   /** Explicit capture session identity; absent on historical, ungrouped clips. */
   passageId?: string;
   kinds?: DetectionKind[];
+  /** Absent on clips recorded before it existed, and on events with no clip. */
+  subject?: SubjectSample[];
+  /** Left by an agent through `annotate_event`; the owner sees it and can clear it. */
+  agentNote?: AgentNote;
   kind: DetectionKind;
   /** epoch ms — display label and period bucket are derived from this, not stored. */
   timestamp: number;
@@ -208,6 +223,10 @@ export interface Settings {
   mcpControlEnabled: boolean;
   mcpControlToken: string;
   mcpControlTtl: ControlLifetime;
+  /** Lets an agent ask for what the camera sees now (`get_live_frame`). Off by default. */
+  mcpLiveFrameEnabled: boolean;
+  /** HTTPS under the device's own authority (`McpTls.kt`). Off by default: a client must be told to trust it. */
+  mcpTls: boolean;
   /** Epoch ms the control token stops working; 0 for never. Set when it is issued. */
   mcpControlExpiresAt: number;
   exp: ExpandedSections;

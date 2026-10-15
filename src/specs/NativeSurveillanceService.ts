@@ -40,6 +40,20 @@ export interface Spec extends TurboModule {
   shareRecording(path: string): boolean;
 
   /**
+   * Lower-case hex SHA-256 of a recording, or '' when it cannot be read. Off
+   * the calling thread: a long 4K clip is hundreds of megabytes to stream.
+   */
+  hashRecording(path: string): Promise<string>;
+
+  /**
+   * Hands several clips and a plain-text report to another app in one chooser.
+   * The report is written beside the recordings (`recordings/exports/`), the
+   * only place the FileProvider may serve it from. False when nothing could be
+   * offered.
+   */
+  shareEvidence(paths: string[], report: string, reportName: string): boolean;
+
+  /**
    * Decodes a still from `clipPath` and writes it beside the clip, resolving
    * with the JPEG's path or '' when there was no readable frame.
    *

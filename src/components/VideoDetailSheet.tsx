@@ -6,7 +6,8 @@ import { useAppState } from '../state/AppStateContext';
 import { groupPassages } from '../recording/passages';
 import { formatBytes, keptEventIds } from '../recording/library';
 import { t, tValue } from '../i18n';
-import { shareRecording } from '../surveillance/foregroundService';
+import { hashRecording, shareEvidence, shareRecording } from '../surveillance/foregroundService';
+import { evidenceClips, evidenceReport, evidenceReportName } from '../recording/evidence';
 import { formatWhen } from '../utils/date';
 import { Sheet } from './Sheet';
 import { BookmarkIcon, CloseIcon, IconProps, PlayIcon, ShareIcon, TrashIcon } from './icons';
@@ -19,11 +20,13 @@ function KeptIcon(props: IconProps) {
 }
 
 export function VideoDetailSheet() {
-  const { selected, selectedEvent, events, selectEvent, askDelete, toggleKeep } = useAppState();
+  const { selected, selectedEvent, events, selectEvent, askDelete, toggleKeep, setAgentNote } = useAppState();
   const [playback, setPlayback] = useState<{ root: number; clip: number; all: boolean; running: boolean } | null>(null);
   const active = useRef<typeof playback>(null);
   const [playFailed, setPlayFailed] = useState(false);
   const [shareFailed, setShareFailed] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportFailed, setExportFailed] = useState(false);
   const passage = useMemo(() => groupPassages(events).find(group => group.events.some(clip => clip.id === selected)), [events, selected]);
   const clips = useMemo(() => passage?.events ?? [], [passage]);
   const playable = useMemo(() => clips.filter(clip => clip.path != null), [clips]);
@@ -35,7 +38,7 @@ export function VideoDetailSheet() {
     setPlayback(next);
   }, []);
   useEffect(() => {
-    updatePlayback(null); setPlayFailed(false); setShareFailed(false);
+    updatePlayback(null); setPlayFailed(false); setShareFailed(false); setExportFailed(false);
   }, [selected, updatePlayback]);
   useEffect(() => {
     if (playback && !clips.some(clip => clip.id === playback.clip && clip.path != null)) {
@@ -75,7 +78,31 @@ export function VideoDetailSheet() {
   }, [path]);
 
   const hasClip = !!path;
+  /** The clip of the passage an agent annotated, if any: it looked at one, the note is about the visit. */
+  const noted = useMemo(() => clips.find(clip => clip.agentNote), [clips]);
   const kept = useMemo(() => selected != null && keptEventIds(events).has(selected), [events, selected]);
+
+  /**
+   * The same door, for a whole passage: every clip and a report carrying their
+   * SHA-256, so whoever receives them can check nothing was altered on the way.
+   * Hashed one clip at a time, off the JS thread; the sheet says it is working
+   * because a long 4K passage takes seconds.
+   */
+  const exportPassage = useCallback(async () => {
+    if (!passage || exporting) return;
+    const travelling = evidenceClips(passage);
+    if (travelling.length === 0) { setExportFailed(true); return; }
+    setExporting(true);
+    setExportFailed(false);
+    try {
+      const hashed = [];
+      for (const clip of travelling) hashed.push({ event: clip, sha256: await hashRecording(clip.path!) });
+      const report = evidenceReport(passage, hashed, Date.now(), kept);
+      setExportFailed(!shareEvidence(travelling.map(clip => clip.path!), report, evidenceReportName(passage)));
+    } finally {
+      setExporting(false);
+    }
+  }, [passage, exporting, kept]);
 
   return (
     <Sheet visible={!!event} onClose={close}>
@@ -155,7 +182,28 @@ export function VideoDetailSheet() {
           </View>
 
           {shareFailed && <Text style={styles.shareError}>{t('detail.shareError')}</Text>}
+          {playable.length > 0 && (
+            <View style={styles.export}>
+              <SecondaryOutlineButton
+                label={t(exporting ? 'detail.export.busy' : 'detail.export')}
+                icon={ShareIcon}
+                onPress={exportPassage}
+                disabled={exporting}
+              />
+              <Text style={styles.exportNote}>{t('detail.export.sub')}</Text>
+            </View>
+          )}
+          {exportFailed && <Text style={styles.shareError} accessibilityLiveRegion="polite">{t('detail.exportError')}</Text>}
           {kept && <Text style={styles.keptNote} maxFontSizeMultiplier={MAX_FONT_SCALE}>{t('detail.kept')}</Text>}
+          {noted?.agentNote && (
+            <View style={styles.agentNote} testID="agent-note">
+              <Text style={styles.agentNoteTitle}>
+                {t('detail.agentNote', { verdict: tValue(`value.verdict.${noted.agentNote.verdict}`), time: formatWhen(noted.agentNote.at) })}
+              </Text>
+              {noted.agentNote.text ? <Text style={styles.agentNoteText}>{noted.agentNote.text}</Text> : null}
+              <TextButton label={t('detail.agentNote.clear')} onPress={() => setAgentNote(noted.id, null)} />
+            </View>
+          )}
 
           <View style={styles.actions}>
             {hasClip && (
@@ -193,6 +241,13 @@ function StatCell({ label, value, accent, small }: StatCellProps) {
 
 const styles = StyleSheet.create({
   passageControls: { gap: 8, marginTop: 12 },
+  export: { marginTop: 14, gap: 6 },
+  agentNote: {
+    marginTop: 12, padding: 10, gap: 4, borderRadius: 10, borderWidth: 1, borderColor: color.divider, backgroundColor: color.surface,
+  },
+  agentNoteTitle: { color: color.text, fontFamily: font.medium, fontSize: 12 },
+  agentNoteText: { color: color.neutral400, fontFamily: font.regular, fontSize: 12, lineHeight: 17 },
+  exportNote: { color: color.neutral500, fontFamily: font.regular, fontSize: 11, lineHeight: 15 },
   keptNote: { color: color.accent, fontFamily: font.regular, fontSize: 12, marginTop: 10 },
   playError: { color: color.warning, fontFamily: font.regular, fontSize: 12, marginTop: 10 },
   preview: {

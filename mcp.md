@@ -80,14 +80,15 @@ The server answers reads from a snapshot the app pushes when the history, the st
 ## 5. Deployment
 
 - **Loopback** (no token): the socket binds `127.0.0.1` only. Reading needs no token there; control always needs the control token, so another app on the phone cannot switch the camera off.
-- **LAN** (a read or control token is set): the socket binds all interfaces; every non-loopback request needs a token. Plain HTTP: the token is readable on a shared Wi-Fi, so use a trusted network.
+- **LAN** (a read or control token is set): the socket binds all interfaces; every non-loopback request needs a token. In plain HTTP the token is readable on a shared Wi-Fi.
+- **HTTPS** (switch "Chiffrer les connexions", off by default): the phone creates its own authority once — EC P-256, private key in the Android Keystore, never exported — and issues under it a server certificate for its current addresses (loopback and the Wi-Fi IP), reissued at the next handshake when the address changes. The owner installs the authority's PEM on the client once (system store, or `NODE_EXTRA_CA_CERTS` for Node clients) and compares the SHA-256 fingerprint Réglages shows. Every connection, loopback included, is then TLS. Certificates are built by `McpCertificates.java`, which `scripts/test-presence-native.sh` parses back, verifies and uses in a real TLS handshake.
 - **Discovery.** On the LAN the server is advertised over DNS-SD as `NovaGuard`, type `_novaguard-mcp._tcp`, TXT `path=/mcp`, `auth=bearer`: the phone's address is a DHCP lease, and a client that browses (`dns-sd -B _novaguard-mcp._tcp`, `avahi-browse -r _novaguard-mcp._tcp`) finds it again after it moves. Réglages also shows the client configuration as a QR code.
 - Public Internet exposure and port forwarding are not supported.
 - The server lives in the app's process. Android only lets a camera foreground service start while the app is on screen, so `start_surveillance` from the background is refused with a clear message; stopping works at any time.
 
 ## 6. Android networking/privacy impact
 
-The current release intentionally does not declare Android `INTERNET`. Adding an HTTP read API is therefore an explicit privacy/architecture change.
+The app declares Android `INTERNET` only so that the two optional local servers (MCP and Wi-Fi live view) can listen; both are off by default and NovaGuard opens no outgoing connection (`__tests__/playRelease.test.ts` checks the sources).
 
 Default state:
 
@@ -131,7 +132,7 @@ Control tools appear in `tools/list` only while control is enabled on the device
 
 # 8. MCP Tools
 
-§8.1–§8.10 and §8.12 are read tools. §8.11 lists the control tools.
+§8.1–§8.10, §8.12 and §8.13 are read tools. §8.11 lists the control tools.
 
 ## 8.1 `novaguard.get_status`
 
@@ -358,12 +359,15 @@ Input:
   "properties":{
     "eventId":{"type":"integer","minimum":0,"maximum":999999999999999},
     "count":{"type":"integer","minimum":1,"maximum":8},
-    "maxEdge":{"type":"integer","minimum":160,"maximum":1280}
+    "maxEdge":{"type":"integer","minimum":160,"maximum":1280},
+    "framing":{"type":"string","enum":["full","subject"]}
   }
 }
 ```
 
-Output: a `text` block `{"eventId","source":"video"|"thumbnail","frames":[{"index","offsetSeconds"}]}`, then one `image/jpeg` block per frame. Frames sit at the middle of `count` equal slices of the clip (default 4, longest side default 768 px), decoded already scaled, one extraction at a time. Without a clip, the event's thumbnail is returned; without either, the result carries `isError` and `NOVAGUARD_MEDIA_UNAVAILABLE`.
+Output: a `text` block `{"eventId","source":"video"|"thumbnail","frames":[{"index","offsetSeconds","cropped"}]}`, then one `image/jpeg` block per frame. Frames sit at the middle of `count` equal slices of the clip (default 4, longest side default 768 px), decoded already scaled, one extraction at a time. Without a clip, the event's thumbnail is returned; without either, the result carries `isError` and `NOVAGUARD_MEDIA_UNAVAILABLE`.
+
+`framing: "subject"` crops each still around where the subject was at that moment — the box recorded with the event (`subjectTracked: true`, one sample a second at most), grown by half on every side, never under 35 % of the frame, decoded larger first so the crop keeps detail (at most 1920 px). An event without a recorded subject (older clips) gets whole frames, each marked `cropped: false`.
 
 ## 8.10 `novaguard.wait_for_event`
 
@@ -379,6 +383,7 @@ Long poll: returns as soon as an event newer than `afterEventId` is recorded (de
 | `set_thresholds` | `person`, `animal` ∈ [0.5, 0.95], at least one | Entry thresholds per kind. |
 | `keep_event` | `eventId`, `kept` | Keeps or releases the event's whole passage (exempt from retention and automatic deletion). |
 | `acknowledge_alert` | — | Acknowledges `camera-moved`; `camera-obstructed` cannot be acknowledged, it clears when the camera sees again. |
+| `annotate_event` | `eventId`, `verdict`: `false_alarm`/`expected`/`attention`/`note`, `note` (≤ 280 characters) | Leaves the agent's verdict on the event, shown in Historique (card and sheet). Replaces the previous one; the owner can clear it. Read back as `agentNote` on the event. |
 
 Every control tool is idempotent and returns `changed`. A call with a read token is a JSON-RPC error `NOVAGUARD_AUTH_FORBIDDEN` (HTTP 403); a refusal by the app (no permission, background, unknown event) is a result carrying `isError`.
 
@@ -397,6 +402,10 @@ Why the camera may miss or cut passages. No arguments.
 ```
 
 `clipGap` is the time between two clips of one passage (`finalize` the encoder's, `restart` the app's); `null` until measured. `autoTune.given` are the settings the app gave up to keep its analysis rate, in order; `measuredFps`/`targetFps` are the figures of its last decision. `crashedStage` names the analysis step a previous launch never returned from (`camera`, `resize`, `inference`, `faces`, `report`). `device` is read at call time: `thermalStatus` is Android's `PowerManager` scale (0 none … 6 shutdown, -1 unknown).
+
+## 8.13 `novaguard.get_live_frame`
+
+What the camera sees now, as one `image/jpeg` block after a `text` block `{"capturedAt","status"}`. Argument: `maxEdge` (160–1280, default 768). Advertised only while the owner's switch "Vue en direct pour l'agent" is on (off by default), answered only while surveillance runs; otherwise `NOVAGUARD_DEVICE_UNAVAILABLE`, and `NOVAGUARD_TIMEOUT` if no frame arrives within 3 s (camera interrupted). Nothing is recorded. The frame processor offers a frame twice a second to a native plugin that does nothing until a request is pending; the YUV copy, JPEG encoding, downscale and rotation happen only then, off the camera thread except for the copy.
 
 # 9. MCP Resources
 
@@ -521,7 +530,7 @@ Errors MUST NOT leak filesystem paths, stack traces, tokens or credentials.
 
 ## Control guarantee
 
-The server cannot modify NovaGuard state by itself. Control is a request the app carries out with its own callbacks and the six commands of §8.11 only; everything in §19 is unreachable by construction and refused by name.
+The server cannot modify NovaGuard state by itself. Control is a request the app carries out with its own callbacks and the seven commands of §8.11 only; everything in §19 is unreachable by construction and refused by name.
 
 ## Authentication
 

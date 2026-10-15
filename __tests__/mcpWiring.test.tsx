@@ -68,7 +68,7 @@ it('starts the native server when the setting is switched on, and stops it again
   await ReactTestRenderer.act(async () => { handle.state.toggleMcpServer(); });
   await ReactTestRenderer.act(async () => {});
 
-  expect(native.startServer).toHaveBeenCalledWith(defaultSettings.mcpPort, '', '', false, 0);
+  expect(native.startServer).toHaveBeenCalledWith(defaultSettings.mcpPort, '', '', false, 0, false);
   expect(handle.state.mcpStatus.running).toBe(true);
 
   await ReactTestRenderer.act(async () => { handle.state.toggleMcpServer(); });
@@ -88,7 +88,7 @@ it('restarts the server with the new token when one is generated', async () => {
 
   // A token is what lets the server leave loopback, so a token the running
   // server does not have is a token that does nothing.
-  expect(native.startServer).toHaveBeenLastCalledWith(defaultSettings.mcpPort, 'mcp_' + 'a'.repeat(32), '', false, 0);
+  expect(native.startServer).toHaveBeenLastCalledWith(defaultSettings.mcpPort, 'mcp_' + 'a'.repeat(32), '', false, 0, false);
 });
 
 it('pushes a snapshot when the history changes', async () => {
@@ -240,6 +240,26 @@ describe('the snapshot handed to the native server', () => {
     expect(DIAGNOSTICS.clipGap.lastFinalizeMs).toBeNull();
     expect(DIAGNOSTICS.autoTune.measuredFps).toBeNull();
     expect(DIAGNOSTICS.crashedStage).toBeNull();
+  });
+
+  it('carries where the subject was and the agent’s note, for framing and read-back', () => {
+    const raw = JSON.parse(buildMcpSnapshot({
+      surveillanceActive: true, settings: defaultSettings, storage: { used: 0, free: 0, total: 0 },
+      events: [
+        event({ id: 1, subject: [{ t: 0, x: 0.1, y: 0.2, w: 0.3, h: 0.4 }], agentNote: { verdict: 'expected', text: 'Postman', at: 5 } }),
+        event({ id: 2 }),
+      ],
+      detectionsToday: 0, status: 'active', diagnostics: DIAGNOSTICS,
+    }));
+    expect(raw.events[0].subject).toEqual([{ t: 0, x: 0.1, y: 0.2, w: 0.3, h: 0.4 }]);
+    expect(raw.events[0].agentNote).toEqual({ verdict: 'expected', text: 'Postman', at: 5 });
+    expect(raw.events[1].subject).toEqual([]);
+    expect(raw.events[1].agentNote).toBeNull();
+  });
+
+  it('tells the server whether the owner allows the live view', () => {
+    expect(build().liveFrameAllowed).toBe(false);
+    expect(build({ mcpLiveFrameEnabled: true }).liveFrameAllowed).toBe(true);
   });
 
   it('carries the passage, the kinds seen in it, and whether it is kept', () => {

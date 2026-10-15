@@ -45,7 +45,7 @@ d'installations, si.
 | Politique de confidentialité, fr + en | ✅ [`PRIVACY.md`](../PRIVACY.md), [`PRIVACY.en.md`](../PRIVACY.en.md) — restent à publier à une URL |
 | Icône 512×512 | ✅ `assets/store/icon-512.png` |
 | Permissions justifiables une par une | ✅ vérifié par `__tests__/playRelease.test.ts` |
-| Absence de permission réseau | ✅ vérifiée par le même test |
+| Aucune connexion sortante ; `INTERNET` réservée aux deux serveurs locaux | ✅ vérifiée par le même test |
 | Fiche Store, fr-FR et en-US | ✅ § 5, à coller dans la Console |
 | Visuel de présentation 1024×500 | ❌ à produire |
 | Captures d'écran | ❌ à produire sur appareil |
@@ -125,11 +125,20 @@ est un compteur oublié exactement une fois.
 
 Réponses, toutes vérifiables dans le code :
 
-- **Collectez-vous ou partagez-vous des données utilisateur ?** → **Non.**
+- **Collectez-vous ou partagez-vous des données utilisateur ?** → **Non.** Rien
+  ne parvient au développeur ni à un tiers. La permission `INTERNET` est déclarée
+  pour deux serveurs locaux optionnels, éteints par défaut (direct Wi-Fi,
+  serveur MCP) : ils ne répondent qu'à un appareil du réseau local que le
+  propriétaire configure lui-même, à sa demande. L'application n'ouvre aucune
+  connexion sortante. **À revalider avec la définition de « collecte » de Google
+  au moment de chaque soumission** : c'est le seul point du formulaire qui
+  dépend d'une interprétation.
 - Aucune catégorie à cocher (ni photos/vidéos, ni audio, ni position, ni
   identifiants, ni diagnostics).
-- **Les données sont-elles chiffrées en transit ?** → sans objet, aucune donnée
-  ne transite. L'application ne déclare pas `INTERNET`.
+- **Les données sont-elles chiffrées en transit ?** → **Non** par défaut : les
+  deux serveurs locaux parlent HTTP sur le réseau local, et rien ne transite par
+  Internet. Le serveur MCP propose HTTPS (autorité propre à l'appareil), mais
+  c'est une option éteinte par défaut, et le formulaire porte sur le défaut.
 - **L'utilisateur peut-il demander la suppression de ses données ?** → oui, tout
   est local : suppression unitaire, « Tout supprimer », rétention automatique, et
   la désinstallation efface tout.
@@ -224,9 +233,10 @@ anciens clips quand l'espace manque.
 CONFIDENTIALITÉ PAR CONCEPTION
 Les vidéos sont écrites dans le stockage privé de l'application : aucune autre
 application ne peut les lire, rien n'apparaît dans la galerie partagée, et tout
-disparaît à la désinstallation. NovaGuard ne demande même pas la permission
-d'accéder à Internet — elle est techniquement incapable d'envoyer quoi que ce
-soit. Le seul moyen de faire sortir une vidéo est le bouton « Partager », que
+disparaît à la désinstallation. NovaGuard n'ouvre aucune
+connexion vers Internet : ni compte, ni télémétrie, ni cloud. Le direct Wi-Fi et
+le serveur pour assistant IA sont éteints par défaut et ne répondent qu'au
+réseau local. Le seul moyen de faire sortir une vidéo est le bouton « Partager », que
 vous seul déclenchez.
 
 Code source complet, sous licence GPL-3.0 :
@@ -276,8 +286,9 @@ automatically when space runs short.
 PRIVACY BY DESIGN
 Videos are written to the app's private storage: no other app can read them,
 nothing shows up in the shared gallery, and everything disappears when the app
-is uninstalled. NovaGuard does not even ask for internet permission — it is
-technically incapable of sending anything anywhere. The only way a video ever
+is uninstalled. NovaGuard never connects to the internet: no account, no
+telemetry, no cloud. Wi-Fi live view and the AI-assistant server are off by
+default and answer only the local network. The only way a video ever
 leaves is the Share button, which only you press.
 
 Full source code, under the GPL-3.0 licence:

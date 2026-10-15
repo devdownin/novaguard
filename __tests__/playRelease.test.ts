@@ -18,8 +18,10 @@
 
 /// <reference types="node" />
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { readdirSync, readFileSync } from 'fs';
+import { join, resolve } from 'path';
+
+const root = resolve(__dirname, '..');
 
 const read = (p: string) => readFileSync(resolve(__dirname, '..', p), 'utf8');
 
@@ -107,15 +109,29 @@ describe('version', () => {
 
 describe('what the store listing promises', () => {
   /**
-   * The Data safety form answers "no data collected", and the README says the
-   * release APK does not even declare INTERNET. A dependency that adds it back
-   * through manifest merging would make both statements false without a single
-   * line of this repository changing — and that is a declaration to Google, not
-   * a detail. This catches it in the one file we control; `:app` cannot be the
-   * source of it either way.
+   * The Data safety form answers "no data collected" and PRIVACY.md says the
+   * app opens no outgoing connection. INTERNET is declared, for the two local
+   * servers (Wi-Fi live view, MCP) that only listen: the promise is that nothing
+   * dials out, so that is what is checked — in every source that could, JS and
+   * Kotlin. A `fetch` or an `HttpURLConnection` added anywhere makes the store
+   * declaration false, and that is a declaration to Google, not a detail.
    */
-  it('declares INTERNET permission for optional local Wi-Fi streaming', () => {
+  it('declares INTERNET, for the two local servers that only listen', () => {
     expect(manifest).toContain('android.permission.INTERNET');
+  });
+
+  it('opens no outgoing connection from any source', () => {
+    const files = (dir: string, ext: RegExp): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) return entry.name === '__mocks__' ? [] : files(full, ext);
+      return ext.test(entry.name) ? [full] : [];
+    });
+    const outbound = /\bfetch\(|XMLHttpRequest|new WebSocket|HttpURLConnection|openConnection\(|\bURL\([^)]*\)\.open|OkHttp|DatagramSocket|\bSocket\(\s*[^)\s]|\.connect\(\s*InetSocketAddress/;
+    const offenders = [
+      ...files(join(root, 'src'), /\.tsx?$/),
+      ...files(join(root, 'android/app/src/main/java'), /\.(kt|java)$/),
+    ].filter(file => outbound.test(readFileSync(file, 'utf8')));
+    expect(offenders).toEqual([]);
   });
 
   it('declares exactly the permissions the app can justify', () => {

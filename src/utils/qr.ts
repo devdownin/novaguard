@@ -1,3 +1,4 @@
+/* eslint-disable no-bitwise -- a QR symbol is bit arithmetic: GF(256), BCH codes, bit streams. */
 /**
  * QR Code encoder, byte mode, error correction M.
  *

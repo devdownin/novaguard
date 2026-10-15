@@ -18,7 +18,7 @@ function deps(over: Partial<CommandDeps> = {}): CommandDeps & { [k: string]: any
     settings: { ...defaultSettings, threshold: 60, animalThreshold: 60, sens: 'Moyenne' },
     events: [event(1, { passageId: 'p' }), event(2, { passageId: 'p' }), event(3)],
     toggleMonitoring: jest.fn(), setSensitivity: jest.fn(), setThreshold: jest.fn(),
-    setAnimalThreshold: jest.fn(), setKept: jest.fn(), acknowledgeMove: jest.fn(),
+    setAnimalThreshold: jest.fn(), setKept: jest.fn(), setAgentNote: jest.fn(), acknowledgeMove: jest.fn(),
     ...over,
   };
 }
@@ -116,5 +116,30 @@ describe('agent log', () => {
     expect(parseAgentLog('not json')).toEqual([]);
     expect(parseAgentLog('{"a":1}')).toEqual([]);
     expect(parseAgentLog(JSON.stringify([{ at: 1, command: 'x', ok: true, changed: false }, { bad: true }]))).toHaveLength(1);
+  });
+});
+
+describe('annotate_event', () => {
+  it('leaves a verdict and a trimmed note on the event', () => {
+    const d = deps();
+    const outcome = executeMcpCommand('annotate_event', { eventId: 3, verdict: 'attention', note: '  Person at the gate at night.  ' }, d);
+    expect(outcome).toEqual({ ok: true, changed: true, result: { eventId: 3, verdict: 'attention' } });
+    expect(d.setAgentNote).toHaveBeenCalledWith(3, { verdict: 'attention', text: 'Person at the gate at night.', at: expect.any(Number) });
+  });
+
+  it('changes nothing when the same verdict and note are sent again', () => {
+    const d = deps({ events: [event(3, { agentNote: { verdict: 'expected', text: 'Postman', at: 1 } })] });
+    expect(executeMcpCommand('annotate_event', { eventId: 3, verdict: 'expected', note: 'Postman' }, d))
+      .toMatchObject({ ok: true, changed: false });
+    expect(d.setAgentNote).not.toHaveBeenCalled();
+  });
+
+  it('refuses an unknown event, an unknown verdict and an essay', () => {
+    const d = deps();
+    expect(executeMcpCommand('annotate_event', { eventId: 99, verdict: 'note' }, d)).toMatchObject({ ok: false, code: 'NOVAGUARD_NOT_FOUND' });
+    expect(executeMcpCommand('annotate_event', { eventId: 3, verdict: 'guilty' }, d)).toMatchObject({ ok: false, code: 'NOVAGUARD_INVALID_ARGUMENT' });
+    expect(executeMcpCommand('annotate_event', { eventId: 3, verdict: 'note', note: 'x'.repeat(281) }, d))
+      .toMatchObject({ ok: false, code: 'NOVAGUARD_INVALID_ARGUMENT' });
+    expect(d.setAgentNote).not.toHaveBeenCalled();
   });
 });

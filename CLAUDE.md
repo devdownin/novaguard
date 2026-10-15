@@ -1,8 +1,8 @@
 # NovaGuard
 
 Caméra de surveillance Android, locale et open source. React Native 0.81 /
-React 19 / TypeScript. Rien ne quitte l'appareil : pas de réseau, pas de compte,
-pas de télémétrie. Le code est commenté en anglais, l'interface est en français.
+React 19 / TypeScript. Rien ne quitte l'appareil sans un geste du propriétaire :
+pas de compte, pas de télémétrie, aucune connexion sortante. Le code est commenté en anglais, l'interface est en français.
 
 ## Capture des présences : contrat actuel
 
@@ -19,7 +19,7 @@ Vérifier la politique native avec `scripts/test-presence-native.sh`, les transi
 ```bash
 npm ci                 # les tests et le typecheck en dépendent
 npm run typecheck      # tsc --noEmit
-npm run lint           # eslint (0 erreur attendu ; 33 avertissements no-inline-styles connus)
+npm run lint           # eslint (0 erreur, 0 avertissement)
 npm test               # jest
 npm run android        # build + déploiement sur un appareil ou un émulateur
 ```
@@ -444,7 +444,14 @@ lecture temporaire qui meurt avec l'activité qui la reçoit — et jamais par u
 chemin `file://`, qu'Android refuse d'une app à l'autre depuis l'API 24. La
 racine déclarée dans `res/xml/file_paths.xml` est exactement le dossier des
 enregistrements : l'élargir ferait la différence entre partager un clip et
-exposer tout le stockage privé de l'application.
+exposer tout le stockage privé de l'application. L'export d'un passage passe par la même porte :
+les clips et un rapport dont les empreintes SHA-256 sont calculées sur
+l'appareil, **hors du thread JS** (un passage 4K, c'est des centaines de Mo à
+lire). Le rapport doit être servi par le même `FileProvider`, donc il est écrit
+sous `recordings/exports/` — un sous-dossier que le balayage des orphelins ne
+voit pas, puisqu'il ne lit que les fichiers à la racine de `recordings/`. Le
+déplacer à la racine le ferait effacer au lancement suivant, comme un clip
+sans évènement.
 
 **Une vignette qui existe aussi écran éteint.** `takeSnapshot` capture la vue
 d'aperçu — c'est ce qui lui permet de ne toucher ni l'encodeur ni la session de
@@ -525,9 +532,9 @@ un catalogue qu'aucun client ne charge ; la forme pointée reste acceptée à
 l'appel. Le Kotlin n'est compilé par aucun garde-fou de PR ordinaire — `check` ne
 lance pas Gradle — donc il se vérifie en construisant un APK.
 
-Trois erreurs y ont faussé ce qu'un agent lisait, sans qu'aucune requête n'échoue. Les identifiants d'évènement sont des **millisecondes epoch** (`nextEventId`) : une borne `Int` refusait chaque évènement réel de `get_event`. La confiance est stockée en **pourcentage** et promise sur `[0,1]` : `unitConfidence` convertit dans l'instantané, sinon `minConfidence: 0.6` gardait tout. Et `surveillanceActive` seul disait « caméra active » d'un objectif masqué : l'instantané porte `surveillanceStatus`, et `statusSince` est tenu côté natif d'une poussée à l'autre. Ce qui se décide sans Android vit dans `McpRules.java`, compilé et testé par `scripts/test-presence-native.sh` en CI — c'est le seul morceau du serveur qu'une PR ordinaire exécute. Enfin les connexions passent par `McpRules.ConnectionGate` (8 au total, 4 par pair) et une échéance de 15 s par requête : un délai par lecture se renouvelle à chaque octet, donc un pair du Wi-Fi qui en envoyait un par seconde gardait un thread pour toujours, dans le processus qui fait tourner la caméra. Un agent regarde une vidéo par **images**, pas par fichier : la ressource `video/` part en base64 d'un bloc (plafonnée à 20 Mo, illisible pour la plupart des clients), alors que `get_event_frames` rend des blocs `image` — le format qu'un modèle voit. Les images sont décodées **déjà réduites** (`getScaledFrameAtTime` : une image 4K pleine taille, c'est 33 Mo de bitmap), une extraction à la fois (`McpFrames.decoding`), parce que le décodage prend les mêmes cœurs que l'analyse.
+Trois erreurs y ont faussé ce qu'un agent lisait, sans qu'aucune requête n'échoue. Les identifiants d'évènement sont des **millisecondes epoch** (`nextEventId`) : une borne `Int` refusait chaque évènement réel de `get_event`. La confiance est stockée en **pourcentage** et promise sur `[0,1]` : `unitConfidence` convertit dans l'instantané, sinon `minConfidence: 0.6` gardait tout. Et `surveillanceActive` seul disait « caméra active » d'un objectif masqué : l'instantané porte `surveillanceStatus`, et `statusSince` est tenu côté natif d'une poussée à l'autre. Ce qui se décide sans Android vit dans `McpRules.java`, compilé et testé par `scripts/test-presence-native.sh` en CI — c'est le seul morceau du serveur qu'une PR ordinaire exécute. Enfin les connexions passent par `McpRules.ConnectionGate` (8 au total, 4 par pair) et une échéance de 15 s par requête : un délai par lecture se renouvelle à chaque octet, donc un pair du Wi-Fi qui en envoyait un par seconde gardait un thread pour toujours, dans le processus qui fait tourner la caméra. Un agent regarde une vidéo par **images**, pas par fichier : la ressource `video/` part en base64 d'un bloc (plafonnée à 20 Mo, illisible pour la plupart des clients), alors que `get_event_frames` rend des blocs `image` — le format qu'un modèle voit. Les images sont décodées **déjà réduites** (`getScaledFrameAtTime` : une image 4K pleine taille, c'est 33 Mo de bitmap), une extraction à la fois (`McpFrames.decoding`), parce que le décodage prend les mêmes cœurs que l'analyse. Recadrées sur le sujet (`framing: "subject"`), elles s'appuient sur la trace que chaque évènement garde (`subjectTrail.ts` : un point par seconde au plus, trente par clip) — stockée avec le journal, donc grossière exprès — et le cadre est **large** (`McpRules.subjectCrop`) : l'échantillon peut dater d'une seconde, et un recadrage qui coupe les mains est le zoom sur le visage que l'application a déjà abandonné.
 
-**Un agent pilote la caméra à travers l'application, jamais à côté.** Le pilotage existe parce qu'un agent qui ne peut que lire ne peut ni relancer une surveillance arrêtée ni relever un seuil qui enregistre le bruit. Trois verrous le tiennent, et aucun n'est décoratif. L'**interrupteur de l'appareil** (`mcpControlEnabled`, éteint par défaut) décide si les outils de pilotage existent — absents de `tools/list` sinon ; le **jeton de pilotage**, distinct du jeton de lecture, décide qui s'en sert, et la boucle locale lit sans jeton mais ne pilote jamais sans lui (`McpRules.principal`) : une autre app du téléphone ne doit pas pouvoir éteindre la caméra. Et le serveur ne touche à rien : une commande part en évènement vers le JS, `executeMcpCommand` l'exécute avec **les mêmes callbacks que les boutons** et répond — un « stop » d'agent est donc exactement le « stop » de l'écran, son de confirmation et journal compris. Six commandes, toutes réversibles d'un coup d'œil ; ce dont le dommage ne se découvre qu'après (suppression, zone, rétention, PIN, jeton) reste refusé par nom. Chaque appel, refus compris, va dans `agentLog.ts`, affiché dans Réglages. Le prix assumé : Android ne laisse démarrer un service caméra qu'application au premier plan, donc `start_surveillance` depuis l'arrière-plan est refusé avec la raison plutôt que tenté. `wait_for_event` est une longue attente (25 s au plus) sur le transport existant : le serveur n'a pas de flux pour pousser, et un agent qui interroge chaque seconde coûterait une requête et une place de connexion par seconde. Le jeton de pilotage **expire** (`mcpControlTtl`, 24 h par défaut), et c'est le serveur qui l'applique (`McpRules.controlLive`) : un JS endormi ne doit pas pouvoir prolonger un jeton. Expiré, il n'ouvre plus rien, pas même la lecture — c'est l'identifiant que le propriétaire voulait voir cesser, et le rétrograder en silence garderait un agent oublié à regarder. La notification de surveillance porte « Couper le pilotage » tant qu'un agent peut piloter : le serveur jette l'empreinte **avant** de prévenir le JS, donc aucun appel ne passe après le geste, quel que soit l'état du pont. Les prompts (`McpPrompts.java`) écrivent leurs fenêtres en instants calculés dans le fuseau du téléphone : un agent ne le connaît pas, et une nuit calculée en UTC est la mauvaise nuit pour tout le monde sauf Greenwich.
+**Un agent pilote la caméra à travers l'application, jamais à côté.** Le pilotage existe parce qu'un agent qui ne peut que lire ne peut ni relancer une surveillance arrêtée ni relever un seuil qui enregistre le bruit. Trois verrous le tiennent, et aucun n'est décoratif. L'**interrupteur de l'appareil** (`mcpControlEnabled`, éteint par défaut) décide si les outils de pilotage existent — absents de `tools/list` sinon ; le **jeton de pilotage**, distinct du jeton de lecture, décide qui s'en sert, et la boucle locale lit sans jeton mais ne pilote jamais sans lui (`McpRules.principal`) : une autre app du téléphone ne doit pas pouvoir éteindre la caméra. Et le serveur ne touche à rien : une commande part en évènement vers le JS, `executeMcpCommand` l'exécute avec **les mêmes callbacks que les boutons** et répond — un « stop » d'agent est donc exactement le « stop » de l'écran, son de confirmation et journal compris. Sept commandes, toutes réversibles d'un coup d'œil — la septième, `annotate_event`, ne fait qu'écrire un verdict que le propriétaire voit sur la carte et efface d'un geste ; ce dont le dommage ne se découvre qu'après (suppression, zone, rétention, PIN, jeton) reste refusé par nom. Chaque appel, refus compris, va dans `agentLog.ts`, affiché dans Réglages. Le prix assumé : Android ne laisse démarrer un service caméra qu'application au premier plan, donc `start_surveillance` depuis l'arrière-plan est refusé avec la raison plutôt que tenté. `wait_for_event` est une longue attente (25 s au plus) sur le transport existant : le serveur n'a pas de flux pour pousser, et un agent qui interroge chaque seconde coûterait une requête et une place de connexion par seconde. Le jeton de pilotage **expire** (`mcpControlTtl`, 24 h par défaut), et c'est le serveur qui l'applique (`McpRules.controlLive`) : un JS endormi ne doit pas pouvoir prolonger un jeton. Expiré, il n'ouvre plus rien, pas même la lecture — c'est l'identifiant que le propriétaire voulait voir cesser, et le rétrograder en silence garderait un agent oublié à regarder. La notification de surveillance porte « Couper le pilotage » tant qu'un agent peut piloter : le serveur jette l'empreinte **avant** de prévenir le JS, donc aucun appel ne passe après le geste, quel que soit l'état du pont. La **vue en direct** (`get_live_frame`) a son propre interrupteur, éteint par défaut : voir la pièce à la demande n'est pas relire ce qui a été filmé. Côté chemin d'image, `LiveFramePlugin` est appelé deux fois par seconde et ne lit qu'un volatile tant qu'aucune requête n'attend ; la copie YUV se fait sur le thread caméra parce que l'image n'est valide que là, tout le reste sur un thread à part. **HTTPS** est une option, pas le défaut — un client qui ne fait pas confiance au certificat cesserait de se connecter — et repose sur une autorité **propre au téléphone** : sa clé est dans l'Android Keystore, le propriétaire installe son certificat une fois, et le certificat serveur est réémis à la poignée de main suivante quand l'IP change (`McpTls.ReissuingKeyManager`). Épingler un certificat auto-signé aurait cassé chaque client au premier nouveau bail DHCP. `McpCertificates.java` construit le X.509 sans bibliothèque ; le test JVM le relit, vérifie la chaîne et s'en sert pour une vraie poignée de main TLS, refus d'une autre autorité compris. Les prompts (`McpPrompts.java`) écrivent leurs fenêtres en instants calculés dans le fuseau du téléphone : un agent ne le connaît pas, et une nuit calculée en UTC est la mauvaise nuit pour tout le monde sauf Greenwich.
 
 **Une erreur d'outil et une erreur de protocole ne vont pas au même endroit.**
 Ce partage n'est pas cosmétique : un outil qui
@@ -630,9 +637,13 @@ ne s'apprennent pas au moment où on en a besoin :
 - **R8 reste désactivé.** Toutes les dépendances lourdes atteignent du natif par
   leur nom : l'activer sans règles vérifiées sur matériel échange des mégaoctets
   contre un crash qu'aucun test unitaire ne voit.
-- **Aucune permission `INTERNET`.** Le formulaire *Data safety* répond « aucune
-  donnée collectée » sur cette foi, et chaque type de service de premier plan
-  doit être couvert par sa permission ; `playRelease.test.ts` tient la liste.
+- **`INTERNET` est déclarée, et seulement pour écouter.** Le direct Wi-Fi et le
+  serveur MCP sont deux serveurs locaux éteints par défaut ; rien n'ouvre de
+  connexion sortante, et `playRelease.test.ts` le vérifie dans les sources JS et
+  Kotlin. Le formulaire *Data safety* et `PRIVACY.md` reposent sur cette
+  affirmation-là — longtemps ils ont affirmé l'absence de la permission, qui
+  était fausse. Chaque type de service de premier plan doit être couvert par sa
+  permission ; le même test tient la liste.
 - **`bundleRelease` échoue sans la clé d'upload, et c'est voulu.** Un bundle
   mal signé coûte un `versionCode` définitivement brûlé dans la Play Console.
 
@@ -642,6 +653,10 @@ Jest, avec des mocks pour tout ce qui est natif (`__mocks__/`,
 `src/surveillance/__mocks__/`). `testing/mountProvider.tsx` monte
 `AppStateProvider` — lisez l'état à travers le handle, pas une copie
 déstructurée, qui fige le premier rendu.
+
+Ce qu'aucun mock ne prouve — capteur, encodeur, réseau, Android qui bride
+l'application — est listé dans `docs/DEVICE_CHECKS.md`, à dérouler sur
+téléphone avant une release qui y touche.
 
 Écrire un test qui ne peut pas échouer est pire que ne pas en écrire : plusieurs
 l'ont été ici et ont dû être réécrits. Vérifiez par mutation — cassez le code,

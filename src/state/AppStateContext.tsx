@@ -5,7 +5,7 @@ import { Linking } from 'react-native';
 import type { Camera as VisionCamera } from 'react-native-vision-camera';
 import { Camera as CameraModule, useCameraPermission, useMicrophonePermission } from 'react-native-vision-camera';
 import {
-  Camera, DetectionEvent, DetectionKind, DetectionZone, ExpandedSections, HistoryFilter, InfoPanel,
+  AgentNote, Camera, DetectionEvent, DetectionKind, SubjectSample, DetectionZone, ExpandedSections, HistoryFilter, InfoPanel,
   MaxDuration, OnboardingStep, Period, PermissionOutcome, Permissions, PostRoll, PresenceMode, Quality,
   Retention, Sensitivity, Settings, StorageInfo, Tab, VolumeSpace,
 } from './types';
@@ -69,6 +69,7 @@ import {
 import { AutoTuneLog, emptyAutoTuneLog, pushSample, sampleSteps } from '../camera/autoTuneLog';
 import { DeviceLoad, deviceLoadOf, UNKNOWN_DEVICE_LOAD } from '../camera/deviceLoad';
 import { ClipGapStats, EMPTY_CLIP_GAP_STATS, recordGap } from '../recording/clipGap';
+import { RawSample, recordSubject, trailSince } from '../recording/subjectTrail';
 import { t } from '../i18n';
 
 interface AppStateValue {
@@ -173,6 +174,7 @@ interface AppStateValue {
   // confirmations
   /** Holds or releases the selected passage as evidence (see `keptEventIds`). */
   toggleKeep: () => void;
+  setAgentNote: (eventId: number, note: AgentNote | null) => void;
   confirmDelete: boolean;
   askDelete: () => void;
   cancelDelete: () => void;
@@ -233,6 +235,8 @@ interface AppStateValue {
   generateMcpControlToken: () => void;
   clearMcpControlToken: () => void;
   cycleMcpControlTtl: () => void;
+  toggleMcpLiveFrame: () => void;
+  toggleMcpTls: () => void;
   /** Control calls made by agents, newest first (`agentLog.ts`). */
   agentLog: AgentAction[];
   /** Live state of the native MCP server, or MCP_SERVER_STOPPED when it is off. */
@@ -700,7 +704,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
    * so the session survives it and the next clip opens as soon as this one is
    * filed.
    */
-  type PendingClip = { kind: DetectionKind; dur: number; conf: number; rollover: boolean; passageId?: string; startedAt?: number; kinds?: DetectionKind[] };
+  type PendingClip = {
+    kind: DetectionKind; dur: number; conf: number; rollover: boolean; passageId?: string; startedAt?: number; kinds?: DetectionKind[];
+    subject?: SubjectSample[];
+  };
+  /** Where the session's subject has been, a sample a second — see `subjectTrail.ts`. */
+  const subjectTrailRef = useRef<RawSample[]>([]);
   const pendingRef = useRef(new Map<number, PendingClip>());
   const recordingMetaRef = useRef(new Map<number, PendingClip>());
   const sessionRecordingIdRef = useRef<number | null>(null);
@@ -779,6 +788,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const commitEvent = useCallback((
     kind: DetectionKind, dur: number, c: number, clip: Clip | null, at: number = Date.now(), passageId?: string, kinds?: DetectionKind[],
+    subject?: SubjectSample[],
   ) => {
     const now = at;
     setDetToday(v => v + 1);
@@ -794,6 +804,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         timestamp: now,
         ...(passageId ? { passageId } : {}),
         ...(kinds?.length ? { kinds } : {}),
+        // Only with a clip: it says where to look in a file, and there is none otherwise.
+        ...(clip && subject?.length ? { subject } : {}),
         // Prefer the encoder's own duration: it counts what is actually in the
         // file, including the post-roll, which our session timer does not.
         dur: clip && clip.duration > 0 ? Math.round(clip.duration) : dur,
@@ -832,6 +844,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     sessionKindsRef.current = new Set();
     sessionTrackIdRef.current = null;
     sessionRecordingIdRef.current = null;
+    subjectTrailRef.current = [];
     setDet(null);
     viewfinder.current?.setRecSec(0);
   }, []);
@@ -844,6 +857,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     startedAt: segmentStartRef.current,
     dur: Math.max(1, Math.round((Date.now() - segmentStartRef.current) / 1000)),
     conf: Math.round(sessionMaxConfRef.current * 100),
+    subject: trailSince(subjectTrailRef.current, segmentStartRef.current),
   }), []);
 
   const onRecordingStarted = useCallback((id: number) => {
@@ -910,7 +924,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (!pending && ownsActive && !clip.continued) clearSession();
         const at = clip.startedAt ?? meta!.startedAt ?? Date.now();
         renameRecording(clip.path, clipFileName(meta!.kind, at)).then(path => {
-          const id = commitEvent(meta!.kind, meta!.dur, meta!.conf, { ...clip, path }, at, meta!.passageId, meta!.kinds);
+          const id = commitEvent(meta!.kind, meta!.dur, meta!.conf, { ...clip, path }, at, meta!.passageId, meta!.kinds, meta!.subject);
           // The snapshot taken as the clip opened is the better picture — it is
           // the frame that says why the clip exists — but it needs a preview to
           // screenshot, and there is none with the screen off. That is most of
@@ -999,6 +1013,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     const primary = primaryTrack(tracksRef.current, primaryIdRef.current);
     segmentStartRef.current = Date.now();
     sessionMaxConfRef.current = primary ? primary.maxConfidence : 0;
+    subjectTrailRef.current = subjectTrailRef.current.filter(sample => sample.at >= segmentStartRef.current);
   }, [sessionMeta]);
 
   const legacyRecorder = useRecorder({
@@ -1249,6 +1264,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         sessionStartRef.current = Math.max(positiveStartRef.current.get(primary.id) ?? frameAt, lastClosedAtRef.current);
         segmentStartRef.current = sessionStartRef.current;
         sessionMaxConfRef.current = primary.maxConfidence;
+        subjectTrailRef.current = [];
         shown?.setRecSec(0);
         // Refuse to start on a nearly full volume rather than letting the
         // encoder fail mid-clip and lose the whole passage.
@@ -1283,6 +1299,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         sessionMaxConfRef.current = Math.max(sessionMaxConfRef.current, primary.maxConfidence);
         shown?.setRecSec(Math.floor((now - sessionStartRef.current) / 1000));
       }
+      recordSubject(subjectTrailRef.current, frameAt, primary.box);
       const recordingId = recordingIdRef.current();
       for (const track of observed) if (track.confirmed) sessionKindsRef.current.add(track.kind);
       if (recordingId != null && sessionKindRef.current != null) {
@@ -1618,6 +1635,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  /** An agent's verdict on one event (`annotate_event`), or null to clear it — the owner's gesture. */
+  const setAgentNote = useCallback((eventId: number, note: AgentNote | null) => {
+    setEvents(evs => {
+      if (!evs.some(e => e.id === eventId)) return evs;
+      return evs.map(e => {
+        if (e.id !== eventId) return e;
+        if (note) return { ...e, agentNote: note };
+        const rest = { ...e };
+        delete rest.agentNote;
+        return rest;
+      });
+    });
+  }, []);
+
   const toggleKeep = useCallback(() => {
     if (!selectedEvent) return;
     const keep = !keptEventIds(events).has(selectedEvent.id);
@@ -1752,13 +1783,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (settings.mcpEnabled) {
       startMcpServer(
         settings.mcpPort, settings.mcpToken, settings.mcpControlToken, settings.mcpControlEnabled, settings.mcpControlExpiresAt,
+        settings.mcpTls,
       ).then(setMcpStatus).catch(() => {
         setMcpStatus({ ...MCP_SERVER_STOPPED, port: settings.mcpPort });
       });
     } else {
       stopMcpServer().then(() => setMcpStatus({ ...MCP_SERVER_STOPPED, port: settings.mcpPort }));
     }
-  }, [hydrated, settings.mcpEnabled, settings.mcpPort, settings.mcpToken, settings.mcpControlToken, settings.mcpControlEnabled, settings.mcpControlExpiresAt]);
+  }, [hydrated, settings.mcpEnabled, settings.mcpPort, settings.mcpToken, settings.mcpControlToken, settings.mcpControlEnabled, settings.mcpControlExpiresAt, settings.mcpTls]);
 
   /**
    * The last time a client actually asked something.
@@ -1804,6 +1836,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       ...(settings.mcpControlToken ? { mcpControlExpiresAt: controlExpiry(mcpControlTtl, Date.now()) } : {}),
     });
   }, [patchSettings, settings.mcpControlTtl, settings.mcpControlToken]);
+
+  const toggleMcpTls = useCallback(() => {
+    patchSettings({ mcpTls: !settings.mcpTls });
+  }, [patchSettings, settings.mcpTls]);
+
+  const toggleMcpLiveFrame = useCallback(() => {
+    patchSettings({ mcpLiveFrameEnabled: !settings.mcpLiveFrameEnabled });
+  }, [patchSettings, settings.mcpLiveFrameEnabled]);
 
   /**
    * "Couper le pilotage" on the notification. The native server has already
@@ -2005,7 +2045,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   }, []);
   const commandDepsRef = useLatest({
     monitoring, foreground, cameraPermission: perms.cam, status: surveillanceStatus, settings, events,
-    toggleMonitoring, setSensitivity, setThreshold, setAnimalThreshold, setKept, acknowledgeMove: acknowledgeMoveCb,
+    toggleMonitoring, setSensitivity, setThreshold, setAnimalThreshold, setKept, setAgentNote, acknowledgeMove: acknowledgeMoveCb,
   });
   useEffect(() => {
     if (!hydrated || !settings.mcpEnabled || !settings.mcpControlEnabled) return;
@@ -2075,25 +2115,25 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     recording: isRecording, recError: visibleError, surveillanceStatus, captureRevision, retryCapture, acknowledgeMove: acknowledgeMoveCb, openCaptureSettings, openStorageSettings, clipGap, autoTune, autoTuneLog: autoTuneLogRef, deviceLoad: deviceLoadRef, storage: store, cameraRef, foreground, reportCameraProblem, reportCameraError, cameraHealth: recovery.health, cameraActive, reportFrameStage,
     toggleMonitoring, reportDetections,
     events, filter, setFilter, period, setPeriod, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent, historyLocked, unlockHistory, identityAvailable,
-    toggleKeep, confirmDelete, askDelete, cancelDelete, doDelete,
+    toggleKeep, setAgentNote, confirmDelete, askDelete, cancelDelete, doDelete,
     pendingBulkDelete, askDeleteMany, cancelDeleteMany, doDeleteMany,
     confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo,
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
     hydrated, tab, monitoring, det, detToday, lastDetAt,
     isRecording, visibleError, surveillanceStatus, captureRevision, retryCapture, acknowledgeMoveCb, openCaptureSettings, openStorageSettings, clipGap, autoTune, autoTuneLogRef, deviceLoadRef, store, cameraRef, foreground, reportCameraProblem, reportCameraError, recovery, cameraActive, reportFrameStage, toggleMonitoring, reportDetections,
     events, filter, period, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent, historyLocked, unlockHistory, identityAvailable,
-    toggleKeep, confirmDelete, askDelete, cancelDelete, doDelete, pendingBulkDelete, askDeleteMany, cancelDeleteMany, doDeleteMany,
+    toggleKeep, setAgentNote, confirmDelete, askDelete, cancelDelete, doDelete, pendingBulkDelete, askDeleteMany, cancelDeleteMany, doDeleteMany,
     confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo, onb, perms, onbNext, onbFinish, grantPermission,
   ]);
 

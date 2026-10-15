@@ -6,7 +6,17 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ## [Non publié]
 
+### Confidentialité
+- La politique de confidentialité décrivait le serveur MCP comme « strictement en lecture seule » ; elle décrit désormais la lecture, la vue en direct et le pilotage, chacun avec son interrupteur.
+- « Exporter comme preuve » (fiche d’un évènement) : tous les clips du passage et un rapport texte — horaires, genres vus, segments manquants, empreinte SHA-256 de chaque fichier avec la commande pour la vérifier — partagés en une seule fois.
+- La politique de confidentialité, la fiche Play et la réponse au formulaire *Data safety* disent enfin vrai : la permission `INTERNET` est déclarée, pour les deux serveurs locaux optionnels (direct Wi-Fi, serveur MCP), éteints par défaut ; l’application n’ouvre aucune connexion sortante, et un test le vérifie dans tout le code.
+- « Ce qu’un assistant IA peut voir et faire » (Réglages, bloc confidentialité) ouvre la page « Services MCP » même serveur éteint.
+
 ### Serveur MCP
+- HTTPS (Réglages → Serveur MCP → « Chiffrer les connexions », éteint par défaut) : une autorité propre au téléphone, dont la clé reste dans l’Android Keystore, émet le certificat du serveur pour son adresse du moment ; on installe une fois son certificat sur l’ordinateur de l’agent et on compare l’empreinte affichée. Un changement d’adresse IP ne casse plus la connexion.
+- Vue en direct pour l’agent (Réglages → Serveur MCP, éteinte par défaut) : nouvel outil `get_live_frame`, une image de ce que voit la caméra pendant la surveillance, sans rien enregistrer.
+- Nouvel outil de pilotage `annotate_event` : l’agent laisse son verdict (fausse alerte, attendu, à regarder) et une courte note sur un évènement ; ils s’affichent sur la carte de l’Historique et dans la fiche, où « Effacer la note » les retire.
+- `get_event_frames` peut recadrer chaque image sur le sujet (`framing: "subject"`) : chaque évènement garde désormais où se trouvait le sujet pendant le clip, un point par seconde au plus.
 - Page « Services MCP » (Réglages → Serveur MCP → « Voir les services MCP ») : chaque outil de lecture et de pilotage, les prompts, les ressources et ce qu’aucun agent ne peut faire, avec l’état du serveur et ce qui empêche le pilotage le cas échéant (serveur arrêté, non autorisé, sans jeton, jeton expiré).
 - Jeton de pilotage à durée limitée (1 h, 24 h par défaut, ou sans limite), appliquée par le serveur : expiré, il n’ouvre plus rien. Tant qu’un agent peut piloter, la notification de surveillance propose « Couper le pilotage », qui le révoque d’un geste, écran verrouillé compris.
 - Le serveur s’annonce sur le Wi-Fi (DNS-SD `_novaguard-mcp._tcp`) : un client retrouve le téléphone quand son adresse change. La configuration du client s’affiche aussi en QR code dans Réglages.

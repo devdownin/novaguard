@@ -123,6 +123,8 @@ it('writes each control back to disk', async () => {
     state.cycleMax();
     state.cycleQuality();
     state.cycleMcpControlTtl();
+    state.toggleMcpLiveFrame();
+    state.toggleMcpTls();
   });
 
   expect(await storedSettings()).toMatchObject({
@@ -145,6 +147,8 @@ it('writes each control back to disk', async () => {
     animalThreshold: 85,
     retention: '1 jour',
     mcpControlTtl: 'Toujours',
+    mcpLiveFrameEnabled: !defaultSettings.mcpLiveFrameEnabled,
+    mcpTls: !defaultSettings.mcpTls,
   });
 });
 
