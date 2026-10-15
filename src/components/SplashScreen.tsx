@@ -3,8 +3,9 @@ import { Animated, Image, StyleSheet, Text, View } from 'react-native';
 import { color, font } from '../theme';
 import { t } from '../i18n';
 import {
-  CameraIcon, DogIcon, PersonIcon, ShieldHomeIcon, ShieldLockIcon,
+  CameraIcon, DogIcon, PersonIcon, ShieldLockIcon,
 } from './icons';
+import { ShieldLogo } from './ShieldLogo';
 
 const HOUSE_IMAGE = require('../../assets/splash/house-night.png');
 
@@ -136,7 +137,7 @@ export function SplashScreen() {
         </View>
 
         <View style={styles.wordmarkRow}>
-          <ShieldHomeIcon size={34} color={color.accent} />
+          <ShieldLogo size={34} />
           <Text style={styles.wordmark}>
             <Text style={styles.wordmarkAccent}>Nova</Text>
             <Text style={styles.wordmarkWhite}>Guard</Text>

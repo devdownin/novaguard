@@ -13,6 +13,7 @@ import { groupPassages } from '../recording/passages';
 import { daySummary } from '../recording/daySummary';
 import { DaySummaryCard } from '../components/DaySummaryCard';
 import { FadeInView } from '../components/FadeInView';
+import { QuietNightIllustration } from '../components/QuietNightIllustration';
 import { formatDay } from '../utils/date';
 import { useLandscape } from '../utils/useLandscape';
 import { t, tn } from '../i18n';
@@ -35,12 +36,16 @@ function ItemSeparator() {
  * history the retention has emptied. The first is a new user's first screen and
  * deserves a next step, not a negation.
  */
-function EmptyHistory({ hasAnyEvent, onReset }: { hasAnyEvent: boolean; onReset: () => void }) {
+function EmptyHistory({ hasAnyEvent, onReset, onOpenCamera }: {
+  hasAnyEvent: boolean; onReset: () => void; onOpenCamera: () => void;
+}) {
   if (!hasAnyEvent) {
     return (
       <View style={styles.emptyWrap}>
-        <Text style={styles.emptyTitle}>{t('hist.empty.never')}</Text>
+        <QuietNightIllustration />
+        <Text style={[styles.emptyTitle, styles.emptyTitleNever]}>{t('hist.empty.never')}</Text>
         <Text style={styles.emptyBody}>{t('hist.empty.never.sub')}</Text>
+        <PrimaryOutlineButton label={t('hist.empty.never.action')} onPress={onOpenCamera} style={styles.emptyAction} />
       </View>
     );
   }
@@ -72,7 +77,7 @@ function LockedHistory({ onUnlock }: { onUnlock: () => void }) {
 export function HistoryScreen() {
   const {
     events, filter, setFilter, period, setPeriod, periodOpen, togglePeriodOpen, selectEvent,
-    historyLocked, unlockHistory, askDeleteMany,
+    historyLocked, unlockHistory, askDeleteMany, setTab,
   } = useAppState();
   const { shown } = useFilteredEvents(true);
   const landscape = useLandscape();
@@ -195,7 +200,7 @@ export function HistoryScreen() {
             </View>
           ))}
         ItemSeparatorComponent={ItemSeparator}
-        ListEmptyComponent={<EmptyHistory hasAnyEvent={events.length > 0} onReset={resetFilters} />}
+        ListEmptyComponent={<EmptyHistory hasAnyEvent={events.length > 0} onReset={resetFilters} onOpenCamera={() => setTab('cam')} />}
       />
     </View>
   );
@@ -284,6 +289,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: color.neutral300,
     textAlign: 'center',
+  },
+  emptyTitleNever: {
+    fontFamily: font.semibold,
+    fontSize: 17,
+    color: color.text,
+    marginTop: 6,
   },
   emptyBody: {
     fontFamily: font.regular,
