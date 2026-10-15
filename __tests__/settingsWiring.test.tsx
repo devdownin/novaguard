@@ -114,6 +114,7 @@ it('writes each control back to disk', async () => {
     state.saveZone({ x: 0.5, y: 0.3, width: 0.5, height: 0.7 });
     state.setSensitivity('Haute');
     state.setThreshold(42);
+    state.setAnimalThreshold(85);
     state.setRetention('1 jour');
     state.cycleCamera();
     state.cyclePost();
@@ -136,6 +137,7 @@ it('writes each control back to disk', async () => {
     zone: { x: 0.5, y: 0.3, width: 0.5, height: 0.7 },
     sens: 'Haute',
     threshold: 42,
+    animalThreshold: 85,
     retention: '1 jour',
   });
 });
@@ -213,6 +215,21 @@ describe('the confidence threshold', () => {
 
     await seePerson(handle, 0.6);
     expect(handle.state.det).toBe('Personne');
+  });
+
+  it('judges an animal against the animal threshold, and a person against the other', async () => {
+    const handle = await mountProvider();
+    await ReactTestRenderer.act(async () => { handle.state.setThreshold(50); handle.state.setAnimalThreshold(80); });
+    const seeAnimal = async (confidence: number) => {
+      await ReactTestRenderer.act(async () => {
+        handle.state.reportDetections([{ ...person(0.3, confidence), kind: 'Animal' }], 9 / 16);
+        handle.state.reportDetections([{ ...person(0.31, confidence), kind: 'Animal' }], 9 / 16);
+      });
+    };
+    await seeAnimal(0.7);
+    expect(handle.state.det).toBeNull();
+    await seeAnimal(0.9);
+    expect(handle.state.det).toBe('Animal');
   });
 
   it('keeps a session alive on looks that could not have opened it', async () => {

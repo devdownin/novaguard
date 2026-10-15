@@ -198,8 +198,9 @@ export const fr = {
   'setup.sens.hint.Basse': '1 image par seconde — économe : une seule image suffit à déclencher, mais elle doit être plus nette',
   'setup.sens.hint.Moyenne': '3 images par seconde — confirme un sujet sur deux images consécutives',
   'setup.sens.hint.Haute': '5 images par seconde — la plus réactive et la plus indulgente, batterie la plus sollicitée',
-  'setup.threshold': 'Seuil de confiance',
-  'setup.threshold.summary': 'Seuil de confiance : {value} % · réglable dans Avancé',
+  'setup.threshold': 'Seuil de confiance · personnes',
+  'setup.threshold.summary': 'Seuil de confiance : {person} % personnes, {animal} % animaux · réglable dans Avancé',
+  'setup.threshold.animal': 'Seuil de confiance · animaux',
 
   'setup.post': 'Marge de tolérance',
   'setup.post.sub': 'Durée maximale conservée après la dernière détection positive.',

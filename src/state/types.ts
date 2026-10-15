@@ -140,6 +140,8 @@ export interface Settings {
   animal: boolean;
   sens: Sensitivity;
   threshold: number;
+  /** The same entry gate for animals, in percent (see `animalStartConfidence`). */
+  animalThreshold: number;
   /** Cinematic auto-zoom: ease in on a detected person, whole, hold, then pull back to the scene. */
   autoZoom: boolean;
   /**

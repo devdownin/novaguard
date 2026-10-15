@@ -62,12 +62,13 @@ export const SENSITIVITY_PROFILES: Record<Sensitivity, SensitivityProfile> = {
  * the slider (95 %) would otherwise ask for 1.05, which no detection can reach,
  * and the sensitivity setting would silently switch detection off entirely.
  */
-export function trackerOptionsFor(sens: Sensitivity, threshold: number): TrackerOptions {
+export function trackerOptionsFor(sens: Sensitivity, threshold: number, animalThreshold = threshold): TrackerOptions {
   const profile = SENSITIVITY_PROFILES[sens];
-  const startConfidence = threshold / 100 + profile.startConfidenceBonus;
+  const gate = (percent: number) => Math.min(Math.max(percent / 100 + profile.startConfidenceBonus, 0), 1);
   return {
     ...DEFAULT_TRACKER_OPTIONS,
     confirmAfter: profile.confirmAfter,
-    startConfidence: Math.min(Math.max(startConfidence, 0), 1),
+    startConfidence: gate(threshold),
+    animalStartConfidence: gate(animalThreshold),
   };
 }

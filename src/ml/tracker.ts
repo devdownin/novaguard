@@ -53,6 +53,14 @@ export interface Track {
   confirmed: boolean;
   firstSeen: number;
   lastSeen: number;
+  /**
+   * Where the subject has been standing, and since when: reset whenever a look
+   * lands clearly elsewhere (`STILL_IOU`). A track that never leaves its anchor
+   * is a coat on a hook or a poster as far as the camera can tell — see
+   * `scenery.ts`, which decides what that means.
+   */
+  anchor: DetectionBox;
+  anchorSince: number;
 }
 
 export interface TrackerOptions {
@@ -88,6 +96,21 @@ export interface TrackerOptions {
    */
   startConfidence: number;
   /**
+   * The same gate for animals, which the user sets apart: a cat at the far end
+   * of a room scores well under a person at the same distance, while shadows
+   * and folded clothes read as dogs. One number cannot serve both. Defaults to
+   * `startConfidence`.
+   */
+  animalStartConfidence?: number;
+  /**
+   * Smallest longer side, as a fraction of the frame, a detection must have to
+   * *open* a track. Below it a box is a handful of pixels in the model's input:
+   * what the detector produces there is mostly texture, and one such look is
+   * enough to open a recording at "Basse". A track already open still follows
+   * its subject down to `MIN_BOX_SIDE` as they walk away.
+   */
+  minStartSide: number;
+  /**
    * How fast a subject's centre may travel and still be recognised once the
    * boxes no longer overlap: multiples of its own diagonal **per second**.
    *
@@ -116,8 +139,16 @@ export const DEFAULT_TRACKER_OPTIONS: TrackerOptions = {
   confirmAfter: 2,
   dropAfterMs: 1200,
   startConfidence: 0.6,
+  minStartSide: 0.03,
   maxTravelPerSecond: 3,
 };
+
+/**
+ * Overlap with its anchor above which a look counts as the subject not having
+ * moved. High on purpose: a box around something inanimate jitters by a few
+ * pixels between looks, a person shifting their weight moves it by more.
+ */
+export const STILL_IOU = 0.85;
 
 /** How much of a new velocity estimate to believe. One noisy box must not fling the prediction. */
 const VELOCITY_SMOOTHING = 0.5;
@@ -352,6 +383,7 @@ export function updateTracks(
     const stepY = moved ? (detection.box.y + detection.box.height / 2
       - (track.box.y + track.box.height / 2)) / dt : 0;
     const evidence = evidenceWith(track, detection);
+    const still = iou(detection.box, track.anchor) >= STILL_IOU;
     next.push({
       ...track,
       kind: dominantKind(track.kind, evidence),
@@ -367,6 +399,8 @@ export function updateTracks(
       misses: 0,
       confirmed: track.confirmed || hits >= options.confirmAfter,
       lastSeen: now,
+      anchor: still ? track.anchor : detection.box,
+      anchorSince: still ? track.anchorSince : now,
     });
   });
 
@@ -374,7 +408,11 @@ export function updateTracks(
     if (takenDetections.has(d)) return;
     // A weak detection may keep a track alive but never start one: an unmatched
     // box below the user's threshold is, as far as this app can tell, noise.
-    if (detection.confidence < options.startConfidence) return;
+    const gate = detection.kind === 'Animal'
+      ? options.animalStartConfidence ?? options.startConfidence
+      : options.startConfidence;
+    if (detection.confidence < gate) return;
+    if (Math.max(detection.box.width, detection.box.height) < options.minStartSide) return;
     next.push({
       id: nextId++,
       kind: detection.kind,
@@ -392,6 +430,8 @@ export function updateTracks(
       confirmed: options.confirmAfter <= 1,
       firstSeen: now,
       lastSeen: now,
+      anchor: detection.box,
+      anchorSince: now,
     });
   });
 

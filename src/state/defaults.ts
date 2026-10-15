@@ -16,6 +16,7 @@ export const defaultSettings: Settings = {
    * across any line drawn through it.
    */
   threshold: 60,
+  animalThreshold: 60,
   autoZoom: true,
   autoTune: true,
   forceCpu: false,

@@ -17,6 +17,7 @@ import { useForeground } from './useForeground';
 import { useLatest } from '../utils/useLatest';
 import { confirmTap } from '../utils/haptics';
 import { FrameDetection } from '../ml/types';
+import { rememberScenery, SceneryMark, withoutScenery } from '../ml/scenery';
 import { confirmedTracksIfChanged, primaryTrack, Track, updateTracks } from '../ml/tracker';
 import { trackerOptionsFor } from '../ml/sensitivity';
 import { detectionsInZone } from '../ml/zone';
@@ -203,6 +204,7 @@ interface AppStateValue {
   saveZone: (zone: DetectionZone | null) => void;
   setSensitivity: (s: Sensitivity) => void;
   setThreshold: (v: number) => void;
+  setAnimalThreshold: (v: number) => void;
   cyclePost: () => void;
   setPresenceMode: (mode: PresenceMode) => void;
   cycleTolerance: () => void;
@@ -647,6 +649,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const segmentStartRef = useRef(0);
   const sessionMaxConfRef = useRef(0);
   const tracksRef = useRef<Track[]>([]);
+  const sceneryRef = useRef<SceneryMark[]>([]);
   /**
    * The subject currently being followed, so `primaryTrack` can keep it rather
    * than reshuffling two people who score within a hundredth of each other.
@@ -1036,6 +1039,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (!monitoringRef.current || !perms.cam) return;
     endSession();
     tracksRef.current = [];
+    sceneryRef.current = [];
     positiveStartRef.current.clear();
     primaryIdRef.current = null;
     viewfinder.current?.setTracks(() => []);
@@ -1151,11 +1155,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // buys frames and pays for them in corroboration it can no longer afford.
     const running = tunedSettings(settingsRef.current, autoTuneRef.current);
     const next = updateTracks(tracksRef.current, watched, frameAt,
-      trackerOptionsFor(running.sens, running.threshold));
+      trackerOptionsFor(running.sens, running.threshold, running.animalThreshold));
     tracksRef.current = next;
+    // Scenery — a confirmed subject that has not moved for minutes, a coat or a
+    // poster as far as the camera can tell — neither opens nor holds a session,
+    // and is not drawn as a detection. Tracked all the same, so the first move
+    // brings it back (see `scenery.ts`).
+    sceneryRef.current = rememberScenery(sceneryRef.current, next, frameAt);
+    const live = withoutScenery(next, sceneryRef.current, frameAt);
     // Keep the previous array when nothing moved: every other setter here
     // already bails on `Object.is`, so this is what makes a still scene free.
-    shown?.setTracks(prev => confirmedTracksIfChanged(prev, next));
+    shown?.setTracks(prev => confirmedTracksIfChanged(prev, live));
 
     for (const track of next) {
       if (track.misses === 0 && !positiveStartRef.current.has(track.id)) positiveStartRef.current.set(track.id, frameAt);
@@ -1163,7 +1173,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
     const liveIds = new Set(next.map(track => track.id));
     for (const id of positiveStartRef.current.keys()) if (!liveIds.has(id)) positiveStartRef.current.delete(id);
-    const observed = usesBufferedCapture(settingsRef.current.post) ? next.filter(track => track.misses === 0) : next;
+    const observed = usesBufferedCapture(settingsRef.current.post) ? live.filter(track => track.misses === 0) : live;
     const primary = primaryTrack(observed, primaryIdRef.current);
     primaryIdRef.current = primary ? primary.id : null;
     shown?.setPrimaryTrackId(primaryIdRef.current);
@@ -1236,7 +1246,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       // into a string of sub-second files. While the tracker still holds a
       // confirmed track the window stays open and the next positive extends it;
       // once the track is let go the file still ends at the last positive look.
-      if (next.some(track => track.confirmed)) return;
+      if (live.some(track => track.confirmed)) return;
       lastClosedAtRef.current = frameAt;
       endSession();
       return;
@@ -1275,6 +1285,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (monitoring) {
       endSession();
       tracksRef.current = [];
+      sceneryRef.current = [];
       primaryIdRef.current = null;
       viewfinder.current?.setTracks(() => []);
       sawFrameRef.current = false;
@@ -1837,6 +1848,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const setSensitivity = useCallback((s: Sensitivity) => patchSettings({ sens: s }), [patchSettings]);
   const setThreshold = useCallback((v: number) => patchSettings({ threshold: v }), [patchSettings]);
+  const setAnimalThreshold = useCallback((v: number) => patchSettings({ animalThreshold: v }), [patchSettings]);
   const setRetention = useCallback((r: Retention) => patchSettings({ retention: r }), [patchSettings]);
 
   // ── info panel ───────────────────────────────────────────────────────
@@ -1921,7 +1933,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
-    setSensitivity, setThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
+    setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
     toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo,
     onb, perms, onbNext, onbFinish, grantPermission,
@@ -1933,7 +1945,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
-    setSensitivity, setThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
+    setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
     toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo, onb, perms, onbNext, onbFinish, grantPermission,
   ]);

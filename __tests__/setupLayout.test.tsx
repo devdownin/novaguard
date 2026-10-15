@@ -119,11 +119,11 @@ describe('Avancé', () => {
   it('keeps the expert controls out of the sections everyone opens', async () => {
     const tree = await boot({ det: true });
     const lines = texts(tree);
-    for (const key of ['setup.threshold', 'setup.forceCpu', 'setup.autoTuneSwitch'] as const) {
+    for (const key of ['setup.threshold', 'setup.threshold.animal', 'setup.forceCpu', 'setup.autoTuneSwitch'] as const) {
       expect(lines).not.toContain(t(key));
     }
     // The threshold still decides what opens a recording: its value stays readable.
-    expect(lines).toContain(t('setup.threshold.summary', { value: defaultSettings.threshold }));
+    expect(lines).toContain(t('setup.threshold.summary', { person: defaultSettings.threshold, animal: defaultSettings.animalThreshold }));
     expect(lines).toContain(t('setup.section.adv'));
     expect(lines).not.toContain(t('setup.section.mcp'));
     expect(lines).not.toContain(t('setup.section.stream'));
@@ -131,7 +131,7 @@ describe('Avancé', () => {
 
   it('holds them once opened, with the two servers', async () => {
     const lines = texts(await boot({ adv: true }));
-    for (const key of ['setup.threshold', 'setup.forceCpu', 'setup.autoTuneSwitch', 'setup.section.mcp', 'setup.section.stream'] as const) {
+    for (const key of ['setup.threshold', 'setup.threshold.animal', 'setup.forceCpu', 'setup.autoTuneSwitch', 'setup.section.mcp', 'setup.section.stream'] as const) {
       expect(lines).toContain(t(key));
     }
   });

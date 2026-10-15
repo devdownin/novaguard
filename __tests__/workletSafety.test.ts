@@ -138,6 +138,8 @@ const WORKLET_SOURCES = worklettedSources(resolve(ROOT, 'src'));
 const INTERPRET = resolve(ROOT, 'src/ml/interpretDetections.ts');
 const ORIENTATION = resolve(ROOT, 'src/camera/orientation.ts');
 const LETTERBOX = resolve(ROOT, 'src/ml/letterbox.ts');
+const ANALYSIS_CROP = resolve(ROOT, 'src/ml/analysisCrop.ts');
+const LOW_LIGHT = resolve(ROOT, 'src/ml/lowLight.ts');
 
 describe('worklet closures', () => {
   it('covers every file that declares one', () => {
@@ -145,7 +147,7 @@ describe('worklet closures', () => {
     // the frame processor would otherwise leave this whole suite passing on
     // nothing at all.
     expect(WORKLET_SOURCES.map(f => basename(f)).sort()).toEqual([
-      'CameraFeed.tsx', 'interpretDetections.ts', 'letterbox.ts', 'orientation.ts',
+      'CameraFeed.tsx', 'analysisCrop.ts', 'interpretDetections.ts', 'letterbox.ts', 'lowLight.ts', 'orientation.ts',
     ]);
   });
 
@@ -170,6 +172,8 @@ describe('worklet closures', () => {
     const orientation = loadCompiled(ORIENTATION);
     const interpret = loadCompiled(INTERPRET);
     const letterbox = loadCompiled(LETTERBOX);
+    const analysisCrop = loadCompiled(ANALYSIS_CROP);
+    const lowLight = loadCompiled(LOW_LIGHT);
 
     for (const [name, fn] of [
       ['uprightRotation', orientation.uprightRotation],
@@ -178,6 +182,10 @@ describe('worklet closures', () => {
       ['interpretDetections', interpret.interpretDetections],
       ['letterboxFor', letterbox.letterboxFor],
       ['letterboxInto', letterbox.letterboxInto],
+      ['cropInBuffer', analysisCrop.cropInBuffer],
+      ['liftShadows', lowLight.liftShadows],
+      ['meanLuma', lowLight.meanLuma],
+      ['gammaFor', lowLight.gammaFor],
     ] as const) {
       expect(`${name}: ${typeof fn.__workletHash}`).toBe(`${name}: number`);
     }
@@ -191,6 +199,15 @@ describe('worklet closures', () => {
       .filter(([, value]) => typeof value === 'function' && value.__workletHash == null)
       .map(([key]) => key);
 
+    expect(unshareable).toEqual([]);
+  });
+
+  it('carries no bare function into the low-light worklet either', () => {
+    const closure = loadCompiled(LOW_LIGHT).liftShadows.__closure as Record<string, any>;
+    const unshareable = Object.entries(closure)
+      .filter(([, value]) => typeof value === 'function' && value.__workletHash == null)
+      .map(([key]) => key);
+    expect(Object.keys(closure)).toEqual(expect.arrayContaining(['gammaFor', 'meanLuma']));
     expect(unshareable).toEqual([]);
   });
 });
@@ -235,6 +252,12 @@ describe('the compiled analysis worklet', () => {
       uprightRotation: () => '0deg',
       swapsAxes: () => false,
       letterboxFor: () => inner,
+      cropInBuffer: (x: number, y: number, width: number, height: number) => ({ x, y, width, height }),
+      liftShadows: () => 1,
+      cropX: 0,
+      cropY: 0,
+      cropWidth: 1,
+      cropHeight: 1,
       letterboxInto: () => new Uint8Array(320 * 320 * 3),
       model: { runSync: () => [new Float32Array(4), new Float32Array(1), new Float32Array(1), Float32Array.from([0])] },
       interpretDetections: () => [],
@@ -311,6 +334,42 @@ describe('the compiled analysis worklet', () => {
     expect(occurrences(/model\.runSync\(/g)).toBe(1);
     expect(occurrences(/detectFaces\(frame\)/g)).toBe(1);
     expect(occurrences(/onJsFrame\(/g)).toBe(1);
+  });
+
+  it('shows the model only the zone\'s surroundings, and maps the boxes back', () => {
+    const resize = jest.fn(() => new Uint8Array(180 * 320 * 3));
+    const interpretDetections = jest.fn(() => []);
+    // Landscape-held: the buffer is uprighted by a quarter turn, so the crop
+    // has to be expressed in the buffer's own axes.
+    const closure = closureFor({
+      resize, interpretDetections,
+      frame: { width: 1920, height: 1080, orientation: 'landscape-right' },
+      uprightRotation: () => '90deg',
+      cropInBuffer: loadCompiled(ANALYSIS_CROP).cropInBuffer,
+      cropX: 0.5, cropY: 0.25, cropWidth: 0.5, cropHeight: 0.5,
+    });
+    runAnalysis(closure);
+    const [, options] = resize.mock.calls[0] as unknown as [unknown, { crop: unknown; rotation: string }];
+    expect(options.rotation).toBe('90deg');
+    // Upright (u, v) comes from buffer (v, 1 - u): x ∈ [0.25, 0.75] of 1920, y ∈ [0, 0.5] of 1080.
+    expect(options.crop).toEqual({ x: 480, y: 0, width: 960, height: 540 });
+    expect(interpretDetections).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      cropX: 0.5, cropY: 0.25, cropWidth: 0.5, cropHeight: 0.5,
+    }));
+  });
+
+  it('brightens the model input itself, after letterboxing, before inference', () => {
+    const input = new Uint8Array(320 * 320 * 3);
+    const order: string[] = [];
+    const liftShadows = jest.fn(() => { order.push('lift'); return 1; });
+    const closure = closureFor({
+      letterboxInto: () => input,
+      liftShadows,
+      model: { runSync: () => { order.push('infer'); return [new Float32Array(4), new Float32Array(1), new Float32Array(1), Float32Array.from([0])]; } },
+    });
+    runAnalysis(closure);
+    expect(liftShadows).toHaveBeenCalledWith(input, 180, 320, 320, 3);
+    expect(order).toEqual(['lift', 'infer']);
   });
 
   it('hands a frame it analysed to the JS thread', () => {

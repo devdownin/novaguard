@@ -22,6 +22,15 @@ export interface InterpretOptions {
    */
   scaleX: number;
   scaleY: number;
+  /**
+   * The region of the uprighted frame the model was shown (see
+   * `analysisCrop.ts`), so its coordinates — fractions of that region — come
+   * back as fractions of the whole frame. The full frame when omitted.
+   */
+  cropX?: number;
+  cropY?: number;
+  cropWidth?: number;
+  cropHeight?: number;
 }
 
 /**
@@ -122,10 +131,14 @@ export function interpretDetections(outputs: Float32Array[], options: InterpretO
     // surveillance subjects live. A person entering at xMin -0.08, xMax 0.25
     // came out 0.33 wide instead of 0.25, and one leaving at xMax 1.14 produced
     // a box reaching 14% of the frame beyond its own right edge.
-    const yMin = clamp01(locations[o] * options.scaleY);
-    const xMin = clamp01(locations[o + 1] * options.scaleX);
-    const yMax = clamp01(locations[o + 2] * options.scaleY);
-    const xMax = clamp01(locations[o + 3] * options.scaleX);
+    const cropX = options.cropX ?? 0;
+    const cropY = options.cropY ?? 0;
+    const cropWidth = options.cropWidth ?? 1;
+    const cropHeight = options.cropHeight ?? 1;
+    const yMin = cropY + clamp01(locations[o] * options.scaleY) * cropHeight;
+    const xMin = cropX + clamp01(locations[o + 1] * options.scaleX) * cropWidth;
+    const yMax = cropY + clamp01(locations[o + 2] * options.scaleY) * cropHeight;
+    const xMax = cropX + clamp01(locations[o + 3] * options.scaleX) * cropWidth;
 
     const width = xMax - xMin;
     const height = yMax - yMin;
