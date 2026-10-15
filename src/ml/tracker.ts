@@ -53,6 +53,14 @@ export interface Track {
   confirmed: boolean;
   firstSeen: number;
   lastSeen: number;
+  /**
+   * Where the subject has been standing, and since when: reset whenever a look
+   * lands clearly elsewhere (`STILL_IOU`). A track that never leaves its anchor
+   * is a coat on a hook or a poster as far as the camera can tell — see
+   * `scenery.ts`, which decides what that means.
+   */
+  anchor: DetectionBox;
+  anchorSince: number;
 }
 
 export interface TrackerOptions {
@@ -118,6 +126,13 @@ export const DEFAULT_TRACKER_OPTIONS: TrackerOptions = {
   startConfidence: 0.6,
   maxTravelPerSecond: 3,
 };
+
+/**
+ * Overlap with its anchor above which a look counts as the subject not having
+ * moved. High on purpose: a box around something inanimate jitters by a few
+ * pixels between looks, a person shifting their weight moves it by more.
+ */
+export const STILL_IOU = 0.85;
 
 /** How much of a new velocity estimate to believe. One noisy box must not fling the prediction. */
 const VELOCITY_SMOOTHING = 0.5;
@@ -352,6 +367,7 @@ export function updateTracks(
     const stepY = moved ? (detection.box.y + detection.box.height / 2
       - (track.box.y + track.box.height / 2)) / dt : 0;
     const evidence = evidenceWith(track, detection);
+    const still = iou(detection.box, track.anchor) >= STILL_IOU;
     next.push({
       ...track,
       kind: dominantKind(track.kind, evidence),
@@ -367,6 +383,8 @@ export function updateTracks(
       misses: 0,
       confirmed: track.confirmed || hits >= options.confirmAfter,
       lastSeen: now,
+      anchor: still ? track.anchor : detection.box,
+      anchorSince: still ? track.anchorSince : now,
     });
   });
 
@@ -392,6 +410,8 @@ export function updateTracks(
       confirmed: options.confirmAfter <= 1,
       firstSeen: now,
       lastSeen: now,
+      anchor: detection.box,
+      anchorSince: now,
     });
   });
 

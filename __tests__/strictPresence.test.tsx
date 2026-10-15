@@ -5,6 +5,7 @@ import { useCameraPermission } from 'react-native-vision-camera';
 import * as fs from '@dr.pogodin/react-native-fs';
 import { AppState, mountProvider } from '../testing/mountProvider';
 import { FrameDetection } from '../src/ml/types';
+import { SCENERY_AFTER_MS } from '../src/ml/scenery';
 
 const mockListeners = new Set<(clip: unknown) => void>();
 jest.mock('react-native/Libraries/EventEmitter/NativeEventEmitter', () => ({ __esModule: true, default: class {
@@ -284,4 +285,25 @@ it('does not let an old recording error overwrite a successful explicit restart'
   expect(h.state.surveillanceStatus).toBe('active');
   expect(h.state.recError).toBeNull();
   expect(h.state.events.some(event => event.path === null)).toBe(true);
+});
+
+it('stops filming a subject that has not moved for minutes, and starts again when it moves', async () => {
+  const still = (dx = 0): FrameDetection => ({ ...person, box: { ...person.box, x: person.box.x + dx } });
+  const h = await watch();
+  for (let at = 0; at < SCENERY_AFTER_MS; at += 1000) await frame(h, at, [still()]);
+  expect(native.begin).toHaveBeenCalledTimes(1);
+  expect(native.end).not.toHaveBeenCalled();
+
+  // Past the delay the box has stood on the same spot all along: scenery.
+  for (let at = SCENERY_AFTER_MS; at < SCENERY_AFTER_MS + 3000; at += 1000) await frame(h, at, [still()]);
+  expect(native.end).toHaveBeenCalledTimes(1);
+  await clip(false);
+  for (let at = SCENERY_AFTER_MS + 3000; at < SCENERY_AFTER_MS + 10_000; at += 1000) await frame(h, at, [still()]);
+  expect(native.begin).toHaveBeenCalledTimes(1);
+  expect(h.state.det).toBeNull();
+
+  // It moves: a subject again, filmed again.
+  await frame(h, SCENERY_AFTER_MS + 10_000, [still(0.08)]);
+  await frame(h, SCENERY_AFTER_MS + 11_000, [still(0.16)]);
+  expect(native.begin).toHaveBeenCalledTimes(2);
 });
