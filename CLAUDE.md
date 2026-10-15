@@ -526,6 +526,8 @@ un catalogue qu'aucun client ne charge ; la forme pointée reste acceptée à
 l'appel. Le Kotlin n'est compilé par aucun garde-fou de PR ordinaire — `check` ne
 lance pas Gradle — donc il se vérifie en construisant un APK.
 
+Trois erreurs y ont faussé ce qu'un agent lisait, sans qu'aucune requête n'échoue. Les identifiants d'évènement sont des **millisecondes epoch** (`nextEventId`) : une borne `Int` refusait chaque évènement réel de `get_event`. La confiance est stockée en **pourcentage** et promise sur `[0,1]` : `unitConfidence` convertit dans l'instantané, sinon `minConfidence: 0.6` gardait tout. Et `surveillanceActive` seul disait « caméra active » d'un objectif masqué : l'instantané porte `surveillanceStatus`, et `statusSince` est tenu côté natif d'une poussée à l'autre. Ce qui se décide sans Android vit dans `McpRules.java`, compilé et testé par `scripts/test-presence-native.sh` en CI — c'est le seul morceau du serveur qu'une PR ordinaire exécute. Enfin les connexions passent par `McpRules.ConnectionGate` (8 au total, 4 par pair) et une échéance de 15 s par requête : un délai par lecture se renouvelle à chaque octet, donc un pair du Wi-Fi qui en envoyait un par seconde gardait un thread pour toujours, dans le processus qui fait tourner la caméra.
+
 **Une erreur d'outil et une erreur de protocole ne vont pas au même endroit.**
 Les deux serveurs partagent ce partage, et il n'est pas cosmétique : un outil qui
 s'exécute et ne peut pas répondre rend un **résultat** portant `isError`, seule

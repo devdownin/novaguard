@@ -1737,24 +1737,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   }, [hydrated, settings.mcpEnabled, settings.mcpPort, settings.mcpToken]);
 
   /**
-   * Hands the server what it answers from.
-   *
-   * On the history and the settings, never on a frame: the detection path
-   * pushes nothing here, so a request cannot cost the analysis a frame and the
-   * analysis cannot cost a request a lock.
-   */
-  useEffect(() => {
-    if (!hydrated || !settings.mcpEnabled) return;
-    pushMcpSnapshot({
-      surveillanceActive: monitoring,
-      settings,
-      storage: store,
-      events,
-      detectionsToday: detToday,
-    });
-  }, [hydrated, settings, monitoring, store, events, detToday]);
-
-  /**
    * The last time a client actually asked something.
    *
    * Polled rather than pushed: the count lives in the native server, which has
@@ -1947,6 +1929,27 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     obstructed: tamper.obstructed, moved: tamper.moved,
     hasFrame: sawFrame, ready: recorder.isReady ?? true,
   });
+  /**
+   * Hands the server what it answers from.
+   *
+   * On the history and the settings, never on a frame: the detection path
+   * pushes nothing here, so a request cannot cost the analysis a frame and the
+   * analysis cannot cost a request a lock.
+   *
+   * Declared below `surveillanceStatus`, whose value its dependency list reads
+   * during render.
+   */
+  useEffect(() => {
+    if (!hydrated || !settings.mcpEnabled) return;
+    pushMcpSnapshot({
+      surveillanceActive: monitoring,
+      settings,
+      storage: store,
+      events,
+      detectionsToday: detToday,
+      status: surveillanceStatus,
+    });
+  }, [hydrated, settings, monitoring, store, events, detToday, surveillanceStatus]);
   const visibleError = cameraProblem ?? (analysisStalled ? t('error.analysisStalled') : null) ?? recordingProblem ?? recError;
   const faultRef = useRef<{ status: SurveillanceStatus; since: number } | null>(null);
   const resumedAtRef = useRef<number | null>(null);
