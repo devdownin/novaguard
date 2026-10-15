@@ -1231,6 +1231,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (settingsRef.current.post === '0 s') {
+      // A missed look is not an absence: at 3-5 i/s the detector drops a real
+      // subject for a frame all the time, and closing on it split one passage
+      // into a string of sub-second files. While the tracker still holds a
+      // confirmed track the window stays open and the next positive extends it;
+      // once the track is let go the file still ends at the last positive look.
+      if (next.some(track => track.confirmed)) return;
       lastClosedAtRef.current = frameAt;
       endSession();
       return;

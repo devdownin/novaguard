@@ -2,7 +2,7 @@
 
 Le mode **Présence stricte** (`post = 0 s`) active le backend tamponné Android. **Avec tolérance** utilise ce même backend pour les marges de 1/2/3 s, et conserve la sélection jusqu’à la dernière observation positive + la marge. Un retour avant cette limite garde le même clip ; après, il ouvre une nouvelle fenêtre. Les anciens délais 5/10/30 s gardent leur backend VisionCamera, sa grâce de suivi et ses coupures. Les préférences sauvegardées ne sont pas remplacées à la mise à jour.
 
-Le tampon contient des échantillons H.264/AAC en mémoire ; aucun fichier de scène vide n'est produit. La confirmation sélectionne rétroactivement les images à partir de la première observation de la piste. Un retour après absence commence une nouvelle fenêtre, même si le tracker conserve l'identifiant. En mode strict, seules les observations positives étendent cette fenêtre. Une panne d'analyse la ferme à la dernière observation connue.
+Le tampon contient des échantillons H.264/AAC en mémoire ; aucun fichier de scène vide n'est produit. La confirmation sélectionne rétroactivement les images à partir de la première observation de la piste. En mode strict, une image où le détecteur rate un sujet que le tracker conserve encore (moins de 1,2 s sans détection) ne ferme pas la fenêtre : l'observation positive suivante l'étend, trou compris. Une fois la piste abandonnée, la fenêtre se ferme à la dernière observation positive, et un retour ouvre une nouvelle fenêtre. Une panne d'analyse la ferme à la dernière observation connue.
 
 Une présence terminée libère immédiatement la sélection suivante, même si son fichier reste en finalisation. Les clips partiels d’une erreur sont conservés lorsque le muxer peut les finaliser. Les noms sont réservés et renommés en série pour éviter les collisions entre passages d’une même seconde.
 
@@ -32,7 +32,8 @@ Placer une horloge visible dans le champ et garder les fichiers originaux pour c
 | Animal seul | Même politique temporelle |
 | Deux sujets ; le premier sort | Le second maintient l'enregistrement |
 | Personne et animal sur des bords opposés | Champ intégral conservé malgré le zoom de l'aperçu |
-| Absence puis retour avant expiration de la piste | Deux fenêtres ; aucune image de l'absence conservée |
+| Détection ratée une ou deux images, sujet toujours là | Un seul clip, sans coupure |
+| Absence au-delà de l'expiration de la piste, puis retour | Deux fenêtres ; fin de la première à la dernière observation positive |
 | Présence dépassant deux minutes | Frontières de fichiers identiques, sans arrêt d'encodeur ni image perdue à la rotation |
 | Écran éteint et rallumé | Capture et sélection continuent ; clips lisibles avec audio autorisé |
 | Caméra reprise par une autre app, rotation et changement de résolution | Interruption affichée ; reprise bornée dès que des images sont disponibles |

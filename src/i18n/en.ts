@@ -30,7 +30,7 @@ export const en: Record<StringKey, string> = {
   'setup.presenceMode': 'Capture mode',
   'setup.mode.strict': 'Strict presence',
   'setup.mode.tolerant': 'With tolerance',
-  'setup.mode.strict.sub': 'Stops as soon as presence is no longer detected.',
+  'setup.mode.strict.sub': 'Stops at the last detection, once the subject has left.',
   'setup.mode.tolerant.sub': 'Avoids cuts during a brief missed detection. Includes empty-scene frames during the margin.',
   'setup.post.legacy': 'Previous delay retained: this margin starts after tracking expires (up to 1.2 additional seconds).',
   'error.storage': 'Insufficient space to record',
