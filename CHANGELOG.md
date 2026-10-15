@@ -6,6 +6,15 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ## [Non publié]
 
+### Interface
+- « Conserver » sur un passage : ses vidéos échappent à la durée de conservation et à la suppression automatique ; seul un geste explicite les efface. Mention « Conservé » dans l’historique.
+- Historique : appui long pour sélectionner plusieurs passages, puis « Supprimer » (avec confirmation) efface toutes leurs vidéos d’un coup.
+- Toucher l’alerte de détection ouvre le passage concerné dans l’historique (le verrouillage de l’historique s’applique toujours).
+- La notification persistante date une panne (« Caméra indisponible · depuis 14:32 ») puis la reprise (« Surveillance active · reprise à 14:40 »).
+- Nouvelle section repliée « Avancé » : seuil de confiance, détection sur le processeur, auto-réglage et, sauf s’ils tournent, les serveurs MCP et Wi-Fi. Le seuil reste lisible sous « Sensibilité ».
+- « Setup » devient « Réglages » ; « Mode nuit » est désactivé, avec une explication, quand la caméra ne le prend pas en charge.
+- Textes traduits : corps de l’alerte de détection, erreur de partage et fichier absent dans le détail d’une vidéo.
+
 ### Interface et passages
 - État principal agrandi, lisible en portrait et paysage, avec couleur et texte, mode de capture et accès direct à son réglage.
 - Actions de reprise explicites : autoriser la caméra, réessayer la capture et ouvrir le stockage sans suppression automatique déclenchée par le bouton.

@@ -2,6 +2,7 @@ import React from 'react';
 import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Slider from '@react-native-community/slider';
+import { useCameraDevice } from 'react-native-vision-camera';
 import { color, font, radius, MAX_FONT_SCALE } from '../theme';
 import { useAppState } from '../state/AppStateContext';
 import { Retention, Sensitivity } from '../state/types';
@@ -19,6 +20,7 @@ import { PrimaryOutlineButton, SecondaryOutlineButton } from '../components/Outl
 import { ShieldCheckIcon } from '../components/icons';
 import { StringKey, t, tValue } from '../i18n';
 import { useLandscape } from '../utils/useLandscape';
+import { devicePositionFor, physicalDeviceFilterFor } from '../camera/deviceSelection';
 
 // Labels translated, values not: the variants are written to disk. See the
 // note at the end of `i18n/fr.ts`.
@@ -43,6 +45,11 @@ export function SetupScreen() {
   const s = useAppState();
   const landscape = useLandscape();
   const { settings, events, storage: store, clipGap, autoTune, deviceLoad } = s;
+  // The same lookup CameraFeed makes: low-light boost is a property of the
+  // selected camera, and a switch that cannot act must not read as one that did.
+  const device = useCameraDevice(devicePositionFor(settings.camera), physicalDeviceFilterFor(settings.camera));
+  const nightSupported = device?.supportsLowLightBoost === true;
+  const showServers = settings.exp.adv === true || settings.mcpEnabled || settings.localStreamEnabled;
 
   const [showToken, setShowToken] = React.useState(false);
   const [copiedLabel, setCopiedLabel] = React.useState<string | null>(null);
@@ -108,8 +115,9 @@ export function SetupScreen() {
           >
             <Switch value={settings.resumeOnLaunch} onValueChange={s.toggleResumeOnLaunch} accessibilityLabel={t('setup.resume')} />
           </SettingRow>
-          <SettingRow label={t('setup.night')} subtitle={t('setup.night.sub')}>
-            <Switch value={settings.night} onValueChange={s.toggleNight} accessibilityLabel={t('setup.night')} />
+          <SettingRow label={t('setup.night')} subtitle={t(nightSupported ? 'setup.night.sub' : 'setup.night.unsupported')}>
+            <Switch value={settings.night && nightSupported} onValueChange={s.toggleNight} disabled={!nightSupported}
+              accessibilityLabel={t('setup.night')} />
           </SettingRow>
         </CollapsibleSection>
 
@@ -133,31 +141,6 @@ export function SetupScreen() {
               accessibilityLabel={t('setup.precise')}
             />
           </SettingRow>
-          <SettingRow label={t('setup.autoTuneSwitch')} subtitle={t('setup.autoTuneSwitch.sub')}>
-            <Switch
-              value={settings.autoTune}
-              onValueChange={s.toggleAutoTune}
-              accessibilityLabel={t('setup.autoTuneSwitch')}
-            />
-          </SettingRow>
-          {/* Under the switch it belongs to, not in "À propos": what the app
-              has taken away from itself is a detection setting that moved, not
-              a fact about the build. The value is the current one, and pressing
-              it opens the series behind it. */}
-          <SettingRow
-            label={t('setup.autoTune')}
-            subtitle={describeAutoTune(autoTune, deviceLoad.current)}
-          >
-            <StaticValue label={formatAutoTune(autoTune)} />
-          </SettingRow>
-          {/* A named button rather than the value doubling as one: "Rien
-              retiré" is a state, and a state does not read as somewhere to go. */}
-          <SecondaryOutlineButton
-            testID="autotune-open"
-            label={t('setup.autoTune.open')}
-            onPress={() => s.openInfo('autotune')}
-            style={styles.autoTuneLink}
-          />
           <SettingRow label={t('setup.zone')} subtitle={t('setup.zone.sub')}>
             <ValueButton
               label={t(settings.zone ? 'setup.zone.set' : 'setup.zone.all')}
@@ -168,12 +151,6 @@ export function SetupScreen() {
                 value: t(settings.zone ? 'setup.zone.set' : 'setup.zone.all'),
               })}
             />
-          </SettingRow>
-          <SettingRow
-            label={t('setup.forceCpu')}
-            subtitle={t('setup.forceCpu.sub')}
-          >
-            <Switch value={settings.forceCpu} onValueChange={s.toggleForceCpu} accessibilityLabel={t('setup.forceCpu')} />
           </SettingRow>
           <View style={styles.subBlock}>
             <Text style={styles.subLabel}>{t('setup.sens')}</Text>
@@ -189,25 +166,11 @@ export function SetupScreen() {
               {t(SENS_HINT[settings.sens])}
             </Text>
           </View>
-          <View style={[styles.subBlock, styles.thresholdBlock]}>
-            <View style={styles.thresholdRow}>
-              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.subLabel}>{t('setup.threshold')}</Text>
-              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.thresholdValue}>{t('detail.percent', { value: settings.threshold })}</Text>
-            </View>
-            <Slider
-              accessibilityRole="adjustable"
-              accessibilityLabel={t('setup.threshold')}
-              accessibilityValue={{ min: 50, max: 95, now: settings.threshold }}
-              minimumValue={50}
-              maximumValue={95}
-              step={5}
-              value={settings.threshold}
-              onSlidingComplete={s.setThreshold}
-              minimumTrackTintColor={color.accent}
-              maximumTrackTintColor={color.neutral800}
-              thumbTintColor={color.accent}
-            />
-          </View>
+          {/* The threshold moved to Avancé, its value did not leave: it still
+              decides what can open a recording, so it is read here. */}
+          <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.hint}>
+            {t('setup.threshold.summary', { value: settings.threshold })}
+          </Text>
         </CollapsibleSection>
 
         <CollapsibleSection title={t('setup.section.rec')} expanded={settings.exp.rec} onToggle={() => s.toggleSection('rec')}>
@@ -332,6 +295,64 @@ export function SetupScreen() {
           <Text style={styles.hint}>{t('setup.sound.hint')}</Text>
         </CollapsibleSection>
 
+        <CollapsibleSection title={t('setup.section.adv')} expanded={settings.exp.adv === true} onToggle={() => s.toggleSection('adv')}>
+          <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.hint}>{t('setup.section.adv.sub')}</Text>
+          <View style={[styles.subBlock, styles.thresholdBlock]}>
+            <View style={styles.thresholdRow}>
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.subLabel}>{t('setup.threshold')}</Text>
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.thresholdValue}>{t('detail.percent', { value: settings.threshold })}</Text>
+            </View>
+            <Slider
+              accessibilityRole="adjustable"
+              accessibilityLabel={t('setup.threshold')}
+              accessibilityValue={{ min: 50, max: 95, now: settings.threshold }}
+              minimumValue={50}
+              maximumValue={95}
+              step={5}
+              value={settings.threshold}
+              onSlidingComplete={s.setThreshold}
+              minimumTrackTintColor={color.accent}
+              maximumTrackTintColor={color.neutral800}
+              thumbTintColor={color.accent}
+            />
+          </View>
+          <SettingRow
+            label={t('setup.forceCpu')}
+            subtitle={t('setup.forceCpu.sub')}
+          >
+            <Switch value={settings.forceCpu} onValueChange={s.toggleForceCpu} accessibilityLabel={t('setup.forceCpu')} />
+          </SettingRow>
+          <SettingRow label={t('setup.autoTuneSwitch')} subtitle={t('setup.autoTuneSwitch.sub')}>
+            <Switch
+              value={settings.autoTune}
+              onValueChange={s.toggleAutoTune}
+              accessibilityLabel={t('setup.autoTuneSwitch')}
+            />
+          </SettingRow>
+          {/* Under the switch it belongs to, not in "À propos": what the app
+              has taken away from itself is a detection setting that moved, not
+              a fact about the build. The value is the current one, and pressing
+              it opens the series behind it. */}
+          <SettingRow
+            label={t('setup.autoTune')}
+            subtitle={describeAutoTune(autoTune, deviceLoad.current)}
+          >
+            <StaticValue label={formatAutoTune(autoTune)} />
+          </SettingRow>
+          {/* A named button rather than the value doubling as one: "Rien
+              retiré" is a state, and a state does not read as somewhere to go. */}
+          <SecondaryOutlineButton
+            testID="autotune-open"
+            label={t('setup.autoTune.open')}
+            onPress={() => s.openInfo('autotune')}
+            style={styles.autoTuneLink}
+          />
+        </CollapsibleSection>
+
+        {/* The two servers live under Avancé, but one that is running is never
+            hidden: a socket open on the network is not a detail to fold away. */}
+        {showServers && (
+          <>
         <CollapsibleSection title={t('setup.section.stream')} expanded={settings.exp.stream} onToggle={() => s.toggleSection('stream')}>
           <SettingRow label={t('setup.localStreamEnabled')} subtitle={t('setup.localStreamEnabled.sub')}>
             <Switch
@@ -448,6 +469,8 @@ export function SetupScreen() {
 
           <Text style={styles.hint}>{t('setup.mcpPrivacyNote')}</Text>
         </CollapsibleSection>
+          </>
+        )}
 
         <LinearGradient
           colors={[color.accent900, color.surface]}

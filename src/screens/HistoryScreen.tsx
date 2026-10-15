@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { color, font, MAX_FONT_SCALE } from '../theme';
 import { useAppState, useFilteredEvents } from '../state/AppStateContext';
@@ -6,8 +6,8 @@ import { HistoryFilter } from '../state/types';
 import { SegmentedControl } from '../components/SegmentedControl';
 import { PeriodDropdown } from '../components/PeriodDropdown';
 import { EventCard } from '../components/EventCard';
-import { PrimaryOutlineButton } from '../components/OutlineButton';
-import { historyRows } from '../recording/library';
+import { PrimaryOutlineButton, SecondaryOutlineButton, TextButton } from '../components/OutlineButton';
+import { historyRows, keptEventIds } from '../recording/library';
 import { groupPassages } from '../recording/passages';
 import { formatDay } from '../utils/date';
 import { useLandscape } from '../utils/useLandscape';
@@ -68,13 +68,14 @@ function LockedHistory({ onUnlock }: { onUnlock: () => void }) {
 export function HistoryScreen() {
   const {
     events, filter, setFilter, period, setPeriod, periodOpen, togglePeriodOpen, selectEvent,
-    historyLocked, unlockHistory,
+    historyLocked, unlockHistory, askDeleteMany,
   } = useAppState();
   const { shown } = useFilteredEvents(true);
   const landscape = useLandscape();
 
   // A card is wide and short: one per line wastes most of a landscape window.
   const perRow = landscape ? 2 : 1;
+  const kept = useMemo(() => keptEventIds(events), [events]);
   const passages = useMemo(() => {
     const matched = new Set(shown.map(event => event.id));
     return groupPassages(events).filter(passage => passage.events.some(event => matched.has(event.id)) &&
@@ -82,6 +83,28 @@ export function HistoryScreen() {
   }, [events, shown, filter]);
   const byEvent = useMemo(() => new Map(passages.map(passage => [passage.summary.id, passage])), [passages]);
   const rows = useMemo(() => historyRows(passages.map(passage => passage.summary), perRow), [passages, perRow]);
+
+  // Selection is by passage: a passage is one thing to the reader, so picking
+  // it picks every clip in it. Held here, not in the provider — nothing else
+  // reads it, and leaving the screen is a reason to drop it.
+  const [picked, setPicked] = useState<ReadonlySet<number>>(new Set());
+  const picking = picked.size > 0;
+  const togglePick = useCallback((id: number) => setPicked(prev => {
+    const next = new Set(prev);
+    if (!next.delete(id)) next.add(id);
+    return next;
+  }), []);
+  // A passage that left the list (deleted, filtered out) cannot stay picked:
+  // a delete must only ever take what is on screen.
+  useEffect(() => {
+    setPicked(prev => {
+      const next = new Set([...prev].filter(id => byEvent.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [byEvent]);
+  const deletePicked = useCallback(() => {
+    askDeleteMany([...picked].flatMap(id => byEvent.get(id)?.events.map(e => e.id) ?? []));
+  }, [askDeleteMany, byEvent, picked]);
 
   const resetFilters = useCallback(() => {
     setFilter('Toutes');
@@ -108,6 +131,16 @@ export function HistoryScreen() {
         <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.count}>{tn('hist.passages.other', passages.length)}</Text>
       </View>
 
+      {picking && (
+        <View style={styles.pickBar} testID="history-pick-bar">
+          <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.pickCount} accessibilityLiveRegion="polite">
+            {tn('hist.pick.count.other', picked.size)}
+          </Text>
+          <SecondaryOutlineButton label={t('hist.pick.delete')} onPress={deletePicked} />
+          <TextButton label={t('hist.pick.cancel')} onPress={() => setPicked(new Set())} />
+        </View>
+      )}
+
       <View style={styles.filters}>
         <SegmentedControl options={FILTER_OPTIONS} value={filter} onChange={setFilter} />
         <PeriodDropdown
@@ -132,7 +165,14 @@ export function HistoryScreen() {
             <View style={styles.row}>
               {item.events.map(event => (
                 <View key={event.id} style={styles.cell}>
-                  <EventCard event={event} passage={byEvent.get(event.id)} onPress={() => selectEvent(event.id)} />
+                  <EventCard
+                    event={event}
+                    passage={byEvent.get(event.id)}
+                    kept={kept.has(event.id)}
+                    picked={picking ? picked.has(event.id) : undefined}
+                    onPress={() => (picking ? togglePick(event.id) : selectEvent(event.id))}
+                    onLongPress={() => togglePick(event.id)}
+                  />
                 </View>
               ))}
               {/* Keeps a lone last card the width of a column instead of
@@ -168,6 +208,19 @@ const styles = StyleSheet.create({
     fontFamily: font.regular,
     fontSize: 11,
     color: color.neutral500,
+  },
+  pickBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+  },
+  pickCount: {
+    flex: 1,
+    fontFamily: font.medium,
+    fontSize: 13,
+    color: color.text,
   },
   filters: {
     paddingHorizontal: 14,

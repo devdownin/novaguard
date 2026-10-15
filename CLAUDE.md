@@ -554,6 +554,8 @@ nouveau au moment de se connecter rouvre la fenêtre que la validation venait de
 fermer. Enfin un plafond de taille descend **avec** la requête : l'appliquer au
 retour, c'est rapporter huit mégaoctets pour en refuser deux.
 
+**Un clip conservé n'appartient plus aux balayages.** `kept` se pose par passage (`keptEventIds` étend le drapeau aux segments écrits après) et retire l'évènement de `expiredEvents` comme de `eventsToReclaim` : un disque plein arrête d'enregistrer, il n'efface jamais une preuve. Seule une suppression explicite l'atteint.
+
 **Un clip sans événement est une vidéo perdue.** Le sort d'un enregistrement est
 exhaustif (`clipOutcome`) : rattaché, gardé comme événement sans fichier, ou
 supprimé. Il n'y a pas de quatrième issue, et il ne doit pas y en avoir.

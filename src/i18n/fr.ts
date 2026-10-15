@@ -17,7 +17,7 @@ export const fr = {
   // ── shell ────────────────────────────────────────────────────────────
   'tab.cam': 'Caméra',
   'tab.hist': 'Historique',
-  'tab.setup': 'Setup',
+  'tab.setup': 'Réglages',
 
   'surv.status.starting': 'Démarrage de la surveillance',
   'surv.status.recording': 'Enregistrement en cours',
@@ -72,7 +72,7 @@ export const fr = {
   'view.standby': 'CAMÉRA EN VEILLE',
   'view.noCamera': 'AUCUNE CAMÉRA DÉTECTÉE',
   'view.grantCamera': 'AUTORISEZ LA CAMÉRA',
-  'view.grantCameraWhere': 'Setup → Confidentialité → Permissions',
+  'view.grantCameraWhere': 'Réglages → Confidentialité → Permissions',
   'view.overlay.person': 'Personne détectée · enregistrement',
   'view.overlay.animal': 'Animal détecté · enregistrement',
   'view.overlay.none': 'Aucune détection',
@@ -113,10 +113,16 @@ export const fr = {
   'detail.file': 'Fichier',
   'detail.share': 'Partager',
   'detail.delete': 'Supprimer',
+  'detail.keep': 'Conserver',
+  'detail.unkeep': 'Ne plus conserver',
+  'detail.kept': 'Conservé · jamais supprimé automatiquement',
+  'detail.shareError': 'PARTAGE IMPOSSIBLE · LE FICHIER N’EST PLUS LÀ',
+  'detail.file.none': 'Aucun',
+  'hist.event.kept': 'Conservé',
   'detail.close': 'Fermer',
 
   // ── setup ────────────────────────────────────────────────────────────
-  'setup.title': 'Setup',
+  'setup.title': 'Réglages',
   'setup.section.surv': 'SURVEILLANCE',
   'setup.section.det': 'DÉTECTION',
   'setup.section.rec': 'ENREGISTREMENT',
@@ -124,6 +130,8 @@ export const fr = {
   'setup.section.not': 'NOTIFICATIONS',
   'setup.section.stream': 'DIFFUSION LOCALE',
   'setup.section.mcp': 'SERVEUR MCP',
+  'setup.section.adv': 'AVANCÉ',
+  'setup.section.adv.sub': 'Réglages fins de la détection, serveurs locaux. Les valeurs par défaut conviennent à la plupart des appareils.',
   'setup.section.about': 'À PROPOS',
 
   'setup.mcpEnabled': 'Serveur MCP lecture seule',
@@ -163,7 +171,8 @@ export const fr = {
   'setup.lockHistory.sub': "Empreinte, visage ou code de l'appareil avant d'ouvrir les vidéos",
   'setup.lockHistory.unavailable': "Aucun verrouillage d'écran configuré sur cet appareil",
   'setup.night': 'Mode nuit',
-  'setup.night.sub': 'Disponible sur cet appareil',
+  'setup.night.sub': 'Éclaircit l’image en faible lumière',
+  'setup.night.unsupported': 'Non pris en charge par cette caméra',
 
   'setup.person': 'Détecter les personnes',
   'setup.animal': 'Détecter les animaux',
@@ -190,6 +199,7 @@ export const fr = {
   'setup.sens.hint.Moyenne': '3 images par seconde — confirme un sujet sur deux images consécutives',
   'setup.sens.hint.Haute': '5 images par seconde — la plus réactive et la plus indulgente, batterie la plus sollicitée',
   'setup.threshold': 'Seuil de confiance',
+  'setup.threshold.summary': 'Seuil de confiance : {value} % · réglable dans Avancé',
 
   'setup.post': 'Marge de tolérance',
   'setup.post.sub': 'Durée maximale conservée après la dernière détection positive.',
@@ -306,6 +316,14 @@ export const fr = {
   'confirm.delete.title': 'Supprimer cette vidéo ?',
   'confirm.delete.body': 'La vidéo sera définitivement supprimée de votre appareil. Cette action est irréversible.',
   'confirm.delete.ok': 'Supprimer',
+  'confirm.many.title': 'Supprimer la sélection ?',
+  'confirm.many.body.one': '{count} vidéo sera supprimée de cet appareil, même conservée. Cette action est irréversible.',
+  'confirm.many.body.other': '{count} vidéos seront supprimées de cet appareil, même conservées. Cette action est irréversible.',
+  'hist.pick.count.one': '{count} passage sélectionné',
+  'hist.pick.count.other': '{count} passages sélectionnés',
+  'hist.pick.delete': 'Supprimer',
+  'hist.pick.cancel': 'Annuler',
+  'hist.pick.hint': 'Appui long pour sélectionner',
   'confirm.wipe.title': 'Supprimer toutes les vidéos ?',
   'confirm.wipe.body.one': '{count} vidéo sera supprimée de cet appareil. Cette action est irréversible.',
   'confirm.wipe.body.other': '{count} vidéos seront supprimées de cet appareil. Cette action est irréversible.',
@@ -394,6 +412,9 @@ export const fr = {
   'notif.interrupted': 'Caméra interrompue — reprise en cours',
   'notif.person': 'Personne détectée',
   'notif.animal': 'Animal détecté',
+  'notif.detail': 'À {time} · enregistrement en cours',
+  'notif.since': '{status} · depuis {time}',
+  'notif.resumed': '{status} · reprise à {time}',
 
   // ── third-party licence notes, shown in Setup → À propos ─────────────
   'lic.react-react-native': 'Framework applicatif',

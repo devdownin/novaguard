@@ -45,7 +45,7 @@ export const defaultSettings: Settings = {
   mcpEnabled: false,
   mcpPort: 8081,
   mcpToken: '',
-  exp: { surv: true, det: false, rec: false, sto: false, not: false, stream: false, mcp: false, about: false },
+  exp: { surv: true, det: false, rec: false, sto: false, not: false, stream: false, mcp: false, adv: false, about: false },
 };
 
 /**
