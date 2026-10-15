@@ -105,6 +105,7 @@ it('writes each control back to disk', async () => {
     state.toggleAutoZoom();
     state.toggleAutoTune();
     state.toggleForceCpu();
+    state.toggleCalibration();
     state.toggleAutoDel();
     state.toggleNotif();
     state.toggleNotifDet();
@@ -128,6 +129,7 @@ it('writes each control back to disk', async () => {
     autoZoom: !defaultSettings.autoZoom,
     autoTune: !defaultSettings.autoTune,
     forceCpu: !defaultSettings.forceCpu,
+    calibration: !defaultSettings.calibration,
     autoDel: !defaultSettings.autoDel,
     notif: !defaultSettings.notif,
     notifDet: !defaultSettings.notifDet,

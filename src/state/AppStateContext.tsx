@@ -19,6 +19,7 @@ import { confirmTap } from '../utils/haptics';
 import { FrameDetection } from '../ml/types';
 import { rememberScenery, SceneryMark, withoutScenery } from '../ml/scenery';
 import { confirmedTracksIfChanged, primaryTrack, Track, updateTracks } from '../ml/tracker';
+import { calibrationProbes, NO_PROBES, Probe } from '../ml/calibration';
 import { trackerOptionsFor } from '../ml/sensitivity';
 import { detectionsInZone } from '../ml/zone';
 import { Clip, useRecorder } from '../recording/useRecorder';
@@ -190,6 +191,7 @@ interface AppStateValue {
   toggleAutoZoom: () => void;
   toggleAutoTune: () => void;
   toggleForceCpu: () => void;
+  toggleCalibration: () => void;
   togglePreciseDetection: () => void;
   /**
    * True while the viewfinder is being used to draw the detection zone. The
@@ -257,6 +259,8 @@ export interface ViewfinderState {
   tracks: Track[];
   /** Which of those tracks is driving the recording session. */
   primaryTrackId: number | null;
+  /** Calibration mode only: what the detector saw that is not a subject, and why. */
+  probes: Probe[];
   /** Aspect ratio (w/h) of the uprighted camera frame, for mapping boxes onto the preview. */
   frameAspect: number;
   recSec: number;
@@ -270,6 +274,7 @@ export interface ViewfinderState {
 /** The setters `reportDetections` drives, handed up by `ViewfinderProvider`. */
 interface ViewfinderSink {
   setTracks: (update: (previous: Track[]) => Track[]) => void;
+  setProbes: (update: (previous: Probe[]) => Probe[]) => void;
   setPrimaryTrackId: (id: number | null) => void;
   setFrameAspect: (aspect: number) => void;
   setRecSec: (seconds: number) => void;
@@ -293,6 +298,7 @@ function ViewfinderProvider({
   sink, children,
 }: { sink: React.RefObject<ViewfinderSink | null>; children: React.ReactNode }) {
   const [tracks, setTracks] = useState<Track[]>([]);
+  const [probes, setProbes] = useState<Probe[]>(NO_PROBES);
   const [primaryTrackId, setPrimaryTrackId] = useState<number | null>(null);
   const [frameAspect, setFrameAspect] = useState(9 / 16);
   const [recSec, setRecSec] = useState(0);
@@ -304,7 +310,7 @@ function ViewfinderProvider({
   // one asynchronously — well after this commit — so the sink is always live by
   // the time `reportDetections` fires.
   const setters = useMemo<ViewfinderSink>(
-    () => ({ setTracks, setPrimaryTrackId, setFrameAspect, setRecSec, setFrameRate }),
+    () => ({ setTracks, setProbes, setPrimaryTrackId, setFrameAspect, setRecSec, setFrameRate }),
     [],
   );
   useEffect(() => {
@@ -313,8 +319,8 @@ function ViewfinderProvider({
   }, [setters, sink]);
 
   const value = useMemo<ViewfinderState>(
-    () => ({ tracks, primaryTrackId, frameAspect, recSec, frameRate }),
-    [tracks, primaryTrackId, frameAspect, recSec, frameRate],
+    () => ({ tracks, probes, primaryTrackId, frameAspect, recSec, frameRate }),
+    [tracks, probes, primaryTrackId, frameAspect, recSec, frameRate],
   );
 
   return <ViewfinderCtx.Provider value={value}>{children}</ViewfinderCtx.Provider>;
@@ -1043,6 +1049,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     positiveStartRef.current.clear();
     primaryIdRef.current = null;
     viewfinder.current?.setTracks(() => []);
+    viewfinder.current?.setProbes(() => NO_PROBES);
     sawFrameRef.current = false;
     setSawFrame(false);
     frameWindowRef.current = { ...EMPTY_FRAME_RATE_WINDOW };
@@ -1166,6 +1173,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // Keep the previous array when nothing moved: every other setter here
     // already bails on `Object.is`, so this is what makes a still scene free.
     shown?.setTracks(prev => confirmedTracksIfChanged(prev, live));
+    // Off, this keeps the empty array and costs nothing; on, it is a
+    // diagnostic and re-renders the overlay leaf on each look by design.
+    const calibrating = settingsRef.current.calibration;
+    shown?.setProbes(prev => (calibrating
+      ? calibrationProbes(watched, next, live)
+      : prev.length === 0 ? prev : NO_PROBES));
 
     for (const track of next) {
       if (track.misses === 0 && !positiveStartRef.current.has(track.id)) positiveStartRef.current.set(track.id, frameAt);
@@ -1288,6 +1301,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       sceneryRef.current = [];
       primaryIdRef.current = null;
       viewfinder.current?.setTracks(() => []);
+      viewfinder.current?.setProbes(() => NO_PROBES);
       sawFrameRef.current = false;
       setSawFrame(false);
       lastAnalysisAtRef.current = null;
@@ -1663,6 +1677,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [patchSettings, settings.autoTune]);
   const toggleForceCpu = useCallback(() => patchSettings({ forceCpu: !settings.forceCpu }), [patchSettings, settings.forceCpu]);
+  const toggleCalibration = useCallback(() => patchSettings({ calibration: !settings.calibration }), [patchSettings, settings.calibration]);
   const toggleAutoDel = useCallback(() => patchSettings({ autoDel: !settings.autoDel }), [patchSettings, settings.autoDel]);
   const toggleNotif = useCallback(() => patchSettings({ notif: !settings.notif }), [patchSettings, settings.notif]);
   const toggleNotifDet = useCallback(() => patchSettings({ notifDet: !settings.notifDet }), [patchSettings, settings.notifDet]);
@@ -1931,7 +1946,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     toggleKeep, confirmDelete, askDelete, cancelDelete, doDelete,
     pendingBulkDelete, askDeleteMany, cancelDeleteMany, doDeleteMany,
     confirmWipe, askWipe, cancelWipe, doWipe,
-    settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
+    settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
     toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpStatus, openAlertSoundSettings, wipeAllVideos,
@@ -1943,7 +1958,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     events, filter, period, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent, historyLocked, unlockHistory, identityAvailable,
     toggleKeep, confirmDelete, askDelete, cancelDelete, doDelete, pendingBulkDelete, askDeleteMany, cancelDeleteMany, doDeleteMany,
     confirmWipe, askWipe, cancelWipe, doWipe,
-    settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
+    settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
     toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, mcpStatus, openAlertSoundSettings, wipeAllVideos,

@@ -162,6 +162,8 @@ export interface Settings {
    * returns nothing is indistinguishable from an empty room.
    */
   forceCpu: boolean;
+  /** Draws the boxes the app does not treat as subjects, with why — for tuning the thresholds on the device. */
+  calibration: boolean;
   /**
    * Run the larger detector (EfficientDet-Lite2, 448 px) instead of the
    * default 320 px one.

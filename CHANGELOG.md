@@ -7,6 +7,7 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 ## [Non publié]
 
 ### Détection
+- Mode calibrage (Réglages → Avancé) : le viseur montre aussi, en pointillés, ce que le détecteur voit sans le suivre — pistes en attente de confirmation, décor immobile, détections sous le seuil — avec leur confiance, et rappelle les deux seuils actifs. Pour régler les seuils sur l’appareil.
 - Un sujet qui ne bouge pas pendant 3 minutes (manteau, affiche, statue) est traité comme du décor : il n’ouvre plus d’enregistrement et n’est plus affiché, jusqu’à son premier mouvement. L’emplacement est mémorisé 10 minutes.
 - Avec une zone de détection, seul son voisinage est analysé : plus de résolution sur les sujets de la zone, sans calcul supplémentaire.
 - Les images sombres sont éclaircies (courbe gamma) avant la détection ; la vidéo enregistrée n’est pas modifiée.

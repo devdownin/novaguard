@@ -250,6 +250,14 @@ export function Viewfinder() {
         </View>
       )}
 
+      {settings.calibration && monitoring && (
+        <View testID="calibration-chip" style={styles.calibChip} pointerEvents="none">
+          <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.calibText}>
+            {t('calib.chip', { person: settings.threshold, animal: settings.animalThreshold })}
+          </Text>
+        </View>
+      )}
+
       <LiveClock style={styles.clockText} />
     </View>
   );
@@ -342,6 +350,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: color.neutral500,
     fontVariant: ['tabular-nums'],
+  },
+  calibChip: {
+    position: 'absolute',
+    left: 12,
+    top: 44,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 5,
+    backgroundColor: 'rgba(22,24,38,0.82)',
+    borderWidth: 1,
+    borderColor: color.neutral700,
+  },
+  calibText: {
+    fontFamily: font.regular,
+    fontSize: 10.5,
+    color: color.neutral300,
   },
   recChip: {
     position: 'absolute',

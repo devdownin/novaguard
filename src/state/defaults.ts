@@ -20,6 +20,7 @@ export const defaultSettings: Settings = {
   autoZoom: true,
   autoTune: true,
   forceCpu: false,
+  calibration: false,
   preciseDetection: false,
   zone: null,
   post: '0 s',
