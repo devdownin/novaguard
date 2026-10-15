@@ -7,6 +7,7 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 ## [Non publié]
 
 ### Confidentialité
+- « Exporter comme preuve » (fiche d’un évènement) : tous les clips du passage et un rapport texte — horaires, genres vus, segments manquants, empreinte SHA-256 de chaque fichier avec la commande pour la vérifier — partagés en une seule fois.
 - La politique de confidentialité, la fiche Play et la réponse au formulaire *Data safety* disent enfin vrai : la permission `INTERNET` est déclarée, pour les deux serveurs locaux optionnels (direct Wi-Fi, serveur MCP), éteints par défaut ; l’application n’ouvre aucune connexion sortante, et un test le vérifie dans tout le code.
 - « Ce qu’un assistant IA peut voir et faire » (Réglages, bloc confidentialité) ouvre la page « Services MCP » même serveur éteint.
 

@@ -444,7 +444,14 @@ lecture temporaire qui meurt avec l'activité qui la reçoit — et jamais par u
 chemin `file://`, qu'Android refuse d'une app à l'autre depuis l'API 24. La
 racine déclarée dans `res/xml/file_paths.xml` est exactement le dossier des
 enregistrements : l'élargir ferait la différence entre partager un clip et
-exposer tout le stockage privé de l'application.
+exposer tout le stockage privé de l'application. L'export d'un passage passe par la même porte :
+les clips et un rapport dont les empreintes SHA-256 sont calculées sur
+l'appareil, **hors du thread JS** (un passage 4K, c'est des centaines de Mo à
+lire). Le rapport doit être servi par le même `FileProvider`, donc il est écrit
+sous `recordings/exports/` — un sous-dossier que le balayage des orphelins ne
+voit pas, puisqu'il ne lit que les fichiers à la racine de `recordings/`. Le
+déplacer à la racine le ferait effacer au lancement suivant, comme un clip
+sans évènement.
 
 **Une vignette qui existe aussi écran éteint.** `takeSnapshot` capture la vue
 d'aperçu — c'est ce qui lui permet de ne toucher ni l'encodeur ni la session de

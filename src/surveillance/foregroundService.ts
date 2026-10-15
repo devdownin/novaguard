@@ -175,6 +175,26 @@ export function shareRecording(path: string): boolean {
   }
 }
 
+/** SHA-256 of a recording, or '' when it cannot be read (see `evidence.ts`). */
+export async function hashRecording(path: string): Promise<string> {
+  if (!NativeSurveillanceService) return '';
+  try {
+    return await NativeSurveillanceService.hashRecording(path);
+  } catch {
+    return '';
+  }
+}
+
+/** A whole passage and its report, through one chooser. Same door as `shareRecording`, same tap. */
+export function shareEvidence(paths: string[], report: string, reportName: string): boolean {
+  if (!NativeSurveillanceService) return false;
+  try {
+    return NativeSurveillanceService.shareEvidence(paths, report, reportName);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * A still decoded from a clip already on disk, or null.
  *
