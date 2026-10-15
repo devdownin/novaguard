@@ -6,6 +6,14 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ## [Non publié]
 
+### Serveur MCP
+- `get_event` accepte enfin les identifiants réels (millisecondes, 13 chiffres) ; il refusait tout évènement enregistré.
+- Confiance des évènements et seuils (personnes, animaux) exprimés sur `[0,1]` comme le contrat l’annonce ; `minConfidence` filtre réellement.
+- `get_status` donne le statut affiché par l’appareil (dont « Image noire » et « Champ de vue modifié »), depuis quand, et `healthy`.
+- Chaque évènement porte son passage (`passageId`), les genres vus (`kinds`) et s’il est conservé (`kept`).
+- Une ressource introuvable répond `-32002`.
+- Connexions bornées (8, dont 4 par client) et 15 s maximum pour recevoir une requête : un client lent ne peut plus épuiser les threads de l’application.
+
 ### Détection
 - Alerte de sabotage : une image restée noire 5 s (objectif masqué, pièce sans lumière) passe la surveillance en « Image noire », et une scène qui change sans personne suivi pendant 8 s en « Champ de vue modifié » (caméra déplacée ou tournée), à confirmer par « C’est voulu ». Les deux s’affichent sur la notification persistante avec leur heure.
 - Mode calibrage (Réglages → Avancé) : le viseur montre aussi, en pointillés, ce que le détecteur voit sans le suivre — pistes en attente de confirmation, décor immobile, détections sous le seuil — avec leur confiance, et rappelle les deux seuils actifs. Pour régler les seuils sur l’appareil.

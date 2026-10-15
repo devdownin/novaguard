@@ -170,6 +170,9 @@ Output:
 ```json
 {
   "surveillanceActive": true,
+  "status": "camera-obstructed",
+  "statusSince": "2026-09-12T03:12:08Z",
+  "healthy": false,
   "camera": "Arrière (1×)",
   "lastDetectionAt": "2026-09-12T10:41:32+01:00",
   "detectionsToday": 4,
@@ -182,6 +185,8 @@ Output:
 ```
 
 No filesystem path, PIN, token or credential may be returned.
+
+`status` is the status the device itself shows: `inactive`, `starting`, `active`, `recording`, or a fault — `camera-unavailable`, `camera-obstructed` (black picture: lens covered or room unlit), `camera-moved` (field of view changed with nobody tracked), `storage-insufficient`, `analysis-unavailable`, `recording-error`. `healthy` is false on a fault. A client MUST NOT read an absence of events during an unhealthy period as an absence of activity.
 
 ## 8.2 `novaguard.search_events`
 
@@ -248,11 +253,13 @@ Input:
   "type":"object",
   "additionalProperties":false,
   "required":["eventId"],
-  "properties":{"eventId":{"type":"integer","minimum":0}}
+  "properties":{"eventId":{"type":"integer","minimum":0,"maximum":999999999999999}}
 }
 ```
 
-Output contains `id`, `kind`, `timestamp`, `durationSeconds`, `confidence`, `hasVideo`, `sizeBytes`, `videoResourceUri` and `thumbnailResourceUri` where available.
+Event ids are epoch milliseconds (up to 15 digits); a 32-bit bound rejects every real event.
+
+Output contains `id`, `kind`, `timestamp`, `durationSeconds`, `confidence` (in `[0,1]`), `hasVideo`, `sizeBytes`, `videoResourceUri` and `thumbnailResourceUri` where available, `passageId` (shared by the clips of one visit, `null` on older clips), `kinds` (every kind seen during the passage) and `kept` (exempt from retention and automatic deletion).
 
 ## 8.4 `novaguard.get_latest_events`
 
@@ -373,6 +380,8 @@ novaguard://status
 ```
 
 Every URI MUST be strictly validated. Unknown schemes, path traversal and arbitrary file references MUST be rejected.
+
+A resource that cannot be produced — unknown event, missing file — is JSON-RPC error `-32002`.
 
 ### `novaguard://event/{eventId}`
 

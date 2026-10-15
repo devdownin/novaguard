@@ -29,7 +29,7 @@ internal object McpCatalog {
     .put(
       tool(
         "get_status",
-        "Returns high-level surveillance status: active state, camera, last detection time, today's detection count and a storage summary.",
+        "Returns high-level surveillance status: active state, the status the device itself shows (inactive, starting, active, recording, or a fault: camera-unavailable, camera-obstructed, camera-moved, storage-insufficient, analysis-unavailable, recording-error) and since when, camera, last detection time, today's detection count and a storage summary. While healthy is false, an absence of events does not mean nothing happened.",
         JSONObject()
       )
     )
@@ -52,7 +52,7 @@ internal object McpCatalog {
       tool(
         "get_event",
         "Returns one surveillance event by id.",
-        JSONObject().put("eventId", intProp(0, Int.MAX_VALUE, "Identifier of the event.")),
+        JSONObject().put("eventId", longProp(0, McpRules.MAX_EVENT_ID, "Identifier of the event, as returned by the other tools.")),
         required = listOf("eventId")
       )
     )
@@ -110,6 +110,9 @@ internal object McpCatalog {
   private fun intProp(min: Int, max: Int, description: String) =
     JSONObject().put("type", "integer").put("minimum", min).put("maximum", max).put("description", description)
 
+  private fun longProp(min: Long, max: Long, description: String) =
+    JSONObject().put("type", "integer").put("minimum", min).put("maximum", max).put("description", description)
+
   private fun boolProp(description: String) =
     JSONObject().put("type", "boolean").put("description", description)
 
@@ -165,6 +168,13 @@ internal object McpCatalog {
     if (number < min || number > max) invalid(key, "must be between $min and $max")
   }
 
+  private fun longRule(min: Long, max: Long): (JSONObject, String) -> Unit = { args, key ->
+    val value = args.opt(key)
+    if (value !is Int && value !is Long) invalid(key, "must be an integer")
+    val number = (value as Number).toLong()
+    if (number < min || number > max) invalid(key, "must be between $min and $max")
+  }
+
   private fun numberRule(min: Double, max: Double): (JSONObject, String) -> Unit = { args, key ->
     val value = args.opt(key)
     if (value !is Number) invalid(key, "must be a number")
@@ -185,7 +195,8 @@ internal object McpCatalog {
     "get_storage" to emptyMap(),
     "get_configuration" to emptyMap(),
     "get_camera_info" to emptyMap(),
-    "get_event" to mapOf("eventId" to intRule(0, Int.MAX_VALUE)),
+    // Ids are epoch milliseconds: an Int bound refused every event ever recorded.
+    "get_event" to mapOf("eventId" to longRule(0, McpRules.MAX_EVENT_ID)),
     "get_latest_events" to mapOf("kind" to stringRule(KINDS), "limit" to intRule(1, 20)),
     "get_statistics" to mapOf(
       "from" to stringRule(), "to" to stringRule(), "groupBy" to stringRule(GROUPS)

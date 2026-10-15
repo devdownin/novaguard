@@ -1,5 +1,7 @@
 import { NativeModules } from 'react-native';
 import type { DetectionEvent, Settings, StorageInfo } from '../state/types';
+import type { SurveillanceStatus } from './status';
+import { keptEventIds } from '../recording/library';
 
 export interface McpServerStatus {
   running: boolean;
@@ -39,6 +41,24 @@ export interface McpSnapshotInput {
   storage: StorageInfo;
   events: DetectionEvent[];
   detectionsToday: number;
+  /**
+   * What the viewfinder and the notification say. `surveillanceActive` alone
+   * told an agent the camera was running while its lens was covered, and
+   * "nothing tonight" is the one wrong answer that reads as a right one.
+   */
+  status: SurveillanceStatus;
+}
+
+/**
+ * Detector confidence on the `[0,1]` scale `mcp.md` §11 promises.
+ *
+ * Events store it as a whole percent (`Math.round(max * 100)`), so a client
+ * filtering on `minConfidence: 0.6` was comparing against 87 and kept
+ * everything. Values already at or under 1 are from histories written before
+ * the percent form and are passed through.
+ */
+export function unitConfidence(stored: number): number {
+  return stored > 1 ? Math.round(stored) / 100 : stored;
 }
 
 function nativeModule() {
@@ -46,9 +66,11 @@ function nativeModule() {
 }
 
 export function buildMcpSnapshot(input: McpSnapshotInput): string {
-  const { settings, storage, events, surveillanceActive, detectionsToday } = input;
+  const { settings, storage, events, surveillanceActive, detectionsToday, status } = input;
+  const kept = keptEventIds(events);
   return JSON.stringify({
     surveillanceActive,
+    status,
     camera: settings.camera,
     lastDetectionAt: events.length ? Math.max(...events.map(e => e.timestamp)) : null,
     detectionsToday,
@@ -60,7 +82,9 @@ export function buildMcpSnapshot(input: McpSnapshotInput): string {
         person: settings.person,
         animal: settings.animal,
         sensitivity: settings.sens,
-        threshold: settings.threshold,
+        // Entry gates, on the same [0,1] scale as event confidence.
+        threshold: settings.threshold / 100,
+        animalThreshold: settings.animalThreshold / 100,
         preciseDetection: settings.preciseDetection,
         autoZoom: settings.autoZoom,
         zoneConfigured: Boolean(settings.zone),
@@ -84,8 +108,11 @@ export function buildMcpSnapshot(input: McpSnapshotInput): string {
       id: e.id,
       kind: e.kind,
       timestamp: e.timestamp,
+      passageId: e.passageId ?? null,
+      kinds: e.kinds ?? [e.kind],
+      kept: kept.has(e.id),
       dur: e.dur,
-      conf: e.conf,
+      conf: unitConfidence(e.conf),
       path: e.path,
       bytes: e.bytes,
       thumbPath: e.thumbPath,

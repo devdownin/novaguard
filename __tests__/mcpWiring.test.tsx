@@ -149,6 +149,7 @@ describe('the snapshot handed to the native server', () => {
     storage: { used: 4_096, free: 1_000, total: 2_000 },
     events: [event()],
     detectionsToday: 1,
+    status: 'active',
   }));
 
   it('never carries the stream PIN', () => {
@@ -181,4 +182,59 @@ describe('the snapshot handed to the native server', () => {
     expect(config.detection.sensitivity).toBe(defaultSettings.sens);
     expect(config.detection.zoneConfigured).toBe(false);
   });
+
+  it('puts confidence and both entry gates on the [0,1] scale the contract promises', () => {
+    // Events store a whole percent. Sent as is, `minConfidence: 0.6` kept an
+    // 87 and a 12 alike, and averages came back as 87.
+    const raw = JSON.parse(buildMcpSnapshot({
+      surveillanceActive: true,
+      settings: { ...defaultSettings, threshold: 60, animalThreshold: 75 },
+      storage: { used: 0, free: 0, total: 0 },
+      events: [event({ conf: 87 }), event({ id: 8, conf: 0.42 })],
+      detectionsToday: 0,
+      status: 'active',
+    }));
+    expect(raw.events.map((e: { conf: number }) => e.conf)).toEqual([0.87, 0.42]);
+    expect(raw.configuration.detection.threshold).toBe(0.6);
+    expect(raw.configuration.detection.animalThreshold).toBe(0.75);
+  });
+
+  it('carries the surveillance status, so a blind camera is not an empty room', () => {
+    const raw = JSON.parse(buildMcpSnapshot({
+      surveillanceActive: true, settings: defaultSettings, storage: { used: 0, free: 0, total: 0 },
+      events: [], detectionsToday: 0, status: 'camera-obstructed',
+    }));
+    expect(raw.status).toBe('camera-obstructed');
+  });
+
+  it('carries the passage, the kinds seen in it, and whether it is kept', () => {
+    const raw = JSON.parse(buildMcpSnapshot({
+      surveillanceActive: true, settings: defaultSettings, storage: { used: 0, free: 0, total: 0 },
+      events: [
+        event({ id: 1, passageId: 'p', kinds: ['Personne', 'Animal'], kept: true }),
+        event({ id: 2, passageId: 'p' }),
+        event({ id: 3 }),
+      ],
+      detectionsToday: 0, status: 'active',
+    }));
+    expect(raw.events.map((e: { passageId: string | null }) => e.passageId)).toEqual(['p', 'p', null]);
+    expect(raw.events[0].kinds).toEqual(['Personne', 'Animal']);
+    expect(raw.events[2].kinds).toEqual(['Personne']);
+    // Kept is per passage: the clip written after the gesture is kept too.
+    expect(raw.events.map((e: { kept: boolean }) => e.kept)).toEqual([true, true, false]);
+  });
+});
+
+it('pushes the live status to the server, not just whether monitoring is on', async () => {
+  (useCameraPermission as jest.Mock).mockReturnValue({ hasPermission: true, requestPermission: jest.fn() });
+  const handle = await mountProvider();
+  await ReactTestRenderer.act(async () => { handle.state.toggleMcpServer(); });
+  await ReactTestRenderer.act(async () => {});
+  const last = () => JSON.parse(native.updateSnapshot.mock.calls.at(-1)![0]);
+  expect(last().status).toBe('inactive');
+
+  await ReactTestRenderer.act(async () => { handle.state.toggleMonitoring(); });
+  await ReactTestRenderer.act(async () => {});
+  expect(last().status).toBe(handle.state.surveillanceStatus);
+  expect(last().status).not.toBe('inactive');
 });

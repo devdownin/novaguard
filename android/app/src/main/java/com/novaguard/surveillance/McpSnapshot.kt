@@ -24,7 +24,11 @@ internal data class McpEvent(
   val confidence: Double,
   val sizeBytes: Long,
   val videoPath: String?,
-  val thumbPath: String?
+  val thumbPath: String?,
+  /** Clips of one visit share it; null on clips written before passages existed. */
+  val passageId: String?,
+  val kinds: List<String>,
+  val kept: Boolean
 ) {
   val hasVideo: Boolean get() = !videoPath.isNullOrEmpty() && sizeBytes > 0
 
@@ -38,6 +42,9 @@ internal data class McpEvent(
     .put("videoResourceUri", if (!videoPath.isNullOrEmpty()) "novaguard://video/$id" else JSONObject.NULL)
     .put("thumbnailResourceUri", if (!thumbPath.isNullOrEmpty()) "novaguard://thumbnail/$id" else JSONObject.NULL)
     .put("sizeBytes", sizeBytes)
+    .put("passageId", passageId ?: JSONObject.NULL)
+    .put("kinds", JSONArray(kinds))
+    .put("kept", kept)
 }
 
 /**
@@ -48,6 +55,10 @@ internal data class McpEvent(
  */
 internal class Snapshot private constructor(
   private val surveillanceActive: Boolean,
+  /** `surveillanceStatus` as the device shows it. */
+  val status: String,
+  /** When `status` began, as first seen by this server. */
+  val statusSinceMs: Long,
   private val camera: String,
   private val lastDetectionAtMs: Long?,
   private val detectionsToday: Int,
@@ -63,6 +74,9 @@ internal class Snapshot private constructor(
 
   fun statusJson(): JSONObject = JSONObject()
     .put("surveillanceActive", surveillanceActive)
+    .put("status", status)
+    .put("statusSince", if (statusSinceMs > 0) McpServerModule.isoOf(statusSinceMs) else JSONObject.NULL)
+    .put("healthy", !McpRules.isFault(status))
     .put("camera", camera)
     .put("lastDetectionAt", lastDetectionAtMs?.let { McpServerModule.isoOf(it) } ?: JSONObject.NULL)
     .put("detectionsToday", detectionsToday)
@@ -82,6 +96,7 @@ internal class Snapshot private constructor(
   fun cameraInfoJson(): JSONObject = JSONObject()
     .put("camera", camera)
     .put("active", surveillanceActive)
+    .put("status", status)
     .put("streamEnabled", streamEnabled)
 
   fun requireEvent(id: Long): McpEvent =
@@ -271,12 +286,17 @@ internal class Snapshot private constructor(
     private const val TIMELINE_LIMIT = 500
 
     fun empty() = Snapshot(
-      surveillanceActive = false, camera = "", lastDetectionAtMs = null, detectionsToday = 0,
+      surveillanceActive = false, status = "inactive", statusSinceMs = 0, camera = "", lastDetectionAtMs = null, detectionsToday = 0,
       streamEnabled = false, usedBytes = 0, freeBytes = 0, totalBytes = 0,
       configuration = JSONObject(), events = emptyList()
     )
 
-    fun parse(json: JSONObject): Snapshot {
+    /**
+     * `previous` carries the status start across pushes: the history is pushed
+     * whenever it changes, and a fault that began at 03:12 must still say so
+     * after the next event is written.
+     */
+    fun parse(json: JSONObject, previous: Snapshot, now: Long): Snapshot {
       val storage = json.optJSONObject("storage") ?: JSONObject()
       val rawEvents = json.optJSONArray("events") ?: JSONArray()
       val events = ArrayList<McpEvent>(rawEvents.length())
@@ -291,12 +311,19 @@ internal class Snapshot private constructor(
             confidence = e.optDouble("conf", 0.0),
             sizeBytes = e.optLong("bytes"),
             videoPath = e.optString("path").takeIf { it.isNotEmpty() && !e.isNull("path") },
-            thumbPath = e.optString("thumbPath").takeIf { it.isNotEmpty() && !e.isNull("thumbPath") }
+            thumbPath = e.optString("thumbPath").takeIf { it.isNotEmpty() && !e.isNull("thumbPath") },
+            passageId = e.optString("passageId").takeIf { it.isNotEmpty() && !e.isNull("passageId") },
+            kinds = e.optJSONArray("kinds")?.let { list -> (0 until list.length()).map { list.optString(it) } }
+              ?: listOf(e.optString("kind")),
+            kept = e.optBoolean("kept")
           )
         )
       }
+      val status = json.optString("status").ifEmpty { if (json.optBoolean("surveillanceActive")) "active" else "inactive" }
       return Snapshot(
         surveillanceActive = json.optBoolean("surveillanceActive"),
+        status = status,
+        statusSinceMs = McpRules.statusSince(previous.status, previous.statusSinceMs, status, now),
         camera = json.optString("camera"),
         lastDetectionAtMs = if (json.isNull("lastDetectionAt")) null else json.optLong("lastDetectionAt"),
         detectionsToday = json.optInt("detectionsToday"),
@@ -332,6 +359,7 @@ internal class Snapshot private constructor(
             .put("animal", detection.optBoolean("animal"))
             .put("sensitivity", detection.optString("sensitivity"))
             .put("threshold", detection.optDouble("threshold", 0.0))
+            .put("animalThreshold", detection.optDouble("animalThreshold", 0.0))
             .put("preciseDetection", detection.optBoolean("preciseDetection"))
             .put("autoZoom", detection.optBoolean("autoZoom"))
             .put("zoneConfigured", detection.optBoolean("zoneConfigured"))

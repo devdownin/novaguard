@@ -17,6 +17,7 @@ import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.SocketTimeoutException
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.LocalDate
@@ -24,6 +25,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -50,7 +52,13 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   override fun getName(): String = NAME
 
   private var serverSocket: ServerSocket? = null
-  private var threadPool = Executors.newCachedThreadPool()
+  /**
+   * Bounded, and fronted by `gate`: the cached pool this replaces grew one
+   * thread per connection for as long as a peer kept them open, in the process
+   * that runs the camera and the encoder.
+   */
+  private var threadPool = Executors.newFixedThreadPool(MAX_CONNECTIONS)
+  private val gate = McpRules.ConnectionGate(MAX_CONNECTIONS, MAX_CONNECTIONS_PER_PEER)
   private var currentPort: Int = DEFAULT_PORT
   private var boundToLoopbackOnly: Boolean = true
 
@@ -87,8 +95,10 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       }
 
       isServerRunning = true
-      if (threadPool.isShutdown) threadPool = Executors.newCachedThreadPool()
-      threadPool.execute { listenForConnections() }
+      if (threadPool.isShutdown) threadPool = Executors.newFixedThreadPool(MAX_CONNECTIONS)
+      // Its own thread, not a pool slot: accepting must go on while every slot
+      // is busy, so the excess can be refused quickly instead of queuing.
+      Thread({ listenForConnections() }, "NovaGuardMcpAccept").apply { isDaemon = true; start() }
 
       Log.i(TAG, "MCP server listening on $currentPort (loopbackOnly=$boundToLoopbackOnly)")
       promise.resolve(statusMap())
@@ -141,7 +151,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   @ReactMethod
   fun updateSnapshot(json: String) {
     try {
-      snapshot = Snapshot.parse(JSONObject(json))
+      snapshot = Snapshot.parse(JSONObject(json), snapshot, System.currentTimeMillis())
     } catch (e: Exception) {
       Log.w(TAG, "Ignored malformed MCP snapshot: ${e.message}")
     }
@@ -185,12 +195,39 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     while (isServerRunning) {
       try {
         val socket = serverSocket?.accept() ?: break
-        threadPool.execute { handleClient(socket) }
+        val peer = socket.inetAddress?.hostAddress.orEmpty()
+        if (!gate.tryEnter(peer)) {
+          refuseBusy(socket)
+          continue
+        }
+        try {
+          threadPool.execute {
+            try { handleClient(socket) } finally { gate.leave(peer) }
+          }
+        } catch (_: RejectedExecutionException) {
+          gate.leave(peer)
+          closeQuietly(socket)
+        }
       } catch (e: Exception) {
         if (!isServerRunning) break
         Log.w(TAG, "MCP accept error: ${e.message}")
       }
     }
+  }
+
+  /** Over capacity: answered at once and closed, never queued behind the slow ones. */
+  private fun refuseBusy(socket: Socket) {
+    try {
+      socket.soTimeout = 1_000
+      respond(socket.getOutputStream(), 503, jsonError("Server busy"), mapOf("Retry-After" to "5"))
+    } catch (_: Exception) {
+    } finally {
+      closeQuietly(socket)
+    }
+  }
+
+  private fun closeQuietly(socket: Socket) {
+    try { socket.close() } catch (_: Exception) {}
   }
 
   private fun handleClient(socket: Socket) {
@@ -199,8 +236,11 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       val input = socket.getInputStream()
       val output = socket.getOutputStream()
       val remote = socket.inetAddress?.hostAddress ?: return respond(output, 400, jsonError("Invalid client address"))
+      // The read timeout is renewed by every byte, so it bounds silence, not
+      // duration: a peer trickling one byte a second held its slot forever.
+      val deadline = McpRules.Deadline(System.currentTimeMillis(), REQUEST_DEADLINE_MS)
 
-      val requestLine = readLine(input, MAX_LINE_BYTES) ?: return
+      val requestLine = readLine(socket, input, MAX_LINE_BYTES, deadline) ?: return
       val parts = requestLine.split(" ")
       val method = parts.getOrNull(0) ?: ""
       val path = (parts.getOrNull(1) ?: "/").substringBefore('?')
@@ -212,7 +252,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       var contentType = ""
       var headerCount = 0
       while (true) {
-        val line = readLine(input, MAX_LINE_BYTES) ?: break
+        val line = readLine(socket, input, MAX_LINE_BYTES, deadline) ?: break
         if (line.isEmpty()) break
         if (++headerCount > MAX_HEADERS) return respond(output, 431, jsonError("Too many headers"))
         val name = line.substringBefore(':').trim().lowercase()
@@ -257,7 +297,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
         return respond(output, 413, jsonError("Request Entity Too Large"))
       }
 
-      val body = readBody(input, contentLength) ?: return respond(output, 400, jsonError("Truncated body"))
+      val body = readBody(socket, input, contentLength, deadline) ?: return respond(output, 400, jsonError("Truncated body"))
 
       requestCount.incrementAndGet()
       lastActivityAt.set(System.currentTimeMillis())
@@ -478,7 +518,19 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     return result
   }
 
-  private fun readResource(uri: String): JSONObject {
+  /**
+   * A resource that cannot be produced — no such event, no file on disk — is
+   * `-32002`, as the specification and this repository's documentation say;
+   * the lookups it shares with the tools carry their own code otherwise.
+   */
+  private fun readResource(uri: String): JSONObject =
+    try {
+      readResourceUnchecked(uri)
+    } catch (e: McpException) {
+      throw McpException(e.code, e.message ?: "Resource unavailable", McpRules.resourceRpcCode(e.code, e.rpcCode))
+    }
+
+  private fun readResourceUnchecked(uri: String): JSONObject {
     val parsed = McpCatalog.parseResourceUri(uri)
     val contents = JSONObject().put("uri", uri)
 
@@ -583,7 +635,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       200 -> "OK"; 202 -> "Accepted"; 400 -> "Bad Request"; 401 -> "Unauthorized"
       403 -> "Forbidden"; 404 -> "Not Found"; 405 -> "Method Not Allowed"
       413 -> "Payload Too Large"; 415 -> "Unsupported Media Type"; 421 -> "Misdirected Request"
-      429 -> "Too Many Requests"; 431 -> "Request Header Fields Too Large"
+      429 -> "Too Many Requests"; 431 -> "Request Header Fields Too Large"; 503 -> "Service Unavailable"
       else -> "Internal Server Error"
     }
     val headers = StringBuilder("HTTP/1.1 $status $reason\r\n")
@@ -599,10 +651,19 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     out.flush()
   }
 
+  /** Bounds the next blocking read by what is left of the request's budget. */
+  private fun budget(socket: Socket, deadline: McpRules.Deadline) {
+    val left = deadline.remainingMs(System.currentTimeMillis())
+    if (left <= 0) throw SocketTimeoutException("MCP request deadline exceeded")
+    socket.soTimeout = minOf(left, SOCKET_TIMEOUT_MS.toLong()).toInt()
+  }
+
   /** Reads a CRLF-terminated line without buffering past it. */
-  private fun readLine(input: InputStream, limit: Int): String? {
+  private fun readLine(socket: Socket, input: InputStream, limit: Int, deadline: McpRules.Deadline): String? {
+    budget(socket, deadline)
     val builder = StringBuilder()
     while (builder.length <= limit) {
+      if (deadline.expired(System.currentTimeMillis())) throw SocketTimeoutException("MCP request deadline exceeded")
       val b = input.read()
       if (b == -1) return if (builder.isEmpty()) null else builder.toString()
       if (b == '\n'.code) return builder.toString().removeSuffix("\r")
@@ -611,10 +672,11 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     return null
   }
 
-  private fun readBody(input: InputStream, length: Int): String? {
+  private fun readBody(socket: Socket, input: InputStream, length: Int, deadline: McpRules.Deadline): String? {
     val buffer = ByteArray(length)
     var read = 0
     while (read < length) {
+      budget(socket, deadline)
       val n = input.read(buffer, read, length - read)
       if (n == -1) return null
       read += n
@@ -663,6 +725,10 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     private const val MAX_HEADERS = 64
     private const val MAX_METHOD_LENGTH = 128
     private const val SOCKET_TIMEOUT_MS = 30_000
+    /** Whole request line, headers and body; responses are not counted. */
+    private const val REQUEST_DEADLINE_MS = 15_000L
+    private const val MAX_CONNECTIONS = 8
+    private const val MAX_CONNECTIONS_PER_PEER = 4
     private const val RATE_WINDOW_MS = 60_000L
     private const val MAX_REQUESTS_PER_WINDOW = 120
     private const val MAX_RATE_ENTRIES = 1_024
