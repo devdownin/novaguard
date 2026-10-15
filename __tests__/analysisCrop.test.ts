@@ -9,12 +9,12 @@ import { Rotation } from '../src/camera/orientation';
  */
 function bufferOrigin(u: number, v: number, rotation: Rotation, W: number, H: number): [number, number] {
   // Build the upright image of buffer coordinates, then read the pixel back.
-  let grid: [number, number][][] = Array.from({ length: H }, (_, y) => Array.from({ length: W }, (_, x) => [x, y] as [number, number]));
+  let grid: [number, number][][] = Array.from({ length: H }, (_row, y) => Array.from({ length: W }, (_col, x) => [x, y] as [number, number]));
   const turns = { '0deg': 0, '90deg': 1, '180deg': 2, '270deg': 3 }[rotation];
   for (let i = 0; i < turns; i++) {
     const h = grid.length;
     const w = grid[0].length;
-    grid = Array.from({ length: w }, (_, y) => Array.from({ length: h }, (_, x) => grid[h - 1 - x][y]));
+    grid = Array.from({ length: w }, (_row, y) => Array.from({ length: h }, (_col, x) => grid[h - 1 - x][y]));
   }
   const rows = grid.length;
   const cols = grid[0].length;
