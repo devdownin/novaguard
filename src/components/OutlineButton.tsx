@@ -1,6 +1,7 @@
 import React from 'react';
-import { Pressable, StyleProp, StyleSheet, Text, ViewStyle } from 'react-native';
+import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { color, font } from '../theme';
+import { IconProps } from './icons';
 
 interface ButtonProps {
   label: string;
@@ -9,9 +10,23 @@ interface ButtonProps {
   disabled?: boolean;
   /** For the end-to-end flows, which have no other handle on a button. */
   testID?: string;
+  /** Drawn before the label, in the label's own colour. */
+  icon?: React.ComponentType<IconProps>;
 }
 
-export function PrimaryOutlineButton({ label, onPress, style, disabled, testID }: ButtonProps) {
+/** The label, preceded by its icon when there is one. The icon is drawn, never read: the label names the action. */
+function Content({ label, tint, icon: Icon }: { label: string; tint: string; icon?: React.ComponentType<IconProps> }) {
+  const text = <Text style={[styles.text, { color: tint }]}>{label}</Text>;
+  if (!Icon) return text;
+  return (
+    <View style={styles.row}>
+      <Icon size={13} color={tint} />
+      {text}
+    </View>
+  );
+}
+
+export function PrimaryOutlineButton({ label, onPress, style, disabled, testID, icon }: ButtonProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -27,12 +42,12 @@ export function PrimaryOutlineButton({ label, onPress, style, disabled, testID }
         style,
       ]}
     >
-      <Text style={[styles.text, { color: color.accent }]}>{label}</Text>
+      <Content label={label} tint={color.accent} icon={icon} />
     </Pressable>
   );
 }
 
-export function SecondaryOutlineButton({ label, onPress, style, disabled, testID }: ButtonProps) {
+export function SecondaryOutlineButton({ label, onPress, style, disabled, testID, icon }: ButtonProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -48,12 +63,12 @@ export function SecondaryOutlineButton({ label, onPress, style, disabled, testID
         style,
       ]}
     >
-      <Text style={[styles.text, { color: color.neutral300 }]}>{label}</Text>
+      <Content label={label} tint={color.neutral300} icon={icon} />
     </Pressable>
   );
 }
 
-export function TextButton({ label, onPress, style, disabled, testID }: ButtonProps) {
+export function TextButton({ label, onPress, style, disabled, testID, icon }: ButtonProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -63,7 +78,7 @@ export function TextButton({ label, onPress, style, disabled, testID }: ButtonPr
       accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => [styles.base, styles.text_, pressed && { opacity: 0.6 }, style]}
     >
-      <Text style={[styles.text, { color: color.neutral500 }]}>{label}</Text>
+      <Content label={label} tint={color.neutral500} icon={icon} />
     </Pressable>
   );
 }
@@ -118,6 +133,11 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.45,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   text: {
     fontFamily: font.regular,

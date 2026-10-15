@@ -9,9 +9,14 @@ import { t, tValue } from '../i18n';
 import { shareRecording } from '../surveillance/foregroundService';
 import { formatWhen } from '../utils/date';
 import { Sheet } from './Sheet';
-import { PlayIcon } from './icons';
+import { BookmarkIcon, CloseIcon, IconProps, PlayIcon, ShareIcon, TrashIcon } from './icons';
 import { ClipThumbnail } from './ClipThumbnail';
 import { PrimaryOutlineButton, SecondaryOutlineButton, TextButton } from './OutlineButton';
+
+/** The filled bookmark: the passage is held, and the button now releases it. */
+function KeptIcon(props: IconProps) {
+  return <BookmarkIcon {...props} filled />;
+}
 
 export function VideoDetailSheet() {
   const { selected, selectedEvent, events, selectEvent, askDelete, toggleKeep } = useAppState();
@@ -120,12 +125,13 @@ export function VideoDetailSheet() {
             <Text style={styles.cellValue} maxFontSizeMultiplier={MAX_FONT_SCALE}>
               {t('detail.sequence', { index: clips.findIndex(clip => clip.id === event.id) + 1, count: clips.length })}
             </Text>
-            {playable.length > 0 && <PrimaryOutlineButton label={t('detail.playPassage')} onPress={() => start(true)} />}
+            {playable.length > 0 && <PrimaryOutlineButton label={t('detail.playPassage')} icon={PlayIcon} onPress={() => start(true)} />}
             {(passage?.missingCount ?? 0) > 0 && <Text style={styles.cellValue} maxFontSizeMultiplier={MAX_FONT_SCALE}>
               {t('hist.passage.missing', { count: passage!.missingCount })}
             </Text>}
             {clips.map((clip, index) => <TextButton key={clip.id}
               label={t(clip.path ? 'detail.selectSequence' : 'detail.missingSequence', { index: index + 1 })}
+              icon={clip.path ? PlayIcon : undefined}
               onPress={() => { updatePlayback(null); selectEvent(clip.id); }} />)}
           </View>}
           {playFailed && <Text style={styles.playError} accessibilityLiveRegion="polite">{t('detail.playError')}</Text>}
@@ -153,12 +159,12 @@ export function VideoDetailSheet() {
 
           <View style={styles.actions}>
             {hasClip && (
-              <PrimaryOutlineButton label={t('detail.share')} onPress={share} style={styles.action} />
+              <PrimaryOutlineButton label={t('detail.share')} icon={ShareIcon} onPress={share} style={styles.action} />
             )}
-            <SecondaryOutlineButton label={t(kept ? 'detail.unkeep' : 'detail.keep')} onPress={toggleKeep}
+            <SecondaryOutlineButton label={t(kept ? 'detail.unkeep' : 'detail.keep')} icon={kept ? KeptIcon : BookmarkIcon} onPress={toggleKeep}
               style={styles.action} />
-            <SecondaryOutlineButton label={t(clips.length > 1 ? 'detail.deleteSequence' : 'detail.delete')} onPress={() => { updatePlayback(null); selectEvent(event.id); askDelete(); }} style={styles.action} />
-            <TextButton label={t('detail.close')} onPress={close} style={styles.action} />
+            <SecondaryOutlineButton label={t(clips.length > 1 ? 'detail.deleteSequence' : 'detail.delete')} icon={TrashIcon} onPress={() => { updatePlayback(null); selectEvent(event.id); askDelete(); }} style={styles.action} />
+            <TextButton label={t('detail.close')} icon={CloseIcon} onPress={close} style={styles.action} />
           </View>
         </View>
       )}

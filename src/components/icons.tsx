@@ -1,7 +1,7 @@
 import React from 'react';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
-interface IconProps {
+export interface IconProps {
   size?: number;
   color: string;
 }
@@ -109,6 +109,41 @@ export function ShieldLockIcon({ size = 22, color }: IconProps) {
       <Path d="M12 3l7 3v6c0 4.2-2.9 7.5-7 9-4.1-1.5-7-4.8-7-9V6l7-3z" stroke={color} strokeWidth={1.4} strokeLinejoin="round" />
       <Rect x={9.6} y={12} width={4.8} height={3.8} rx={0.8} stroke={color} strokeWidth={1.3} />
       <Path d="M10.4 12v-1.2a1.6 1.6 0 0 1 3.2 0V12" stroke={color} strokeWidth={1.3} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+export function ShareIcon({ size = 14, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M12 3.5v11M8 7.5l4-4 4 4" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M5.5 12.5v6a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-6" stroke={color} strokeWidth={1.6} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+export function BookmarkIcon({ size = 14, color, filled = false }: IconProps & { filled?: boolean }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M6.5 3.5h11v17l-5.5-4-5.5 4v-17z" stroke={color} strokeWidth={1.6} strokeLinejoin="round"
+        fill={filled ? color : 'none'} />
+    </Svg>
+  );
+}
+
+export function TrashIcon({ size = 14, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M4 6.5h16M9.5 6.5V4h5v2.5" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M6.5 6.5l1 13.5h9l1-13.5M10 10.5v6M14 10.5v6" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+export function CloseIcon({ size = 14, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M6 6l12 12M18 6L6 18" stroke={color} strokeWidth={1.6} strokeLinecap="round" />
     </Svg>
   );
 }

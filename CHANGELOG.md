@@ -7,6 +7,7 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 ## [Non publié]
 
 ### Interface
+- Détail d’une vidéo : les boutons Lire, Partager, Conserver, Supprimer et Fermer portent une icône, comme la barre de sélection de l’historique.
 - « Conserver » sur un passage : ses vidéos échappent à la durée de conservation et à la suppression automatique ; seul un geste explicite les efface. Mention « Conservé » dans l’historique.
 - Historique : appui long pour sélectionner plusieurs passages, puis « Supprimer » (avec confirmation) efface toutes leurs vidéos d’un coup.
 - Toucher l’alerte de détection ouvre le passage concerné dans l’historique (le verrouillage de l’historique s’applique toujours).
