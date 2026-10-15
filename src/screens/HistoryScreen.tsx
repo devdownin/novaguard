@@ -6,6 +6,7 @@ import { HistoryFilter } from '../state/types';
 import { SegmentedControl } from '../components/SegmentedControl';
 import { PeriodDropdown } from '../components/PeriodDropdown';
 import { EventCard } from '../components/EventCard';
+import { CloseIcon, TrashIcon } from '../components/icons';
 import { PrimaryOutlineButton, SecondaryOutlineButton, TextButton } from '../components/OutlineButton';
 import { historyRows, keptEventIds } from '../recording/library';
 import { groupPassages } from '../recording/passages';
@@ -136,8 +137,8 @@ export function HistoryScreen() {
           <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.pickCount} accessibilityLiveRegion="polite">
             {tn('hist.pick.count.other', picked.size)}
           </Text>
-          <SecondaryOutlineButton label={t('hist.pick.delete')} onPress={deletePicked} />
-          <TextButton label={t('hist.pick.cancel')} onPress={() => setPicked(new Set())} />
+          <SecondaryOutlineButton label={t('hist.pick.delete')} icon={TrashIcon} onPress={deletePicked} />
+          <TextButton label={t('hist.pick.cancel')} icon={CloseIcon} onPress={() => setPicked(new Set())} />
         </View>
       )}
 
