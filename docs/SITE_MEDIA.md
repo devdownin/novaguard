@@ -1,22 +1,26 @@
 # Médias réels pour le site NovaGuard
 
-Éléments nécessaires pour terminer les points 1 et 2 de la demande : captures réelles Android et courte démonstration du parcours détection → clip → question à l’agent. Les fichiers sont absents du dépôt au moment de la préparation. Le site conserve donc son illustration explicitement légendée.
+## Captures reçues et intégrées — point 1 terminé
 
-## Trois captures Android
+L’utilisateur a fourni les trois écrans de l’application. Les JPEG d’origine sont conservés à l’identique : aucune retouche, aucun recadrage ni ajout d’un état de surveillance fictif. Chaque fichier mesure 575 × 1280 pixels. Le modèle de téléphone et la version de l’application ne sont pas précisés par les fichiers fournis.
 
-Utiliser un APK récent sur Android 16, avec sa version et le modèle de téléphone indiqués dans la livraison des médias :
+| Source fournie | Fichier publié | État visible | Taille |
+| --- | --- | --- | --- |
+| `1000038182.jpg` | `site/assets/screens/surveillance.jpg` | Surveillance inactive, caméra en veille, zéro détection du jour | 34 964 octets |
+| `1000038183.jpg` | `site/assets/screens/historique.jpg` | Historique vide, zéro passage, filtres de consultation | 31 959 octets |
+| `1000038184.jpg` | `site/assets/screens/reglages.jpg` | Réglages de surveillance et sections de configuration | 56 126 octets |
 
-1. **Surveillance** : une personne consentante détectée, cadre visible et état de surveillance lisible.
-2. **Historique** : le passage correspondant, avec un clip réellement lisible. Les horaires, la durée et les événements ne doivent pas être inventés.
-3. **Réglages** : les options de détection/enregistrement ou le bloc MCP, en masquant les secrets. Ne pas inclure de jeton, configuration JSON personnelle, QR de connexion, adresse privée inutile ou notification personnelle.
+Empreintes SHA-256 des fichiers d’origine et publiés, identiques :
 
-Privilégier le PNG natif, en portrait, sans encadrement de téléphone ajouté. Une capture peut être récupérée avec ADB depuis un appareil connecté, après autorisation du débogage USB :
-
-```sh
-adb exec-out screencap -p > surveillance.png
+```text
+5a1ebe2a6edfc58c21bb62990c5805620a40373ac2affdf3c8f3d93abd0ec21b  surveillance.jpg
+9c9f73365244cff7473761cffb2d485c92ec411932d1f72e6462d00ab030239b  historique.jpg
+cc6d896411242cf3d509a3754855a56a638739a46edb488d52b0e44b74b3ada0  reglages.jpg
 ```
 
-Naviguer sur le téléphone jusqu’à chaque écran avant de lancer la commande correspondante. Ne pas remplacer une capture native par un rendu HTML ou une illustration.
+La capture Surveillance remplace l’illustration du visuel principal. La galerie `#apercu` montre les trois fichiers entiers, avec des textes alternatifs et des légendes adaptés à leur contenu réel. Chaque capture est un lien vers le JPEG en taille réelle : aucun script n’est requis pour l’agrandir. Les captures de la galerie se chargent à la demande (`loading="lazy"`) ; la capture principale est prioritaire. Le total des trois sources est de 123 049 octets, et l’image Surveillance utilisée deux fois partage la même URL pour bénéficier du cache du navigateur.
+
+Ces images présentent l’interface, sans prouver une détection ou un enregistrement sur l’appareil. Elles ne servent pas à fabriquer un résultat ni une réponse d’agent.
 
 ## Démonstration de 20 à 35 secondes
 
@@ -35,11 +39,12 @@ adb pull /sdcard/novaguard-demo.mp4
 
 Utiliser uniquement des scènes et personnes dont la publication est autorisée. Avant intégration, vérifier visuellement tous les médias pour éviter de publier des jetons, QR, notifications, visages ou lieux non destinés au public.
 
-## Intégration prévue après réception
+## Intégration vidéo après réception — point 2 en attente
 
-- Optimiser les trois captures, conserver les proportions natives et ajouter des textes alternatifs descriptifs.
-- Remplacer le visuel illustratif du téléphone par la capture Surveillance et ajouter une galerie Historique/Réglages.
-- Ajouter un lecteur HTML `video` avec commandes, `preload="none"`, image d’affiche et transcription du contenu. Si une parole est présente, fournir ses sous-titres accessibles.
-- Vérifier le téléchargement des médias sous `/novaguard/`, le rendu mobile et le fonctionnement sans JavaScript.
+La vidéo du parcours n’a pas encore été fournie. Après réception des clips :
 
-Ce brief prépare l’intégration ; il ne signifie pas que les médias manquants sont produits ou intégrés.
+- Préserver les actions et résultats réellement montrés, sans inventer un passage enregistré ou une réponse de l’agent.
+- Ajouter un lecteur HTML `video` avec commandes, `preload="none"`, image d’affiche issue du clip et transcription du contenu. Si une parole est présente, fournir ses sous-titres accessibles.
+- Vérifier le chargement sous `/novaguard/`, le rendu mobile et le fonctionnement sans JavaScript.
+
+Le brief ci-dessus prépare cette intégration ; il ne signifie pas que la vidéo manquante est produite ou intégrée.

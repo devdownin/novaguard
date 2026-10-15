@@ -51,7 +51,9 @@ jobs:
           test -s site/styles.css
           test -s site/app.js
           test -s site/assets/mark.svg
-          test -s site/assets/scene.svg
+          test -s site/assets/screens/surveillance.jpg
+          test -s site/assets/screens/historique.jpg
+          test -s site/assets/screens/reglages.jpg
           test -f site/.nojekyll
       - name: Set up Pages
         uses: actions/configure-pages@v5

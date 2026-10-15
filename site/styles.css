@@ -280,258 +280,6 @@ nav {
   max-width: 110%;
   border-style: dashed;
 }
-.phone {
-  width: 284px;
-  background: #1b1925;
-  border-radius: 39px;
-  padding: 10px 9px 7px;
-  border: 2px solid #62566e;
-  box-shadow: 0 35px 60px #0005, inset 0 0 0 4px #0d0c12;
-  transform: rotate(5deg);
-  position: relative;
-}
-.phone-top {
-  height: 28px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 9px;
-  padding: 0 17px;
-  color: #bcb6ce;
-}
-.phone-lens {
-  width: 58px;
-  height: 17px;
-  background: #09080d;
-  border-radius: 12px;
-  position: absolute;
-  left: calc(50% - 29px);
-  top: 9px;
-}
-.app-heading {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  padding: 12px 12px 8px;
-}
-.mini-mark {
-  color: var(--purple);
-  font-weight: 700;
-  font-size: 20px;
-}
-.app-menu {
-  margin-left: auto;
-  color: #a8a0b9;
-}
-.app-status {
-  font-size: 9px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px 12px;
-  color: #d9d3e6;
-}
-.app-status > span:last-child {
-  margin-left: auto;
-  letter-spacing: 1px;
-  font-size: 7px;
-  color: var(--green);
-}
-.app-status .status-dot,
-.app-caption .status-dot {
-  width: 5px;
-  height: 5px;
-}
-.camera-view {
-  position: relative;
-  overflow: hidden;
-  border-radius: 13px;
-  margin: 0 4px;
-  height: 300px;
-  background: #5f6556;
-}
-.camera-view > img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.camera-time {
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  top: 12px;
-  display: flex;
-  justify-content: space-between;
-  font-size: 7px;
-  letter-spacing: 1px;
-  color: white;
-}
-.camera-time > span {
-  font-size: 6px;
-  background: #0006;
-  border-radius: 3px;
-  padding: 2px 5px;
-}
-.detection-box {
-  position: absolute;
-  border: 1px solid #cbb4ff;
-  width: 70px;
-  height: 164px;
-  top: 66px;
-  left: 111px;
-  border-radius: 3px;
-  box-shadow: 0 0 12px #cbb4ff22;
-}
-.detection-box > span {
-  position: absolute;
-  bottom: 100%;
-  left: -1px;
-  background: #cbb4ff;
-  color: #221a32;
-  font-size: 8px;
-  padding: 2px 6px;
-  border-radius: 3px 3px 0 0;
-}
-.detection-box:after,
-.detection-box:before {
-  content: '';
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border-color: #e0d3ff;
-  border-style: solid;
-}
-.detection-box:before {
-  top: -2px;
-  left: -2px;
-  border-width: 2px 0 0 2px;
-}
-.detection-box:after {
-  bottom: -2px;
-  right: -2px;
-  border-width: 0 2px 2px 0;
-}
-.recording {
-  position: absolute;
-  bottom: 11px;
-  left: 10px;
-  border: 1px solid #ffffff25;
-  background: #15131cbb;
-  border-radius: 4px;
-  font-size: 7px;
-  padding: 5px 7px;
-  display: flex;
-  gap: 5px;
-  align-items: center;
-}
-.recording > span {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #ff9696;
-}
-.app-caption {
-  font-size: 7px;
-  display: flex;
-  gap: 5px;
-  align-items: center;
-  padding: 12px 7px;
-  color: #cec6df;
-}
-.app-caption > span:last-child {
-  margin-left: auto;
-  color: #aaa0bd;
-}
-.app-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  margin: 0 8px;
-  padding: 9px 0 13px;
-  border-bottom: 1px solid #ffffff16;
-}
-.app-stats > div {
-  display: grid;
-  gap: 3px;
-}
-.app-stats span {
-  font-size: 7px;
-  color: #a69eb8;
-}
-.app-stats b {
-  font-size: 10px;
-  font-weight: 500;
-}
-.app-stats > div + div {
-  padding-left: 10px;
-  border-left: 1px solid #ffffff16;
-}
-.app-bottom {
-  display: flex;
-  justify-content: space-around;
-  font-size: 15px;
-  text-align: center;
-  padding: 8px 0 13px;
-  color: #a79dbb;
-}
-.app-bottom small {
-  display: block;
-  font-size: 6px;
-  margin-top: 3px;
-}
-.selected {
-  color: var(--purple);
-}
-.float-chip {
-  position: absolute;
-  z-index: 2;
-  border: 1px solid #5a4f6c;
-  background: #272230f2;
-  padding: 13px 16px;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  border-radius: 11px;
-  box-shadow: 0 12px 35px #0003;
-  font-size: 11px;
-  line-height: 1.5;
-  backdrop-filter: blur(10px);
-}
-.float-chip small {
-  display: block;
-  font-size: 9px;
-  color: #b8accb;
-  margin-top: 2px;
-}
-.local-chip {
-  left: -8px;
-  top: 87px;
-  transform: rotate(-4deg);
-}
-.icon-box {
-  width: 31px;
-  height: 31px;
-  border: 1px solid #74638c;
-  border-radius: 8px;
-  color: var(--purple);
-  font-size: 26px;
-  text-align: center;
-  line-height: 26px;
-}
-.event-chip {
-  right: -5px;
-  bottom: 83px;
-  transform: rotate(-3deg);
-}
-.event-check {
-  border-radius: 50%;
-  background: #a6ebc51a;
-  color: var(--green);
-  height: 28px;
-  width: 28px;
-  display: grid;
-  place-items: center;
-}
 .product-visual figcaption {
   position: absolute;
   bottom: -24px;
@@ -1248,21 +996,6 @@ details p {
   .hero .actions {
     gap: 20px;
   }
-  .local-chip {
-    left: -12px;
-    top: 65px;
-  }
-  .event-chip {
-    right: -12px;
-    bottom: 70px;
-  }
-  .float-chip {
-    font-size: 10px;
-    padding: 10px 12px;
-  }
-  .float-chip small {
-    font-size: 8px;
-  }
   .orbit {
     width: 360px;
     height: 360px;
@@ -1347,14 +1080,6 @@ details p {
     width: 100%;
     margin: 10px auto 0;
     min-height: 610px;
-  }
-  .local-chip {
-    left: 8px;
-    top: 90px;
-  }
-  .event-chip {
-    right: 0;
-    bottom: 80px;
   }
   .section {
     padding-top: 76px;
@@ -1534,44 +1259,6 @@ details p {
   .product-visual {
     min-height: 605px;
     margin-top: 12px;
-  }
-  .phone {
-    transform: rotate(3deg);
-    width: 267px;
-  }
-  .camera-view {
-    height: 280px;
-  }
-  .detection-box {
-    top: 62px;
-    left: 103px;
-    height: 153px;
-    width: 65px;
-  }
-  .float-chip {
-    font-size: 9px;
-    gap: 8px;
-  }
-  .float-chip small {
-    font-size: 7px;
-  }
-  .local-chip {
-    left: 0;
-    top: 54px;
-  }
-  .event-chip {
-    right: 0;
-    bottom: 53px;
-  }
-  .icon-box {
-    width: 25px;
-    height: 25px;
-    font-size: 20px;
-    line-height: 22px;
-  }
-  .event-check {
-    width: 24px;
-    height: 24px;
   }
   .orbit {
     width: 300px;
@@ -2198,4 +1885,137 @@ details p {
 .guide-content,
 .guide-sidebar {
   min-width: 0;
+}
+
+/* Native Android screenshots supplied by the project owner. */
+.hero-screenshot-link {
+  display: block;
+  width: 270px;
+  max-width: calc(100% - 30px);
+  border: 1px solid #62566e;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #171522;
+  box-shadow: 0 30px 60px #0005;
+}
+.hero-screenshot {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.hero-gallery-link {
+  display: inline-flex;
+  gap: 12px;
+  margin-top: 22px;
+  color: var(--purple);
+  font-size: 12px;
+}
+.screenshots-section {
+  background: #1b1722;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.screenshots-section .eyebrow {
+  color: var(--purple);
+}
+.screenshots-section .section-heading > p {
+  color: #c4b8cf;
+}
+.screenshots-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+.screen-card {
+  background: #25202f;
+  border: 1px solid #41364d;
+  border-radius: 18px;
+  padding: 24px;
+  min-width: 0;
+}
+.screen-link {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  margin: 0 auto;
+  border: 1px solid #5b4b6c;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.screen-link:hover {
+  border-color: var(--purple);
+}
+.screen-link img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.screen-card figcaption {
+  margin-top: 26px;
+}
+.screen-card .card-index {
+  color: #c5afe2;
+}
+.screen-card h3 {
+  font-size: 22px;
+  line-height: 1.25;
+  margin: 11px 0 12px;
+}
+.screen-card p,
+.screenshots-note {
+  font-size: 12px;
+  line-height: 1.85;
+  color: #c4b8cf;
+}
+.screenshots-note {
+  font-size: 11px;
+  margin-top: 26px;
+}
+@media (max-width: 1000px) {
+  .screenshots-grid {
+    gap: 16px;
+  }
+  .screen-card {
+    padding: 16px;
+  }
+  .screen-card h3 {
+    font-size: 19px;
+  }
+}
+@media (max-width: 700px) {
+  .screenshots-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    max-width: 440px;
+    margin: 0 auto;
+  }
+  .screen-card {
+    padding: 24px;
+  }
+  .screen-link {
+    max-width: 280px;
+  }
+  .screen-card h3 {
+    font-size: 24px;
+  }
+  .screen-card p {
+    font-size: 13px;
+  }
+}
+@media (max-width: 560px) {
+  .hero-screenshot-link {
+    width: 252px;
+  }
+  .hero-gallery-link {
+    font-size: 11px;
+  }
+  .product-visual {
+    min-height: 590px;
+  }
+  .product-visual figcaption {
+    font-size: 9px;
+    bottom: 0;
+    text-align: center;
+  }
 }

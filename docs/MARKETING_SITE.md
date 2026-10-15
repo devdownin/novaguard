@@ -23,7 +23,7 @@ python3 -m http.server 8000 --directory site
 
 Ouvrir `http://localhost:8000`. Le site ne nécessite aucun backend. Le sélecteur des deux modes est un bouton de présentation ; il ne se connecte pas à une caméra. Sans JavaScript, les deux présentations restent lisibles. Les questions utilisent les éléments HTML natifs `details` et `summary`.
 
-Les illustrations SVG sont créées pour cette présentation. La vue du téléphone est explicitement indiquée comme une illustration, pas comme une capture de l’application ni comme une détection réelle. Aucune police, image ou bibliothèque n’est chargée depuis un service tiers. Aucun formulaire, cookie d’analyse ou traceur n’est ajouté.
+Le logo et les schémas décoratifs sont créés pour cette présentation. Le visuel principal et la galerie utilisent les trois captures Android réelles fournies par l’utilisateur, conservées sans retouche. Les légendes précisent les états visibles : surveillance inactive, historique vide et réglages. L’ancien téléphone illustratif, ses surimpressions et sa scène SVG ont été retirés. Aucune police, image ou bibliothèque n’est chargée depuis un service tiers. Aucun formulaire, cookie d’analyse ou traceur n’est ajouté.
 
 ## Analyse du projet et positionnement
 
@@ -110,7 +110,7 @@ python3 scripts/update-site-release.py --metadata /tmp/novaguard-release.json
 
 ## Captures Android et démonstration vidéo demandées
 
-Les points 1 et 2 de la demande d’amélioration exigent des médias de l’application réelle. L’arborescence de `main` ne contient ni captures Surveillance/Historique/Réglages ni vidéo de ce parcours. Cet environnement ne dispose pas d’ADB, du SDK/émulateur Android ou d’un appareil connecté. Les sources ont été demandées à l’utilisateur ; elles restent nécessaires pour remplacer l’illustration et publier une démonstration réelle. Aucun visuel généré ou résultat fictif n’est présenté comme une capture réelle. Le brief de capture se trouve dans `docs/SITE_MEDIA.md`.
+Le point 1 est réalisé avec les trois captures fournies par l’utilisateur : `1000038182.jpg` (Surveillance), `1000038183.jpg` (Historique) et `1000038184.jpg` (Réglages). Elles sont publiées dans `site/assets/screens/`, sans retouche ni recadrage, avec leurs proportions natives (575 × 1280). Le visuel principal montre la vraie capture Surveillance ; une galerie présente les trois écrans avec des liens directs vers les fichiers en taille réelle, utilisables au clavier et sans JavaScript. Les captures ne montrent ni détection active ni clip enregistré : les légendes le disent explicitement. Aucun résultat fictif n’est ajouté. Le point 2 reste en attente des clips source pour la démonstration réelle. La provenance et le brief vidéo se trouvent dans `docs/SITE_MEDIA.md`.
 
 ### Vérification de la mise à jour guide/installation
 
@@ -120,4 +120,12 @@ Les deux pages ont été parcourues sous le préfixe HTTP `/novaguard/` à 1440,
 
 Le générateur a été exécuté avec les métadonnées publiques réelles et avec des cas de vérification : absence de fichier, plusieurs architectures sans APK universel, texte HTML dans une version, URL de téléchargement inattendue, brouillon/préversion, marqueur absent ou en double et seconde génération identique. Ces cas ont passé leurs assertions. Le lien direct de l’APK répond à une requête HEAD avec un statut HTTP 200, le type `application/vnd.android.package-archive` et une taille de 106 259 917 octets.
 
-Les points médias 1 et 2 demeurent **en attente des fichiers source**. Les contrôles du site et du générateur ne constituent pas un essai de capture ou d’enregistrement Android.
+Le point média 1 est désormais intégré avec les captures reçues. Le point 2 demeure **en attente des clips source**. Les contrôles du site et du générateur ne constituent pas un essai de capture ou d’enregistrement Android.
+
+### Vérification des captures réelles
+
+Les trois JPEG publiés ont été comparés octet par octet aux pièces jointes : ils sont identiques, de dimensions 575 × 1280 et totalisent 123 049 octets. Leurs empreintes sont consignées dans `docs/SITE_MEDIA.md`.
+
+Le visuel principal et la galerie ont été parcourus sous `/novaguard/` à 1440, 1024, 768, 700, 390 et 320 px : proportions d’image conservées, aucun débordement horizontal et trois liens fonctionnels vers les JPEG en taille réelle. L’ouverture au clavier et l’ouverture sans JavaScript réussissent. Le parcours du guide MCP, la copie de configuration, les modes et l’installation ont également été rejoués avec succès. Les pages et leurs médias ne produisent ni erreur JavaScript ni échec HTTP local.
+
+`npm run typecheck`, `npm run lint` (0 erreur, 0 avertissement), `npm test -- --ci --runInBand` (89 suites, 956 tests), le contrôle de formatage, les liens/ancres/ARIA et `git diff --check` passent. Le workflow Pages vérifie désormais la présence des trois JPEG au lieu de la scène illustrative retirée. Cette intégration ne vérifie pas le fonctionnement d’une caméra réelle ; elle présente fidèlement les captures fournies.

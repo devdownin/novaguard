@@ -96,68 +96,30 @@
             <span>Android 16 requis</span><span>Licence GPL v3</span
             ><span>Sans compte</span>
           </div>
+          <a class="hero-gallery-link" href="#apercu"
+            >Voir les écrans de l’application
+            <span aria-hidden="true">↓</span></a
+          >
         </div>
         <figure class="product-visual">
-          <div class="orbit orbit-one"></div>
-          <div class="orbit orbit-two"></div>
-          <div class="float-chip local-chip">
-            <span class="icon-box">⌁</span>
-            <div>
-              La détection reste ici.<small>Traitement sur l’appareil</small>
-            </div>
-          </div>
-          <div class="phone">
-            <div class="phone-top">
-              <span>9:41</span>
-              <div class="phone-lens"></div>
-              <span aria-hidden="true">▰</span>
-            </div>
-            <div class="app-heading">
-              <span class="mini-mark">N</span><b>NovaGuard</b
-              ><span class="app-menu" aria-hidden="true">•••</span>
-            </div>
-            <div class="app-status">
-              <span class="status-dot"></span> Surveillance active
-              <span>LOCAL</span>
-            </div>
-            <div class="camera-view">
-              <img
-                src="./assets/scene.svg"
-                width="320"
-                height="380"
-                alt="Illustration d’une entrée de maison avec une personne dans le champ de la caméra."
-              />
-              <div class="camera-time">ENTRÉE <span>ILLUSTRATION</span></div>
-              <div class="detection-box"><span>Personne</span><i></i></div>
-              <div class="recording">
-                <span></span> Enregistrement du passage
-              </div>
-            </div>
-            <div class="app-caption">
-              <span class="status-dot"></span> Personnes & animaux
-              <span>Sur l’appareil</span>
-            </div>
-            <div class="app-stats">
-              <div><span>Détection</span><b>Locale</b></div>
-              <div><span>Vidéos</span><b>Privées</b></div>
-              <div><span>Agent IA</span><b>Au choix</b></div>
-            </div>
-            <div class="app-bottom">
-              <span class="selected">◉<small>Surveillance</small></span
-              ><span>▤<small>Historique</small></span
-              ><span>⚙<small>Réglages</small></span>
-            </div>
-          </div>
-          <div class="float-chip event-chip">
-            <span class="event-check">✓</span>
-            <div>
-              Un passage. Un souvenir utile.<small
-                >Clip conservé dans l’historique</small
-              >
-            </div>
-          </div>
+          <div class="orbit orbit-one" aria-hidden="true"></div>
+          <div class="orbit orbit-two" aria-hidden="true"></div>
+          <a
+            class="hero-screenshot-link"
+            href="#apercu"
+            aria-label="Découvrir les trois écrans réels de NovaGuard"
+          >
+            <img
+              class="hero-screenshot"
+              src="./assets/screens/surveillance.jpg"
+              width="575"
+              height="1280"
+              fetchpriority="high"
+              alt="Capture Android réelle de NovaGuard : surveillance inactive, caméra en veille et bouton Démarrer la surveillance."
+            />
+          </a>
           <figcaption>
-            Illustration du fonctionnement · interface indicative
+            Capture réelle de l’application · surveillance inactive
           </figcaption>
         </figure>
       </section>
@@ -255,6 +217,108 @@
         <div class="feature-footnote">
           <span class="status-dot"></span> La détection fonctionne sans agent IA
           et sans service cloud de vision.
+        </div>
+      </section>
+
+      <section
+        id="apercu"
+        class="screenshots-section section"
+        aria-labelledby="screenshots-title"
+      >
+        <div class="wrap">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">L’APPLICATION, TELLE QU’ELLE EST</p>
+              <h2 id="screenshots-title">
+                Trois écrans.<br />Tout à portée de main.
+              </h2>
+            </div>
+            <p>
+              Découvrez les captures Android fournies par le projet :
+              surveillance inactive, historique vide et réglages. Ouvrez une
+              image pour la voir en grand.
+            </p>
+          </div>
+          <div class="screenshots-grid">
+            <figure class="screen-card">
+              <a
+                class="screen-link"
+                href="./assets/screens/surveillance.jpg"
+                aria-label="Agrandir la capture Surveillance"
+              >
+                <img
+                  src="./assets/screens/surveillance.jpg"
+                  width="575"
+                  height="1280"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Écran Surveillance de NovaGuard : présence stricte, caméra en veille, démarrage de la surveillance et compteurs de stockage."
+                />
+              </a>
+              <figcaption>
+                <span class="card-index">01 / SURVEILLANCE</span>
+                <h3>Prêt à démarrer.</h3>
+                <p>
+                  La caméra est en veille sur cette capture. Le bouton central
+                  lance la surveillance depuis l’application.
+                </p>
+              </figcaption>
+            </figure>
+            <figure class="screen-card">
+              <a
+                class="screen-link"
+                href="./assets/screens/historique.jpg"
+                aria-label="Agrandir la capture Historique"
+              >
+                <img
+                  src="./assets/screens/historique.jpg"
+                  width="575"
+                  height="1280"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Écran Historique de NovaGuard : zéro passage, filtres Toutes, Personnes et Animaux, et message Tout est calme pour l’instant."
+                />
+              </a>
+              <figcaption>
+                <span class="card-index">02 / HISTORIQUE</span>
+                <h3>Les passages, au même endroit.</h3>
+                <p>
+                  L’historique est encore vide ici. Les filtres permettent de
+                  retrouver les personnes et les animaux détectés une fois la
+                  surveillance lancée.
+                </p>
+              </figcaption>
+            </figure>
+            <figure class="screen-card">
+              <a
+                class="screen-link"
+                href="./assets/screens/reglages.jpg"
+                aria-label="Agrandir la capture Réglages"
+              >
+                <img
+                  src="./assets/screens/reglages.jpg"
+                  width="575"
+                  height="1280"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Écran Réglages de NovaGuard : caméra arrière, options de surveillance, sections Détection, Enregistrement, Stockage, Notifications, Avancé et Confidentialité."
+                />
+              </a>
+              <figcaption>
+                <span class="card-index">03 / RÉGLAGES</span>
+                <h3>Une configuration à votre main.</h3>
+                <p>
+                  Caméra, détection, enregistrement, stockage et confidentialité
+                  sont regroupés dans les réglages.
+                </p>
+              </figcaption>
+            </figure>
+          </div>
+          <p class="screenshots-note">
+            Captures réelles, conservées sans retouche. Elles présentent
+            l’interface ; aucun passage détecté ni clip enregistré n’est visible
+            sur ces écrans.
+          </p>
         </div>
       </section>
 
