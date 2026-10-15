@@ -8,8 +8,10 @@ import { ClipThumbnail } from './ClipThumbnail';
 import { t } from '../i18n';
 import { Passage } from '../recording/passages';
 
-export function EventCard({ event, onPress, passage, kept = false }: {
-  event: DetectionEvent; onPress: () => void; passage?: Passage; kept?: boolean;
+export function EventCard({ event, onPress, onLongPress, passage, kept = false, picked }: {
+  event: DetectionEvent; onPress: () => void; onLongPress?: () => void; passage?: Passage; kept?: boolean;
+  /** Undefined outside selection mode; a boolean while the history is being picked from. */
+  picked?: boolean;
 }) {
   const title = passage && passage.kinds.length > 1 ? t('hist.passage.mixed') : t(event.kind === 'Personne' ? 'hist.event.person' : 'hist.event.animal');
   const durLabel = formatDuration(event.dur);
@@ -17,12 +19,15 @@ export function EventCard({ event, onPress, passage, kept = false }: {
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
+      accessibilityHint={onLongPress && picked === undefined ? t('hist.pick.hint') : undefined}
+      accessibilityState={picked === undefined ? undefined : { selected: picked }}
       // One announcement for the card, not four fragments: `accessible` groups
       // the thumbnail, the title, the time and the meta line into one target.
       accessible
       accessibilityRole="button"
       accessibilityLabel={passage && passage.events.length > 1 ? t('a11y.passage', { title, when: formatWhen(event.timestamp), count: passage.events.length, duration: durLabel }) : t('a11y.event', { title, when: formatWhen(event.timestamp) })}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={({ pressed }) => [styles.card, picked && styles.cardPicked, pressed && styles.cardPressed]}
     >
       <View style={styles.thumb}>
         <ClipThumbnail
@@ -67,6 +72,11 @@ const styles = StyleSheet.create({
     padding: 9,
     borderRadius: 11,
     backgroundColor: color.surface,
+  },
+  cardPicked: {
+    borderWidth: 1.5,
+    borderColor: color.accent,
+    padding: 7.5,
   },
   cardPressed: {
     backgroundColor: color.neutral900,

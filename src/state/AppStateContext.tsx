@@ -167,6 +167,11 @@ interface AppStateValue {
   askDelete: () => void;
   cancelDelete: () => void;
   doDelete: () => void;
+  /** Events a bulk delete is waiting on the user to confirm, or null. */
+  pendingBulkDelete: number[] | null;
+  askDeleteMany: (ids: number[]) => void;
+  cancelDeleteMany: () => void;
+  doDeleteMany: () => void;
   confirmWipe: boolean;
   askWipe: () => void;
   cancelWipe: () => void;
@@ -1552,6 +1557,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     deleteFiles(files).then(sweepDisk);
   }, [selected, selectedEvent, sweepDisk]);
 
+  const [pendingBulkDelete, setPendingBulkDelete] = useState<number[] | null>(null);
+  const askDeleteMany = useCallback((ids: number[]) => setPendingBulkDelete(ids.length ? ids : null), []);
+  const cancelDeleteMany = useCallback(() => setPendingBulkDelete(null), []);
+  const doDeleteMany = useCallback(() => {
+    if (!pendingBulkDelete) return;
+    const ids = new Set(pendingBulkDelete);
+    const victims = events.filter(e => ids.has(e.id));
+    setEvents(evs => evs.filter(e => !ids.has(e.id)));
+    if (selected != null && ids.has(selected)) setSelected(null);
+    setPendingBulkDelete(null);
+    // Chained like `doDelete`: the sweep must measure after the unlink.
+    deleteFiles(eventFiles(victims)).then(sweepDisk);
+  }, [events, pendingBulkDelete, selected, sweepDisk]);
+
   const askWipe = useCallback(() => setConfirmWipe(true), []);
   const cancelWipe = useCallback(() => setConfirmWipe(false), []);
   const doWipe = useCallback(() => {
@@ -1892,6 +1911,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     toggleMonitoring, reportDetections,
     events, filter, setFilter, period, setPeriod, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent, historyLocked, unlockHistory, identityAvailable,
     toggleKeep, confirmDelete, askDelete, cancelDelete, doDelete,
+    pendingBulkDelete, askDeleteMany, cancelDeleteMany, doDeleteMany,
     confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
@@ -1903,7 +1923,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     hydrated, tab, monitoring, det, detToday, lastDetAt,
     isRecording, visibleError, surveillanceStatus, captureRevision, retryCapture, openCaptureSettings, openStorageSettings, clipGap, autoTune, autoTuneLogRef, deviceLoadRef, store, cameraRef, foreground, reportCameraProblem, reportCameraError, recovery, cameraActive, reportFrameStage, toggleMonitoring, reportDetections,
     events, filter, period, periodOpen, togglePeriodOpen, selected, selectedEvent, selectEvent, historyLocked, unlockHistory, identityAvailable,
-    toggleKeep, confirmDelete, askDelete, cancelDelete, doDelete, confirmWipe, askWipe, cancelWipe, doWipe,
+    toggleKeep, confirmDelete, askDelete, cancelDelete, doDelete, pendingBulkDelete, askDeleteMany, cancelDeleteMany, doDeleteMany,
+    confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
     setSensitivity, setThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
