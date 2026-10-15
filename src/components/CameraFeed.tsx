@@ -14,6 +14,7 @@ import { uprightBoxToViewBox } from '../camera/framing';
 import { useDetectionModel } from '../camera/useDetectionModel';
 import { interpretDetections } from '../ml/interpretDetections';
 import { letterboxFor, letterboxInto } from '../ml/letterbox';
+import { analysisCropFor, cropInBuffer } from '../ml/analysisCrop';
 import { SENSITIVITY_PROFILES } from '../ml/sensitivity';
 import { tunedSettings } from '../camera/autoTune';
 import { frameErrorMessage } from '../camera/frameErrors';
@@ -99,7 +100,7 @@ export function CameraFeed({
   style, active, viewWidth, viewHeight, onFrame, onZoomRange, cameraRef,
   onProblem, onSessionError, onStage,
 }: CameraFeedProps) {
-  const { perms, settings: chosen, autoTune, foreground, monitoring, reportDetections } = useAppState();
+  const { perms, settings: chosen, autoTune, foreground, monitoring, reportDetections, zoneEditing } = useAppState();
   /**
    * What the user asked for, minus whatever the device has been measured to be
    * unable to hold up (see `autoTune.ts`). Only the two costs the ladder can
@@ -237,6 +238,13 @@ export function CameraFeed({
   const detectPerson = settings.person;
   const detectAnimal = settings.animal;
   const autoZoom = settings.autoZoom;
+  // The zone's surroundings, not the whole frame, while a zone is set — and the
+  // whole frame while one is being drawn, which is when every subject matters.
+  const crop = useMemo(() => analysisCropFor(zoneEditing ? null : settings.zone), [zoneEditing, settings.zone]);
+  const cropX = crop.x;
+  const cropY = crop.y;
+  const cropWidth = crop.width;
+  const cropHeight = crop.height;
   const streamEnabled = chosen.localStreamEnabled;
   const viewW = viewWidth || 1;
   const viewH = viewHeight || 1;
@@ -324,15 +332,27 @@ export function CameraFeed({
         // too wide (see `letterbox.ts`). The plugin scales *before* it rotates,
         // so the size asked for is in the frame buffer's own axes — swapped for
         // a landscape-held phone, whose buffer is uprighted by a quarter turn.
+        //
+        // With a zone set, only the zone's surroundings are shown (see
+        // `analysisCrop.ts`): the crop is chosen in upright space and turned
+        // into the buffer's axes here, since the plugin crops before it rotates.
         const aspect = uprightAspect(frame.width, frame.height, frame.orientation);
-        const inner = letterboxFor(aspect, inputSize);
+        const rotation = uprightRotation(frame.orientation);
+        const region = cropInBuffer(cropX, cropY, cropWidth, cropHeight, rotation);
+        const cropAspect = aspect * cropWidth / cropHeight;
+        const inner = letterboxFor(cropAspect, inputSize);
         const swap = swapsAxes(frame.orientation);
         const resized = resize(frame, {
-          crop: { x: 0, y: 0, width: frame.width, height: frame.height },
+          crop: {
+            x: Math.round(region.x * frame.width),
+            y: Math.round(region.y * frame.height),
+            width: Math.max(2, Math.round(region.width * frame.width)),
+            height: Math.max(2, Math.round(region.height * frame.height)),
+          },
           scale: swap
             ? { width: inner.height, height: inner.width }
             : { width: inner.width, height: inner.height },
-          rotation: uprightRotation(frame.orientation),
+          rotation,
           pixelFormat: 'rgb',
           dataType: 'uint8',
         });
@@ -355,6 +375,10 @@ export function CameraFeed({
           // to be stretched back out before anything downstream sees them.
           scaleX: inputSize / inner.width,
           scaleY: inputSize / inner.height,
+          cropX,
+          cropY,
+          cropWidth,
+          cropHeight,
         });
 
         // ML Kit is asked only when its answer can change something. Since the
@@ -404,7 +428,7 @@ export function CameraFeed({
         onFrameError(failure?.message ?? 'erreur inconnue');
       }
     });
-  }, [model, inputSize, resize, onJsFrame, onFrameError, onInferenceError, onFrameStage, detectFaces, autoZoom, viewW, viewH, targetFps, detectPerson, detectAnimal, streamEnabled, streamPlugin, strictPresence, presencePlugin]);
+  }, [model, inputSize, cropX, cropY, cropWidth, cropHeight, resize, onJsFrame, onFrameError, onInferenceError, onFrameStage, detectFaces, autoZoom, viewW, viewH, targetFps, detectPerson, detectAnimal, streamEnabled, streamPlugin, strictPresence, presencePlugin]);
 
   if (!perms.cam || device == null) return null;
 
