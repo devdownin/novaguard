@@ -1,8 +1,8 @@
 # NovaGuard — Connexion des agents IA par MCP
 
-- Version : 2.1
+- Version : 2.2
 - Date : 16 octobre 2026
-- Statut : **finalisée**. Décisions prises (§12) ; lots 0 et 3 implémentés ; parcours clients **non qualifiés sur appareil** (§10)
+- Statut : décisions prises (§12) ; lots 0 et 3 implémentés ; parcours clients **non qualifiés sur appareil** (§10). **Accès depuis le cloud : décidé le 16 octobre 2026, par relais intégré à l’application (§14) ; conception seulement, rien n’est implémenté.**
 - Référence du serveur : [`mcp.md`](../mcp.md) (contrat des outils) et `android/app/src/main/java/com/novaguard/surveillance/McpServerModule.kt`
 - Clients étudiés : Claude (Claude Code, Claude Desktop, claude.ai), ChatGPT, Microsoft Copilot Studio, LibreChat, Open WebUI, AnythingLLM, OpenClaw, Hermes Agent (Nous Research)
 
@@ -27,7 +27,7 @@ Permettre au propriétaire du téléphone de connecter un agent généraliste au
 
 Le document couvre l’enregistrement du serveur dans le client, l’authentification, la découverte des outils, le diagnostic, le renouvellement et la révocation. Il ne change ni le contrat des outils (`mcp.md`) ni les règles d’approbation des clients.
 
-Aucun classement d’usage des huit produits n’est affirmé. Les syntaxes de configuration clientes viennent de leur documentation (§13) et n’ont pas été rejouées contre un téléphone : chacune est à qualifier (§10) avant d’être présentée comme fonctionnelle.
+Aucun classement d’usage des huit produits n’est affirmé. Les syntaxes de configuration clientes viennent de leur documentation (§15) et n’ont pas été rejouées contre un téléphone : chacune est à qualifier (§10) avant d’être présentée comme fonctionnelle.
 
 ## 2. Principes de connexion
 
@@ -132,16 +132,16 @@ Les outils d’images rendent des blocs `image` dans le résultat d’outil : un
 | --- | --- | --- | --- | --- |
 | Claude Code | Oui, depuis le poste | `claude mcp add --transport http` + `--header` | B/C/D | À qualifier |
 | Claude Desktop | Oui, via un pont `stdio` local | `mcpServers` → pont HTTP | B/C/D | À qualifier ; dépend d’un pont tiers |
-| claude.ai (connecteurs distants) | Non : appel depuis l’infrastructure d’Anthropic | — | — | **Non pris en charge** |
-| ChatGPT | Non : appel depuis l’infrastructure d’OpenAI | — | — | **Non pris en charge** |
-| Copilot Studio | Non : appel depuis l’infrastructure Microsoft (une passerelle de données locale n’a pas été qualifiée pour MCP) | — | — | **Non pris en charge** |
+| claude.ai (connecteurs distants) | Seulement via le relais (§14) : appel depuis l’infrastructure d’Anthropic | OAuth | A puis C | **Prévu, non implémenté** |
+| ChatGPT | Seulement via le relais (§14) : appel depuis l’infrastructure d’OpenAI | OAuth (ou sans authentification, exclu) | A puis C | **Prévu, non implémenté** |
+| Copilot Studio | Seulement via le relais (§14) : appel depuis l’infrastructure Microsoft | Clé d’API ou OAuth | A/B puis C | **Prévu, non implémenté** |
 | LibreChat | Oui, auto-hébergé sur le LAN | `mcpServers` dans `librechat.yaml` | B/C/D | À qualifier |
 | Open WebUI | Oui, auto-hébergé sur le LAN | MCP natif Streamable HTTP, clé/en-tête | A/B/C | À qualifier |
 | AnythingLLM | Oui, Desktop ou Docker sur le LAN | `anythingllm_mcp_servers.json` | B, C à qualifier | À qualifier (transport HTTP et en-têtes) |
 | OpenClaw | Oui, Gateway sur le LAN | Registre `mcp.servers` + CLI | B/C/D | À qualifier |
 | Hermes Agent | Oui, sur le LAN | `mcp_servers` dans `config.yaml` | B/C/D | À qualifier |
 
-« Non pris en charge » n’est pas un manque de configuration : rendre le téléphone joignable depuis un cloud tiers demande un tunnel ou une redirection de port, que NovaGuard exclut (`mcp.md` §5) — c’est une caméra, et le jeton serait la seule barrière face à Internet. Le contrôle `Host` refuse de toute façon un nom de tunnel. Rouvrir ce point est une décision de produit (§12), pas une étape d’intégration.
+Tant que le relais du §14 n’existe pas, ces trois clients restent **non pris en charge** : le téléphone n’est pas joignable depuis leur cloud, et le sélecteur de Réglages ne leur propose rien. Le §14 décrit ce que la décision du 16 octobre 2026 change.
 
 ## 6. Parcours par client
 
@@ -414,14 +414,103 @@ Le lot « clients SaaS » de la v1.0 est retiré (§12).
 
 | Question | Décision | Conséquence |
 | --- | --- | --- |
-| Accès depuis un cloud tiers (claude.ai, ChatGPT, Copilot Studio) | **Non.** Aucun tunnel, relais ni redirection de port | `PRIVACY.md`, *Data safety* et `playRelease.test.ts` restent vrais ; ces clients sont exclus du sélecteur et nommés comme tels |
+| Accès depuis un cloud tiers (claude.ai, ChatGPT, Copilot Studio) | **Oui, par un relais intégré à l’application** (décision du 16 octobre 2026, qui remplace le « non » de la v2.1). L’application ouvre une connexion sortante vers un relais ; option éteinte par défaut | Fin de « aucune connexion sortante » : `PRIVACY.md`, `PRIVACY.en.md`, `docs/PLAY_STORE.md` (*Data safety*), `CLAUDE.md`, `mcp.md` §5 et `playRelease.test.ts` sont à réécrire dans la même PR que le code (§14.6) |
 | Version de protocole de référence | **`2026-07-28`**, une seule pour le code (`McpRules.LATEST_PROTOCOL`), `mcp.md` et l’interface | Les versions antérieures restent négociables |
 | Clients multi-utilisateurs | **Un jeton de lecture par téléphone**, partagé par l’instance ; jamais le jeton de pilotage | Révoquer un client, c’est régénérer le jeton et reconfigurer les autres ; des jetons multiples seraient une évolution du serveur |
 | IPv6 sur le LAN | **IPv4 exigée**, documentée | Un client en IPv6 seul n’est pas pris en charge |
 
 Ces décisions se rouvrent par une révision de ce document, pas au fil d’une intégration.
 
-## 13. Sources
+**Restent ouvertes, et bloquent le lot R1** : qui héberge le relais (§14.2), et si l’on accepte qu’il voie le trafic en clair (§14.4).
+
+## 14. Accès depuis le cloud : relais intégré
+
+Conception. Rien de cette section n’est implémenté, et elle est la seule de ce document à décrire un changement du contrat de confidentialité.
+
+### 14.1 Principe
+
+claude.ai, ChatGPT et Copilot Studio appellent le serveur MCP depuis leur infrastructure : il leur faut une URL HTTPS publique, avec un certificat qu’ils acceptent. Un téléphone derrière une box n’en a pas. L’application ouvre donc **elle-même** une connexion sortante vers un relais, qui expose l’URL publique et lui transmet les requêtes :
+
+```text
+claude.ai ──HTTPS──► relais (https://<id>.relais.exemple/mcp) ◄──WSS sortant── téléphone
+                      transmet la requête ─────────────────────►  serveur MCP du téléphone
+                      ◄───────────────────────────────────────   la réponse
+```
+
+Le téléphone n’écoute rien de plus : il initie la connexion, aucune redirection de port n’est nécessaire.
+
+### 14.2 Le relais
+
+- Service minimal, sans stockage : il associe un identifiant d’appareil à une connexion WebSocket et transmet des trames. Il ne garde ni corps de requête, ni images, ni jetons ; ses journaux ne contiennent que l’heure, l’identifiant, le statut et la taille.
+- Code dans ce dépôt (`relay/`), **auto-hébergeable** : l’adresse du relais est un réglage de l’application. Aucune valeur par défaut n’est livrée tant que la question d’hébergement ci-dessous n’est pas tranchée.
+- **Décision ouverte : qui l’exploite.** Une instance du projet engage son mainteneur (disponibilité, coût, responsabilité sur ce qui y transite, abus) ; l’auto-hébergement laisse chaque propriétaire exploiter le sien et rend la fonction inutilisable pour qui ne sait pas le faire.
+- Appairage : l’application génère une paire de clés (Android Keystore) ; le relais associe l’identifiant à la clé publique au premier appairage, confirmé par un code à saisir sur l’écran du téléphone. Une connexion sans signature valide est refusée.
+- Quotas par appareil, taille maximale de trame, une seule connexion par appareil (la nouvelle remplace l’ancienne), expiration des requêtes à 15 s comme en local.
+
+### 14.3 Ce que le serveur du téléphone change
+
+1. **Une requête venue du relais n’est jamais une requête de boucle locale.** Aujourd’hui `McpRules.principal` donne la lecture sans jeton à la boucle locale ; une trame du relais arriverait de l’intérieur du processus. Elle porte une origine `relay` qui exige toujours un jeton ou une autorisation OAuth, et le test JVM le vérifie.
+2. **Contrôles `Host` et `Origin`** : le nom d’hôte public du relais devient une autorité attendue, uniquement tant que le relais est actif.
+3. **Authentification.** claude.ai et ChatGPT n’envoient pas de jeton statique choisi par l’utilisateur : ils attendent OAuth 2.1 (code d’autorisation + PKCE, métadonnées de ressource protégée, `WWW-Authenticate` avec `resource_metadata`). Copilot Studio accepte une clé d’API. Le serveur d’autorisation tourne **sur le téléphone**, derrière le relais : l’autorisation se termine par un geste du propriétaire sur l’écran de l’appareil (« Autoriser Claude ? »), et les jetons émis sont gardés par empreinte, révocables un par un dans Réglages.
+4. **Périmètre cloud réduit par défaut** : lecture seule. Le pilotage et la vue en direct via le relais ont chacun leur interrupteur, éteints par défaut, en plus de ceux qui existent. Le jeton de pilotage actuel n’est jamais accepté par le relais.
+5. L’en-tête `Authorization` n’est plus la seule forme d’identité : `principalFor` sait distinguer jeton de lecture, jeton de pilotage, jeton OAuth et origine.
+
+### 14.4 Ce que le relais voit
+
+Le certificat public est celui du relais : il **termine TLS et voit en clair** les requêtes et les réponses, donc les images de `get_event_frames` et de `get_live_frame`. Un chiffrement de bout en bout entre le téléphone et claude.ai n’existe pas, puisque le client cloud ne connaît pas la clé du téléphone. Ce qui reste possible :
+
+- relais auto-hébergé, donc sous le contrôle du propriétaire ;
+- aucun stockage ni journal de contenu côté relais ;
+- consentement explicite à l’activation, qui nomme le relais utilisé et dit qu’il voit tout ce que l’agent demande ;
+- le fournisseur du client cloud reçoit en plus ce que l’agent lit (déjà vrai avec un modèle hébergé, `mcp.md` §14).
+
+**Décision ouverte :** accepter ce modèle de confiance pour une caméra, ou limiter l’accès cloud aux métadonnées (pas d’images, ni via `get_event_frames` ni via `get_live_frame`). La seconde option réduit le risque sans le supprimer et doit être tranchée avant R1.
+
+### 14.5 Interface
+
+Réglages → Serveur MCP, nouvelle ligne « Accès depuis le cloud », éteinte par défaut :
+
+- activation avec écran de consentement (relais utilisé, ce qu’il voit, ce que l’agent pourra lire) ;
+- état : connecté, hors ligne (avec raison), dernière activité ;
+- appairage et URL publique à copier ;
+- liste des autorisations accordées (client, date, dernière utilisation) avec « Révoquer » ;
+- bouton « Couper l’accès cloud » aussi dans la notification de surveillance, à côté de « Couper le pilotage ».
+
+La connexion sortante n’est ouverte que tant que l’interrupteur est allumé et le serveur MCP actif.
+
+### 14.6 Contrat de confidentialité à réécrire
+
+La phrase « NovaGuard n’ouvre aucune connexion sortante » devient fausse dès que le code existe. Elle doit changer **dans la même PR**, jamais après :
+
+| Fichier | Changement |
+| --- | --- |
+| `PRIVACY.md`, `PRIVACY.en.md` | Décrire la connexion optionnelle au relais, ce qui transite, qui l’exploite, comment la couper |
+| `docs/PLAY_STORE.md`, formulaire *Data safety* | Revoir « aucune connexion sortante » et la définition de « collecte » / « partage » de Google pour des données transmises à un relais que l’utilisateur choisit |
+| `CLAUDE.md` | Réécrire le paragraphe « `INTERNET` est déclarée, et seulement pour écouter » |
+| `mcp.md` §5, §6, §14 | Retirer « Public Internet exposure … not supported » ; décrire le relais |
+| `__tests__/playRelease.test.ts` | Le motif des connexions sortantes admet **un seul fichier** (le client du relais) ; toute autre connexion sortante échoue encore |
+
+### 14.7 Lots
+
+| Lot | Contenu | Prérequis |
+| --- | --- | --- |
+| R0 | Trancher l’hébergement (§14.2) et le modèle de confiance (§14.4) | Décision du propriétaire |
+| R1 | Service `relay/` : appairage, transmission, quotas ; tests de protocole | R0 |
+| R2 | Client du relais dans l’application (Kotlin) : connexion sortante, origine `relay` dans `McpRules`, tests JVM | R1 |
+| R3 | Serveur d’autorisation OAuth sur le téléphone : métadonnées, DCR ou clients préenregistrés, consentement sur l’appareil, révocation | R2 |
+| R4 | Interface (§14.5), réécriture du contrat de confidentialité (§14.6) | R2, R3 |
+| R5 | Qualification de bout en bout avec chacun des trois clients cloud ; AC-17 à AC-20 ci-dessous | R4 |
+
+Critères d’acceptation à ajouter à §10 :
+
+| ID | Scénario | Résultat attendu |
+| --- | --- | --- |
+| AC-17 | Requête par le relais sans autorisation | `401` avec `WWW-Authenticate` et `resource_metadata` ; jamais traitée comme boucle locale |
+| AC-18 | Autorisation OAuth depuis claude.ai | Consentement sur le téléphone ; un refus ou une absence de réponse sous 2 minutes échoue proprement |
+| AC-19 | « Couper l’accès cloud » pendant un appel | Connexion sortante fermée, appel en cours refusé, plus aucune requête transmise |
+| AC-20 | Interrupteur éteint | Aucune connexion sortante ouverte (vérifié sur appareil et par `playRelease.test.ts`) |
+
+## 15. Sources
 
 Documentation des clients consultée le 16 octobre 2026 ; les versions déployées priment. Le comportement du serveur vient du dépôt (`mcp.md`, `McpServerModule.kt`, `McpRules.java`, `SetupScreen.tsx`), lu à la même date.
 
