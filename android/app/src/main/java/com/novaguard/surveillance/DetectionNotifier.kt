@@ -49,10 +49,21 @@ object DetectionNotifier {
   private val serial = AtomicInteger()
   private val pictures = Executors.newSingleThreadExecutor()
 
+  /**
+   * What the alert on screen says and shows right now. Kept so that a silent
+   * update (a passage back inside the cooldown) and a late picture each build
+   * on the other instead of putting back what the other replaced.
+   */
+  private class Shown(var title: String, var body: String, var passageId: String, var picture: Bitmap? = null)
+
+  private var shown: Shown? = null
+
   fun notify(context: Context, title: String, body: String, passageId: String, picture: Boolean) {
     val mine = serial.incrementAndGet()
+    val current = Shown(title, body, passageId)
+    synchronized(this) { shown = current }
     try {
-      post(context, title, body, passageId, null)
+      post(context, current, quiet = false)
     } catch (e: Exception) {
       // An alert is never worth crashing surveillance for.
       Log.w(TAG, "Detection notification refused: ${e.message}")
@@ -65,18 +76,45 @@ object DetectionNotifier {
         val bitmap = BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size) ?: return@execute
         // Only onto the alert it was taken for, and only while it is still on
         // screen: reposting a swiped-away alert would bring it back.
-        if (serial.get() != mine || !showing(context)) return@execute
-        post(context, title, body, passageId, bitmap)
+        synchronized(this) {
+          if (serial.get() != mine || shown !== current || !showing(context)) return@execute
+          current.picture = bitmap
+          post(context, current, quiet = true)
+        }
       } catch (e: Exception) {
         Log.w(TAG, "Alert picture unavailable: ${e.message}")
       }
     }
   }
 
+  /**
+   * Updates the alert on screen without ringing, keeping its picture. Does
+   * nothing when it is gone: a notification the owner swiped away does not
+   * come back because the person did.
+   */
+  fun refresh(context: Context, title: String, body: String, passageId: String) {
+    try {
+      synchronized(this) {
+        val current = shown ?: return
+        if (!showing(context)) return
+        current.title = title
+        current.body = body
+        current.passageId = passageId
+        post(context, current, quiet = true)
+      }
+    } catch (e: Exception) {
+      Log.w(TAG, "Alert update refused: ${e.message}")
+    }
+  }
+
   private fun showing(context: Context): Boolean =
     context.getSystemService(NotificationManager::class.java).activeNotifications.any { it.id == NOTIFICATION_ID }
 
-  private fun post(context: Context, title: String, body: String, passageId: String, picture: Bitmap?) {
+  private fun post(context: Context, alert: Shown, quiet: Boolean) {
+    val title = alert.title
+    val body = alert.body
+    val passageId = alert.passageId
+    val picture = alert.picture
     createChannel(context)
 
     // VIEW + data is what React Native's Linking reads (getInitialURL on a cold
@@ -103,10 +141,11 @@ object DetectionNotifier {
       // to display to whoever picks the phone up.
       .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
       .setLocalOnly(true)
+    // The repost of an alert already rung — a picture arriving, a visit counted
+    // again — must not ring it a second time.
+    if (quiet) builder.setOnlyAlertOnce(true)
     if (picture != null) {
-      // The repost of an alert already rung: the picture must not ring it again.
-      builder.setOnlyAlertOnce(true)
-        .setLargeIcon(picture)
+      builder.setLargeIcon(picture)
         .setStyle(NotificationCompat.BigPictureStyle().bigPicture(picture).bigLargeIcon(null as Bitmap?))
     }
     val notification = builder.build()
@@ -123,6 +162,7 @@ object DetectionNotifier {
 
   fun dismiss(context: Context) {
     serial.incrementAndGet()
+    synchronized(this) { shown = null }
     try {
       NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
     } catch (e: Exception) {

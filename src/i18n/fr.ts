@@ -551,6 +551,7 @@ export const fr = {
   'notif.person': 'Personne détectée',
   'notif.animal': 'Animal détecté',
   'notif.detail': 'À {time} · enregistrement en cours',
+  'notif.repeat': 'À {time} · passage n° {count} en {minutes} min · enregistrement en cours',
   'notif.since': '{status} · depuis {time}',
   'notif.resumed': '{status} · reprise à {time}',
   'notif.revokeControl': 'Couper le pilotage',

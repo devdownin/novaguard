@@ -66,7 +66,11 @@ describe('with the native module present', () => {
     const api = load();
     api.notifyDetection('Personne détectée', 'À 14:32 · enregistrement en cours', 'p-1', true);
     expect(mockNative.notifyDetection).toHaveBeenCalledWith(
-      'Personne détectée', 'À 14:32 · enregistrement en cours', 'p-1', true,
+      'Personne détectée', 'À 14:32 · enregistrement en cours', 'p-1', true, false,
+    );
+    api.notifyDetection('Personne détectée', 'À 14:33 · passage n° 2', 'p-2', false, true);
+    expect(mockNative.notifyDetection).toHaveBeenLastCalledWith(
+      'Personne détectée', 'À 14:33 · passage n° 2', 'p-2', false, true,
     );
     api.dismissDetectionAlert();
     expect(mockNative.dismissDetection).toHaveBeenCalled();

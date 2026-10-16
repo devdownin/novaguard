@@ -32,6 +32,19 @@ export function inQuietHours(start: number, end: number, at: number): boolean {
   return start < end ? hour >= start && hour < end : hour >= start || hour < end;
 }
 
+/**
+ * What a passage that comes back inside the cooldown does to the alert still on
+ * screen. It used to do nothing: the second visit rang nothing, and said
+ * nothing either, so one notification stood for a person who had since come
+ * and gone three times.
+ */
+export const REPEAT_WINDOW_MS = 10 * 60_000;
+
+/** The passages still inside the window, `now` included. Pure: the caller keeps the list. */
+export function recentPassages(times: number[], now: number): number[] {
+  return [...times.filter(at => now - at < REPEAT_WINDOW_MS), now];
+}
+
 export type AlertSettings = Pick<Settings, 'notif' | 'notifDet' | 'quietHours' | 'quietStart' | 'quietEnd'>;
 
 /**
@@ -49,12 +62,31 @@ export function shouldAlert(
   return now - lastAlertAt >= ALERT_COOLDOWN_MS;
 }
 
-export function alertContent(kind: DetectionKind, at: number): { title: string; body: string } {
+/**
+ * Whether to update the alert already on screen, silently, rather than ring
+ * again. Same conditions as `shouldAlert` except the cooldown, which is what
+ * makes it the other half of the same decision: outside it, a passage rings;
+ * inside it, it is counted.
+ */
+export function shouldRefreshAlert(
+  settings: AlertSettings,
+  lastAlertAt: number | null,
+  now: number,
+): boolean {
+  if (lastAlertAt == null || now - lastAlertAt >= ALERT_COOLDOWN_MS) return false;
+  // The switches and the quiet hours, with the cooldown taken out of it.
+  return shouldAlert(settings, null, now);
+}
+
+/** `passages` is how many visits the last `REPEAT_WINDOW_MS` holds, this one included. */
+export function alertContent(kind: DetectionKind, at: number, passages = 1): { title: string; body: string } {
   const d = new Date(at);
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   return {
     title: t(kind === 'Personne' ? 'notif.person' : 'notif.animal'),
-    body: t('notif.detail', { time }),
+    body: passages > 1
+      ? t('notif.repeat', { time, count: passages, minutes: REPEAT_WINDOW_MS / 60_000 })
+      : t('notif.detail', { time }),
   };
 }
 

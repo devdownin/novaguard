@@ -114,10 +114,18 @@ En CI : pousser un tag `vX.Y.Z`. Le job `build-aab` produit l'artefact
 `novaguard-play-bundle`, **non attaché à la Release GitHub** — un bundle signé
 n'a pas sa place sur une page de téléchargement publique à côté de l'APK.
 
-Avant le tag : `npm version <patch|minor|major>` met à jour `package.json`, d'où
-le `versionName` est lu. Le `versionCode`, lui, est le numéro de run : Play
+Avant le tag : changer la version dans `package.json` (et le lockfile), dans
+`src/constants/app.ts` — ce que Réglages → À propos affiche — et fermer la
+section « Non publié » du CHANGELOG sous le numéro et la date de la version.
+`npm version --no-git-tag-version <patch|minor|major>` fait les deux premiers ;
+`__tests__/release.test.ts` échoue si l'un des quatre manque. Le `versionName`
+est lu depuis `package.json`. Le `versionCode`, lui, est le numéro de run : Play
 refuse un code déjà vu, et un compteur qu'un humain doit penser à incrémenter
 est un compteur oublié exactement une fois.
+
+Le tag se pose **après** `docs/DEVICE_CHECKS.md` déroulé sur un téléphone, sur
+l'APK du commit qui sera tagué : la CI ne prouve ni la caméra, ni l'encodeur, ni
+une notification.
 
 ---
 

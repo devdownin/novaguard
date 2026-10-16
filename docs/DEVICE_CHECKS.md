@@ -45,6 +45,8 @@ tool() {  # tool <jeton> <outil sans préfixe> [arguments JSON]
       l’image n’apparaît qu’après déverrouillage.
 - [ ] Montre connectée (Wear OS) : l’alerte n’y est pas relayée, ni le texte ni l’image.
 - [ ] Notification balayée avant l’arrivée de l’image : elle ne revient pas.
+- [ ] Repasser devant la caméra dans la minute : pas de sonnerie, mais la notification encore
+      affichée passe à « passage n° 2 en 10 min » en gardant son image ; balayée, elle ne revient pas.
 - [ ] Heures calmes couvrant l’heure actuelle : un passage est enregistré et rangé dans
       l’Historique, sans alerte ; hors de la plage, l’alerte revient.
 
