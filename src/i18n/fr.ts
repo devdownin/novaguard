@@ -75,6 +75,7 @@ export const fr = {
 
   // ── viewfinder ───────────────────────────────────────────────────────
   'view.standby': 'CAMÉRA EN VEILLE',
+  'view.cameraStarting': 'DÉMARRAGE DE LA CAMÉRA…',
   'view.noCamera': 'AUCUNE CAMÉRA DÉTECTÉE',
   'view.grantCamera': 'AUTORISEZ LA CAMÉRA',
   'view.grantCameraWhere': 'Réglages → Confidentialité → Permissions',

@@ -6,6 +6,9 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ## [Non publié]
 
+### Corrigé
+- Au lancement de la surveillance, le viseur affichait « Aucune caméra détectée » le temps que l’aperçu apparaisse. Il affiche désormais « Démarrage de la caméra… », et ne parle d’absence de caméra que si aucune n’a été trouvée au bout de 3 s.
+
 ### Confidentialité
 - La politique de confidentialité décrivait le serveur MCP comme « strictement en lecture seule » ; elle décrit désormais la lecture, la vue en direct et le pilotage, chacun avec son interrupteur.
 - « Exporter comme preuve » (fiche d’un évènement) : tous les clips du passage et un rapport texte — horaires, genres vus, segments manquants, empreinte SHA-256 de chaque fichier avec la commande pour la vérifier — partagés en une seule fois.
