@@ -7,6 +7,7 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 ## [Non publié]
 
 ### Modifié
+- L’écran d’accueil reste affiché environ 2 s au lancement au lieu de disparaître aussitôt. La caméra démarre dessous pendant ce temps : la surveillance reprend aussi vite qu’avant.
 - Fiche d’une vidéo : « Conserver » devient « Garder » (« Ne plus garder »), « Supprimer » devient « Effacer » (« Effacer cette séquence »).
 
 ### Corrigé

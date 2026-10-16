@@ -3,7 +3,7 @@
  * @format
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { initialWindowMetrics, SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -19,7 +19,7 @@ import { AutoTuneSheet } from './src/components/AutoTuneSheet';
 import { McpServicesSheet } from './src/components/McpServicesSheet';
 import { OnboardingModal } from './src/components/OnboardingModal';
 import { ConfirmDialog } from './src/components/ConfirmDialog';
-import { SplashScreen, SPLASH_MIN_DURATION_MS } from './src/components/SplashScreen';
+import { SplashOverlay, SplashScreen } from './src/components/SplashScreen';
 import { useLandscape } from './src/utils/useLandscape';
 import { t, tn } from './src/i18n';
 
@@ -30,73 +30,77 @@ function AppShell() {
   } = useAppState();
   const landscape = useLandscape();
 
-  // Keeps the splash up for a minimum stretch so its progress bar reads as
-  // real feedback instead of a flash, even when hydration itself is instant.
-  const [minDurationElapsed, setMinDurationElapsed] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setMinDurationElapsed(true), SPLASH_MIN_DURATION_MS);
-    return () => clearTimeout(timer);
-  }, []);
+  const [launchedAt] = useState(Date.now);
+  const [splashUp, setSplashUp] = useState(true);
+  const hideSplash = useCallback(() => setSplashUp(false), []);
 
-  if (!hydrated || !minDurationElapsed) {
+  if (!hydrated) {
     return <SplashScreen />;
   }
 
   // Landscape puts the nav on the left and the screen beside it, so the tab
   // bar stops eating the short axis. Order in the tree is order on screen.
   return (
-    <View style={[styles.root, landscape && styles.rootLandscape]}>
-      <LinearGradient
-        testID="app-backdrop"
-        colors={[color.bgTop, color.bg, color.bgBottom]}
-        locations={[0, 0.4, 1]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-      {/* A faint accent light from the top, so the ground is not a flat slab. */}
-      <LinearGradient
-        colors={['rgba(155,140,255,0.10)', 'rgba(155,140,255,0)']}
-        style={styles.halo}
-        pointerEvents="none"
-      />
-      {landscape && <TabBar />}
-      <View style={styles.screenArea}>
-        {tab === 'cam' && <SurveillanceScreen />}
-        {tab === 'hist' && <HistoryScreen />}
-        {tab === 'setup' && <SetupScreen />}
+    <View style={styles.root}>
+      {/* Hidden from the screen reader while the splash covers it: TalkBack
+          would otherwise walk controls nobody can see. */}
+      <View
+        style={[styles.root, landscape && styles.rootLandscape]}
+        importantForAccessibility={splashUp ? 'no-hide-descendants' : 'auto'}
+      >
+        <LinearGradient
+          testID="app-backdrop"
+          colors={[color.bgTop, color.bg, color.bgBottom]}
+          locations={[0, 0.4, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+        {/* A faint accent light from the top, so the ground is not a flat slab. */}
+        <LinearGradient
+          colors={['rgba(155,140,255,0.10)', 'rgba(155,140,255,0)']}
+          style={styles.halo}
+          pointerEvents="none"
+        />
+        {landscape && <TabBar />}
+        <View style={styles.screenArea}>
+          {tab === 'cam' && <SurveillanceScreen />}
+          {tab === 'hist' && <HistoryScreen />}
+          {tab === 'setup' && <SetupScreen />}
+        </View>
+        {!landscape && <TabBar />}
+
+        <VideoDetailSheet />
+        <InfoSheet />
+        <AutoTuneSheet />
+        <McpServicesSheet />
+        <OnboardingModal />
+
+        <ConfirmDialog
+          visible={confirmDelete}
+          title={t('confirm.delete.title')}
+          body={t('confirm.delete.body')}
+          confirmLabel={t('confirm.delete.ok')}
+          onCancel={cancelDelete}
+          onConfirm={doDelete}
+        />
+        <ConfirmDialog
+          visible={pendingBulkDelete != null}
+          title={t('confirm.many.title')}
+          body={tn('confirm.many.body.other', pendingBulkDelete?.length ?? 0)}
+          confirmLabel={t('confirm.delete.ok')}
+          onCancel={cancelDeleteMany}
+          onConfirm={doDeleteMany}
+        />
+        <ConfirmDialog
+          visible={confirmWipe}
+          title={t('confirm.wipe.title')}
+          body={tn('confirm.wipe.body.other', events.length)}
+          confirmLabel={t('confirm.wipe.ok')}
+          onCancel={cancelWipe}
+          onConfirm={doWipe}
+        />
       </View>
-      {!landscape && <TabBar />}
-
-      <VideoDetailSheet />
-      <InfoSheet />
-      <AutoTuneSheet />
-      <McpServicesSheet />
-      <OnboardingModal />
-
-      <ConfirmDialog
-        visible={confirmDelete}
-        title={t('confirm.delete.title')}
-        body={t('confirm.delete.body')}
-        confirmLabel={t('confirm.delete.ok')}
-        onCancel={cancelDelete}
-        onConfirm={doDelete}
-      />
-      <ConfirmDialog
-        visible={pendingBulkDelete != null}
-        title={t('confirm.many.title')}
-        body={tn('confirm.many.body.other', pendingBulkDelete?.length ?? 0)}
-        confirmLabel={t('confirm.delete.ok')}
-        onCancel={cancelDeleteMany}
-        onConfirm={doDeleteMany}
-      />
-      <ConfirmDialog
-        visible={confirmWipe}
-        title={t('confirm.wipe.title')}
-        body={tn('confirm.wipe.body.other', events.length)}
-        confirmLabel={t('confirm.wipe.ok')}
-        onCancel={cancelWipe}
-        onConfirm={doWipe}
-      />
+      {splashUp && <SplashOverlay launchedAt={launchedAt} onDone={hideSplash} />}
     </View>
   );
 }
