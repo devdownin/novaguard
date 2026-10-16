@@ -19,7 +19,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import App from '../App';
 import { EventCard } from '../src/components/EventCard';
-import { SPLASH_MIN_DURATION_MS } from '../src/components/SplashScreen';
+import { SPLASH_TOTAL_MS } from '../src/components/SplashScreen';
 import { TabBar } from '../src/components/TabBar';
 import { SurveillanceScreen } from '../src/screens/SurveillanceScreen';
 
@@ -39,7 +39,7 @@ async function boot(size: ScaledSize) {
   setWindow(size);
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<App />); });
-  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(SPLASH_MIN_DURATION_MS + 50); });
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(SPLASH_TOTAL_MS + 50); });
   await ReactTestRenderer.act(async () => {});
   return renderer;
 }

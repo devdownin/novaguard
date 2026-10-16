@@ -10,22 +10,20 @@ import { ShieldLogo } from './ShieldLogo';
 const HOUSE_IMAGE = require('../../assets/splash/house-night.png');
 
 /**
- * How long the splash is held past hydration, to keep it from flashing.
+ * How long the splash stays up from launch, and how long it takes to fade.
  *
- * It was 1600 ms, and the reason given was that the progress bar should "read
- * as real feedback instead of a flash" — that is, the launch was slowed down so
- * a decoration would look credible. On a surveillance app that is not a
- * cosmetic cost: `resumeOnLaunch` puts the camera back to work when the app is
- * opened, so every one of those milliseconds is time nobody is being filmed,
- * paid on a screen that reports nothing.
- *
- * 250 ms is what it takes for a splash that appears and leaves to read as one
- * step rather than a glitch, and nothing more. The bar it carries is now
- * indeterminate, which is what a wait with two states — loading, loaded — has
- * always been: there is no percentage to show, and pretending otherwise is the
- * same fabrication as the seven seeded events this repo has already removed.
+ * It used to replace the app until it left, and was cut to 250 ms for that
+ * reason: `resumeOnLaunch` puts the camera back to work when the app opens, so
+ * every millisecond spent on it was time nobody was filmed. It is now drawn
+ * *over* the shell once hydration is done (`SplashOverlay`), so the camera
+ * mounts and resumes underneath while it is still on screen — holding it long
+ * enough to be read costs no footage. Before hydration it is the only thing
+ * drawn, as before: there is no state to mount the shell with.
  */
-export const SPLASH_MIN_DURATION_MS = 250;
+export const SPLASH_HOLD_MS = 1800;
+export const SPLASH_FADE_MS = 350;
+/** Everything a test has to advance past for the splash to be gone. */
+export const SPLASH_TOTAL_MS = SPLASH_HOLD_MS + SPLASH_FADE_MS;
 
 /** One sweep of the indeterminate bar. */
 const SWEEP_MS = 900;
@@ -82,6 +80,33 @@ function FeatureItem({ Icon, label, sub }: { Icon: typeof CameraIcon; label: str
       <Text style={styles.featureLabel}>{label}</Text>
       <Text style={styles.featureSub}>{sub}</Text>
     </View>
+  );
+}
+
+/**
+ * The splash over an already-mounted app: held until `SPLASH_HOLD_MS` after
+ * launch, then faded out. It swallows touches while visible — a tap meant for
+ * the splash must not land on the button under it.
+ */
+export function SplashOverlay({ launchedAt, onDone }: { launchedAt: number; onDone: () => void }) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  const done = useRef(onDone);
+  done.current = onDone;
+
+  useEffect(() => {
+    const hold = Math.max(0, SPLASH_HOLD_MS - (Date.now() - launchedAt));
+    const fade = Animated.timing(opacity, { toValue: 0, duration: SPLASH_FADE_MS, delay: hold, useNativeDriver: true });
+    fade.start();
+    // Unmounted by a timer rather than the animation's callback, so a dropped
+    // completion can never leave an invisible layer eating every touch.
+    const timer = setTimeout(() => done.current(), hold + SPLASH_FADE_MS);
+    return () => { fade.stop(); clearTimeout(timer); };
+  }, [launchedAt, opacity]);
+
+  return (
+    <Animated.View testID="splash-overlay" style={[StyleSheet.absoluteFill, { opacity }]}>
+      <SplashScreen />
+    </Animated.View>
   );
 }
 

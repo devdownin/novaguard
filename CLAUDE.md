@@ -469,15 +469,19 @@ final et `eventFiles` supprime la paire par nom ; et l'évènement ne l'attend
 jamais — un décodage sans réponse ne doit pas coûter un enregistrement, la même
 règle qu'`onClipAbandoned`.
 
-**Le splash ne ralentit plus le lancement.** Il était maintenu 1600 ms au-delà
-de l'hydratation « pour que sa barre de progression se lise comme un vrai retour
-plutôt qu'un flash » — c'est-à-dire qu'on ralentissait le démarrage pour rendre
-une décoration crédible. `resumeOnLaunch` remet la caméra au travail à
-l'ouverture, donc ces millisecondes sont du temps où personne n'est filmé, payé
-sur un écran qui ne rapporte rien. La barre est devenue indéterminée (ce qu'une
-attente à deux états a toujours été : il n'y a pas de pourcentage à montrer) et
-le maintien tombe à 250 ms. Le test mesure le temps écoulé, pas la constante :
-un test qui avance de la constante qu'il vérifie passe à n'importe quelle valeur.
+**Le splash ne ralentit pas le lancement, il le recouvre.** Il a été maintenu
+1600 ms *à la place* de l'application, puis réduit à 250 ms pour cette raison :
+`resumeOnLaunch` remet la caméra au travail à l'ouverture, donc chaque
+milliseconde de splash était du temps où personne n'est filmé. À 250 ms, plus
+personne ne le voyait. Il est donc dessiné **par-dessus** le shell dès
+l'hydratation (`SplashOverlay`) : la caméra se monte et reprend dessous, et le
+maintien (`SPLASH_HOLD_MS`, compté depuis le lancement) ne coûte plus aucune
+image. Avant l'hydratation, il est seul à l'écran, faute d'état pour monter le
+shell. Tant qu'il couvre l'application, celle-ci est cachée à TalkBack, et le
+retrait passe par un minuteur, pas par la fin de l'animation : une couche
+invisible qui ne partirait jamais avalerait tous les appuis. Le test avance
+d'une durée fixe, pas de la constante : un test qui avance de la constante
+qu'il vérifie passe à n'importe quelle valeur.
 
 **Deux couleurs de la palette ne sont pas celles du design system.** Telles que
 fournies, `neutral600` donnait 3,5:1 au texte secondaire de 11 pt et

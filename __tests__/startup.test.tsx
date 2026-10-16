@@ -11,7 +11,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import tflite from 'react-native-fast-tflite';
 import App from '../App';
-import { SPLASH_MIN_DURATION_MS } from '../src/components/SplashScreen';
+import { SPLASH_TOTAL_MS } from '../src/components/SplashScreen';
 import { useDetectionModel } from '../src/camera/useDetectionModel';
 import { defaultSettings } from '../src/state/defaults';
 
@@ -51,7 +51,7 @@ async function startApp() {
 /** Walks past the splash's minimum display window and lets hydration settle. */
 async function finishBoot(renderer: ReactTestRenderer.ReactTestRenderer) {
   await ReactTestRenderer.act(async () => {
-    jest.advanceTimersByTime(SPLASH_MIN_DURATION_MS + 50);
+    jest.advanceTimersByTime(SPLASH_TOTAL_MS + 50);
   });
   await ReactTestRenderer.act(async () => {});
   return renderer;
@@ -76,10 +76,36 @@ afterEach(() => {
 
 describe('cold start', () => {
   it('shows the splash before the app is ready', async () => {
-    const shown = texts(await startApp());
-    expect(shown).toEqual(expect.arrayContaining(['Nova', 'Guard', 'DÉTECTION INTELLIGENTE']));
-    // The tab bar only exists once the splash is gone.
-    expect(shown).not.toEqual(expect.arrayContaining(['Historique']));
+    const renderer = await startApp();
+    expect(texts(renderer)).toEqual(expect.arrayContaining(['Nova', 'Guard', 'DÉTECTION INTELLIGENTE']));
+    expect(renderer.root.findAllByProps({ testID: 'splash-overlay' })).not.toHaveLength(0);
+  });
+
+  it('mounts the app under the splash, so the camera does not wait for it', async () => {
+    // The splash is held long enough to be read; that must cost no footage.
+    const renderer = await startApp();
+    await ReactTestRenderer.act(async () => {});
+    expect(texts(renderer)).toEqual(expect.arrayContaining(['DÉMARRER LA SURVEILLANCE', 'DÉTECTION INTELLIGENTE']));
+  });
+
+  it('keeps the splash up for the hold, measured from launch, then removes it', async () => {
+    const renderer = await startApp();
+    const overlay = () => renderer.root.findAllByProps({ testID: 'splash-overlay' });
+    // A fixed 1.5 s, not the constant: at 250 ms it was gone before anyone read it.
+    await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(1500); });
+    expect(overlay()).not.toHaveLength(0);
+    await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(SPLASH_TOTAL_MS - 1500 + 50); });
+    expect(overlay()).toHaveLength(0);
+    expect(texts(renderer)).not.toEqual(expect.arrayContaining(['DÉTECTION INTELLIGENTE']));
+  });
+
+  it('hides the covered app from the screen reader until the splash is gone', async () => {
+    const renderer = await startApp();
+    await ReactTestRenderer.act(async () => {});
+    const hidden = () => renderer.root.findAll(n => n.props.importantForAccessibility === 'no-hide-descendants');
+    expect(hidden()).not.toHaveLength(0);
+    await finishBoot(renderer);
+    expect(hidden()).toHaveLength(0);
   });
 
   it('reaches the Surveillance screen after hydration', async () => {

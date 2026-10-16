@@ -21,7 +21,7 @@ import { Text } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import App from '../App';
-import { SPLASH_MIN_DURATION_MS } from '../src/components/SplashScreen';
+import { SPLASH_TOTAL_MS } from '../src/components/SplashScreen';
 import { defaultSettings } from '../src/state/defaults';
 import { t } from '../src/i18n';
 import { Tab } from '../src/state/types';
@@ -45,7 +45,7 @@ async function seedOpenedApp() {
 async function boot() {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<App />); });
-  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(SPLASH_MIN_DURATION_MS + 50); });
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(SPLASH_TOTAL_MS + 50); });
   await ReactTestRenderer.act(async () => {});
   return renderer;
 }
