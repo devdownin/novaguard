@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#15131c" />
+    <title>NovaGuard — Votre Android veille sur l’essentiel</title>
+    <meta
+      name="description"
+      content="Transformez votre Android en caméra de surveillance locale et open source. Détectez personnes et animaux, enregistrez les passages et connectez votre agent IA via MCP, si vous le souhaitez."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta
+      property="og:title"
+      content="NovaGuard — Votre Android veille sur l’essentiel"
+    />
+    <meta
+      property="og:description"
+      content="Une caméra autonome. Un agent IA en option. Vos vidéos sur votre appareil."
+    />
+    <link rel="icon" href="./assets/mark.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#contenu">Aller au contenu</a>
+    <header class="header">
+      <a class="brand" href="#" aria-label="NovaGuard, accueil"
+        ><img
+          src="./assets/mark.svg"
+          width="36"
+          height="36"
+          alt=""
+        />NovaGuard</a
+      >
+      <nav aria-label="Navigation principale">
+        <a href="#fonctionnalites">L’application</a
+        ><a href="#modes">Deux façons de veiller</a
+        ><a href="./guide-mcp.html">Guide MCP</a
+        ><a href="#questions">Questions</a>
+      </nav>
+      <a class="button small light" href="#installer"
+        >Essayer NovaGuard
+        <span aria-hidden="true"
+          ><svg
+            class="inline-icon"
+            aria-hidden="true"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          >
+            <path d="M6 18 18 6M6 6h12v12" /></svg></span
+      ></a>
+    </header>
+    <main id="contenu">
+      <section class="hero wrap" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <div class="eyebrow">
+            <span class="status-dot"></span> ANDROID · LOCAL · OPEN SOURCE
+          </div>
+          <h1 id="hero-title">
+            Votre Android.<br />Un œil sur<br /><em>l’essentiel.</em>
+          </h1>
+          <p class="intro">
+            Un téléphone, une nouvelle mission. Détectez les personnes et les
+            animaux, enregistrez leurs passages et gardez vos vidéos chez vous.
+          </p>
+          <p class="hero-sub">
+            Autonome au quotidien. Connecté à votre agent IA quand vous le
+            décidez.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="#installer"
+              >Installer NovaGuard
+              <span aria-hidden="true"
+                ><svg
+                  class="inline-icon"
+                  aria-hidden="true"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                >
+                  <path d="M6 18 18 6M6 6h12v12" /></svg></span></a
+            ><a class="text-link" href="#modes"
+              >Découvrir les deux modes <span aria-hidden="true">↓</span></a
+            >
+          </div>
+          <div class="hero-meta">
+            <span>Android 16 requis</span><span>Licence GPL v3</span
+            ><span>Sans compte</span>
+          </div>
+          <a class="hero-gallery-link" href="#apercu"
+            >Voir les écrans de l’application
+            <span aria-hidden="true">↓</span></a
+          >
+        </div>
+        <figure class="product-visual">
+          <div class="orbit orbit-one" aria-hidden="true"></div>
+          <div class="orbit orbit-two" aria-hidden="true"></div>
+          <a
+            class="hero-screenshot-link"
+            href="#apercu"
+            aria-label="Découvrir les trois écrans réels de NovaGuard"
+          >
+            <img
+              class="hero-screenshot"
+              src="./assets/screens/surveillance.jpg"
+              width="575"
+              height="1280"
+              fetchpriority="high"
+              alt="Capture Android réelle de NovaGuard : surveillance inactive, caméra en veille et bouton Démarrer la surveillance."
+            />
+          </a>
+          <figcaption>
+            Capture réelle de l’application · surveillance inactive
+          </figcaption>
+        </figure>
+      </section>
+      <div class="promise-strip">
+        <div class="wrap">
+          <span><b>01</b> Détecter sur place</span
+          ><span><b>02</b> Garder les passages</span
+          ><span><b>03</b> Comprendre avec l’IA, en option</span>
+        </div>
+      </div>
+
+      <section
+        id="fonctionnalites"
+        class="features section wrap"
+        aria-labelledby="features-title"
+      >
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">MOINS DE VIDÉO À PARCOURIR</p>
+            <h2 id="features-title">
+              Ce qui passe compte.<br />Le reste peut attendre.
+            </h2>
+          </div>
+          <p>
+            NovaGuard rassemble la détection, les clips et l’historique dans
+            votre téléphone. Vous retrouvez les moments qui méritent votre
+            attention.
+          </p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card detection-card">
+            <div class="feature-art" aria-hidden="true">
+              <div class="target target-one">
+                <span>PERSONNE</span>
+                <div class="person-symbol">●<br />┃</div>
+              </div>
+              <div class="target target-two">
+                <span>ANIMAL</span>
+                <div class="animal-symbol">
+                  <svg
+                    width="48"
+                    height="42"
+                    viewBox="0 0 48 42"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M10 31V15l6 5 8-1 7-5 2 13c1 6-3 10-9 10H13c-5 0-9-3-9-8 0-4 2-6 5-6"
+                    />
+                    <path d="M30 25h8M30 29h9M16 28v2m9-2v2" />
+                  </svg>
+                </div>
+              </div>
+              <div class="scan-line"></div>
+            </div>
+            <span class="card-index">01 / RECONNAÎTRE</span>
+            <h3>Des présences,<br />pas juste du mouvement.</h3>
+            <p>
+              La détection embarquée distingue personnes et animaux sur le champ
+              de la caméra. Sensibilité et seuils s’adaptent à votre scène.
+            </p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-art timeline-art" aria-hidden="true">
+              <div class="timeline-line"></div>
+              <div class="clip clip-a"><i></i><i></i><i></i><i></i></div>
+              <div class="clip clip-b"><i></i><i></i><i></i></div>
+              <span class="timeline-label">UN PASSAGE → SES SÉQUENCES</span>
+            </div>
+            <span class="card-index">02 / RETROUVER</span>
+            <h3>Les passages utiles.<br />À portée de main.</h3>
+            <p>
+              Des clips MP4 déclenchés par les détections confirmées. Un
+              historique filtrable pour relire, partager ou conserver ce qui
+              compte.
+            </p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-art privacy-art" aria-hidden="true">
+              <div class="shield">✓</div>
+              <span class="privacy-ring ring-a"></span
+              ><span class="privacy-ring ring-b"></span
+              ><span class="privacy-label">VOTRE TÉLÉPHONE. VOS VIDÉOS.</span>
+            </div>
+            <span class="card-index">03 / GARDER LA MAIN</span>
+            <h3>Votre espace.<br />Vos règles.</h3>
+            <p>
+              Les vidéos restent dans le stockage privé de l’application.
+              Choisissez la rétention, gérez l’espace et partagez un clip à
+              votre initiative.
+            </p>
+          </article>
+        </div>
+        <div class="feature-footnote">
+          <span class="status-dot"></span> La détection fonctionne sans agent IA
+          et sans service cloud de vision.
+        </div>
+      </section>
+
+      <section
+        id="apercu"
+        class="screenshots-section section"
+        aria-labelledby="screenshots-title"
+      >
+        <div class="wrap">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">L’APPLICATION, TELLE QU’ELLE EST</p>
+              <h2 id="screenshots-title">
+                Trois écrans.<br />Tout à portée de main.
+              </h2>
+            </div>
+            <p>
+              Découvrez les captures Android fournies par le projet :
+              surveillance inactive, historique vide et réglages. Ouvrez une
+              image pour la voir en grand.
+            </p>
+          </div>
+          <div class="screenshots-grid">
+            <figure class="screen-card">
+              <a
+                class="screen-link"
+                href="./assets/screens/surveillance.jpg"
+                aria-label="Agrandir la capture Surveillance"
+              >
+                <img
+                  src="./assets/screens/surveillance.jpg"
+                  width="575"
+                  height="1280"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Écran Surveillance de NovaGuard : présence stricte, caméra en veille, démarrage de la surveillance et compteurs de stockage."
+                />
+              </a>
+              <figcaption>
+                <span class="card-index">01 / SURVEILLANCE</span>
+                <h3>Prêt à démarrer.</h3>
+                <p>
+                  La caméra est en veille sur cette capture. Le bouton central
+                  lance la surveillance depuis l’application.
+                </p>
+              </figcaption>
+            </figure>
+            <figure class="screen-card">
+              <a
+                class="screen-link"
+                href="./assets/screens/historique.jpg"
+                aria-label="Agrandir la capture Historique"
+              >
+                <img
+                  src="./assets/screens/historique.jpg"
+                  width="575"
+                  height="1280"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Écran Historique de NovaGuard : zéro passage, filtres Toutes, Personnes et Animaux, et message Tout est calme pour l’instant."
+                />
+              </a>
+              <figcaption>
+                <span class="card-index">02 / HISTORIQUE</span>
+                <h3>Les passages, au même endroit.</h3>
+                <p>
+                  L’historique est encore vide ici. Les filtres permettent de
+                  retrouver les personnes et les animaux détectés une fois la
+                  surveillance lancée.
+                </p>
+              </figcaption>
+            </figure>
+            <figure class="screen-card">
+              <a
+                class="screen-link"
+                href="./assets/screens/reglages.jpg"
+                aria-label="Agrandir la capture Réglages"
+              >
+                <img
+                  src="./assets/screens/reglages.jpg"
+                  width="575"
+                  height="1280"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Écran Réglages de NovaGuard : caméra arrière, options de surveillance, sections Détection, Enregistrement, Stockage, Notifications, Avancé et Confidentialité."
+                />
+              </a>
+              <figcaption>
+                <span class="card-index">03 / RÉGLAGES</span>
+                <h3>Une configuration à votre main.</h3>
+                <p>
+                  Caméra, détection, enregistrement, stockage et confidentialité
+                  sont regroupés dans les réglages.
+                </p>
+              </figcaption>
+            </figure>
+          </div>
+          <p class="screenshots-note">
+            Captures réelles, conservées sans retouche. Elles présentent
+            l’interface ; aucun passage détecté ni clip enregistré n’est visible
+            sur ces écrans.
+          </p>
+        </div>
+      </section>
+
+      <section id="modes" class="modes section" aria-labelledby="modes-title">
+        <div class="wrap">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">AUTONOME PAR NATURE. OUVERTE PAR CHOIX.</p>
+              <h2 id="modes-title">Une caméra.<br />Deux façons de veiller.</h2>
+            </div>
+            <p>
+              Commencez simplement. Ajoutez un agent IA compatible MCP pour
+              interroger votre historique, quand vous en avez besoin.
+            </p>
+          </div>
+          <div
+            class="mode-switch"
+            role="group"
+            aria-label="Choisir un mode à découvrir"
+          >
+            <button
+              type="button"
+              class="mode-button active"
+              data-mode="autonome"
+              aria-pressed="true"
+              aria-controls="mode-autonome"
+            >
+              01 <span>En autonome</span></button
+            ><button
+              type="button"
+              class="mode-button"
+              data-mode="agent"
+              aria-pressed="false"
+              aria-controls="mode-agent"
+            >
+              02 <span>Avec un agent IA</span
+              ><span class="tiny-badge">MCP</span>
+            </button>
+          </div>
+          <div
+            id="mode-autonome"
+            class="mode-panel"
+            aria-labelledby="standalone-title"
+          >
+            <div class="mode-copy">
+              <span class="pill">LE TÉLÉPHONE SUFFIT</span>
+              <h3 id="standalone-title">
+                Posez. Réglez.<br />Lancez la surveillance.
+              </h3>
+              <p>
+                Placez votre Android face à l’espace à observer. NovaGuard
+                analyse la scène en local et enregistre les détections
+                confirmées.
+              </p>
+              <ul class="check-list">
+                <li>Détection des personnes et des animaux sur l’appareil</li>
+                <li>Notifications locales lors des détections</li>
+                <li>Relecture et partage depuis l’historique</li>
+                <li>Rétention et nettoyage du stockage configurables</li>
+              </ul>
+              <a class="text-link" href="#installer"
+                >Prendre en main l’application
+                <span aria-hidden="true"
+                  ><svg
+                    class="inline-icon"
+                    aria-hidden="true"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                  >
+                    <path d="M6 18 18 6M6 6h12v12" /></svg></span
+              ></a>
+            </div>
+            <div class="standalone-diagram">
+              <div class="diagram-label">TOUT SE PASSE SUR VOTRE ANDROID</div>
+              <div class="device-outline">
+                <div class="device-camera" aria-hidden="true">◉</div>
+                <div class="pipeline">
+                  <span>La caméra observe</span><i>↓</i
+                  ><span>Le modèle détecte</span><i>↓</i
+                  ><span class="pipeline-last"
+                    >Votre clip est enregistré <b>✓</b></span
+                  >
+                </div>
+              </div>
+              <div class="diagram-note">
+                <span class="status-dot"></span> Aucun agent nécessaire
+              </div>
+            </div>
+          </div>
+          <div id="mode-agent" class="mode-panel" aria-labelledby="agent-title">
+            <div class="mode-copy">
+              <span class="pill">LE CONTEXTE EN PLUS</span>
+              <h3 id="agent-title">
+                Ne cherchez plus.<br />Posez la question.
+              </h3>
+              <p>
+                Le serveur MCP intégré au téléphone donne à votre agent
+                compatible accès aux événements, aux statistiques et aux images
+                des passages.
+              </p>
+              <ul class="check-list">
+                <li>Résumer une période à partir des événements enregistrés</li>
+                <li>Examiner les images d’un passage et l’état de la caméra</li>
+                <li>Attendre une nouvelle détection via MCP</li>
+                <li>
+                  Piloter certaines fonctions, uniquement sur autorisation
+                </li>
+              </ul>
+              <a class="text-link" href="./guide-mcp.html"
+                >Lire le guide MCP
+                <span aria-hidden="true"
+                  ><svg
+                    class="inline-icon"
+                    aria-hidden="true"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                  >
+                    <path d="M6 18 18 6M6 6h12v12" /></svg></span
+              ></a>
+            </div>
+            <div class="agent-demo">
+              <div class="demo-heading">
+                <span class="spark">✳</span> Votre agent IA
+                <span class="demo-badge">EXEMPLE D’USAGE</span>
+              </div>
+              <div class="chat-prompt">« Que s’est-il passé cette nuit ? »</div>
+              <div class="tool-steps">
+                <span>01 <b>Consulter les événements</b></span
+                ><span>02 <b>Examiner les images utiles</b></span
+                ><span>03 <b>Préparer une synthèse</b></span>
+              </div>
+              <div class="chat-note">
+                Les réponses dépendent des détections enregistrées et des
+                capacités de votre agent.
+              </div>
+              <div class="mcp-route">
+                <span>Android / NovaGuard</span><i>↔</i><span>MCP</span><i>↔</i
+                ><span>Votre agent</span>
+              </div>
+            </div>
+          </div>
+          <div class="consent-note">
+            <span class="note-symbol" aria-hidden="true"
+              ><svg
+                aria-hidden="true"
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.3"
+              >
+                <path d="M5 4v12h14m-5-5 5 5-5 5" /></svg
+            ></span>
+            <p>
+              <strong>Vous décidez de l’accès.</strong> MCP est désactivé par
+              défaut. Sur le réseau local, la lecture est protégée par jeton. Le
+              pilotage demande une activation distincte et un jeton dédié,
+              révocable ; ses actions sont journalisées. L’agent ne peut pas
+              supprimer vos vidéos.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="privacy section wrap" aria-labelledby="privacy-title">
+        <div class="privacy-heading">
+          <p class="eyebrow">LA CONFIANCE SE CONSTRUIT DANS LE CODE</p>
+          <h2 id="privacy-title">
+            Local d’abord.<br /><em>Votre choix, toujours.</em>
+          </h2>
+          <a
+            class="button outline"
+            href="https://github.com/devdownin/novaguard"
+            >Explorer le code source
+            <span aria-hidden="true"
+              ><svg
+                class="inline-icon"
+                aria-hidden="true"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              >
+                <path d="M6 18 18 6M6 6h12v12" /></svg></span
+          ></a>
+        </div>
+        <div class="privacy-points">
+          <article>
+            <span
+              ><svg
+                aria-hidden="true"
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.3"
+              >
+                <path d="M5 4v12h14m-5-5 5 5-5 5" /></svg
+            ></span>
+            <div>
+              <h3>La vision reste sur l’appareil</h3>
+              <p>
+                Le modèle embarqué analyse les images et déclenche les clips
+                localement, sans service de vision distant.
+              </p>
+            </div>
+          </article>
+          <article>
+            <span
+              ><svg
+                aria-hidden="true"
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.3"
+              >
+                <path d="M5 4v12h14m-5-5 5 5-5 5" /></svg
+            ></span>
+            <div>
+              <h3>Les connexions sont volontaires</h3>
+              <p>
+                Le direct Wi-Fi et MCP sont optionnels. Si votre agent utilise
+                une IA distante, les données et images qu’il consulte peuvent
+                être transmises à son fournisseur.
+              </p>
+            </div>
+          </article>
+          <article>
+            <span
+              ><svg
+                aria-hidden="true"
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.3"
+              >
+                <path d="M5 4v12h14m-5-5 5 5-5 5" /></svg
+            ></span>
+            <div>
+              <h3>Le code est ouvert</h3>
+              <p>
+                NovaGuard est distribué sous licence GPL v3. Consultez
+                l’implémentation, les évolutions et les limites documentées sur
+                GitHub.
+              </p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="installer" class="install section">
+        <div class="wrap">
+          <div class="install-heading">
+            <div>
+              <p class="eyebrow">DONNEZ UNE NOUVELLE MISSION À VOTRE ANDROID</p>
+              <h2>Prêt à garder<br />un œil sur l’essentiel ?</h2>
+            </div>
+            <div class="download-panel">
+              <div class="requirements">
+                <strong>Avant de télécharger</strong>
+                <p>
+                  Android 16 (API 36) minimum pour la version actuelle du
+                  projet. Vérifiez la version de votre téléphone dans ses
+                  réglages.
+                </p>
+              </div>
+              <!-- release-info:start -->
+              <div
+                class="release-card"
+                aria-label="Dernière version stable publiée"
+              >
+                <p class="release-label">DERNIÈRE VERSION STABLE PUBLIÉE</p>
+                <p class="release-version">
+                  v0.9.5
+                  <span>· <time datetime="2026-09-14">14/09/2026</time></span>
+                </p>
+                <a
+                  class="button primary"
+                  href="https://github.com/devdownin/novaguard/releases/download/v0.9.5/app-release.apk"
+                  >Télécharger l’APK <span aria-hidden="true">↓</span></a
+                >
+                <p class="release-size">106,3 Mo · APK Android</p>
+                <a
+                  class="release-notes"
+                  href="https://github.com/devdownin/novaguard/releases/tag/v0.9.5"
+                  >Notes de version et autres fichiers</a
+                >
+              </div>
+              <!-- release-info:end -->
+              <p class="version-scope">
+                Le site présente les fonctions de la branche <code>main</code>.
+                Une version publiée plus ancienne peut ne pas toutes les inclure
+                ; consultez ses notes ou utilisez un APK CI récent.
+              </p>
+            </div>
+          </div>
+          <ol class="install-steps">
+            <li>
+              <span>01</span>
+              <h3>Récupérez l’application</h3>
+              <p>
+                Téléchargez l’APK avec le bouton ci-dessus. Ouvrez le fichier
+                sur le téléphone et, si Android le demande, autorisez cette
+                source d’installation. Désactivez cette autorisation après
+                l’installation. Pour les ajouts récents de main, consultez les
+                artefacts CI.
+              </p>
+              <a
+                href="https://github.com/devdownin/novaguard/actions/workflows/ci.yml"
+                >Ouvrir les builds CI
+                <svg
+                  class="inline-icon"
+                  aria-hidden="true"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                >
+                  <path d="M6 18 18 6M6 6h12v12" /></svg
+              ></a>
+            </li>
+            <li>
+              <span>02</span>
+              <h3>Installez et cadrez</h3>
+              <p>
+                Installez l’APK sur un appareil compatible. Autorisez la caméra,
+                choisissez vos réglages et lancez la surveillance depuis
+                l’application.
+              </p>
+            </li>
+            <li>
+              <span>03</span>
+              <h3>Ajoutez l’IA, si vous voulez</h3>
+              <p>
+                Activez le serveur MCP dans les réglages, puis configurez votre
+                client compatible sur un réseau local de confiance.
+              </p>
+              <a href="./guide-mcp.html"
+                >Suivre le guide MCP pas à pas
+                <svg
+                  class="inline-icon"
+                  aria-hidden="true"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                >
+                  <path d="M6 18 18 6M6 6h12v12" /></svg
+              ></a>
+            </li>
+          </ol>
+          <p class="build-note">
+            <b>Pour les premiers essais :</b> les APK du workflow CI utilisent
+            la clé de debug du dépôt. La capture, l’orientation et le
+            fonctionnement écran éteint restent à valider sur appareil réel.
+            Testez votre installation avant de vous y fier.
+          </p>
+        </div>
+      </section>
+
+      <section
+        id="questions"
+        class="faq section wrap"
+        aria-labelledby="faq-title"
+      >
+        <div>
+          <p class="eyebrow">AVANT DE COMMENCER</p>
+          <h2 id="faq-title">En toute<br />transparence.</h2>
+          <p>
+            Le fonctionnement, les prérequis<br />et ce qui reste à vérifier.
+          </p>
+        </div>
+        <div class="faq-list">
+          <details>
+            <summary>
+              Faut-il une connexion Internet ou un agent IA ?<span
+                aria-hidden="true"
+                >+</span
+              >
+            </summary>
+            <p>
+              La détection et l’enregistrement s’exécutent sur le téléphone.
+              Aucun agent IA ni service de vision cloud n’est nécessaire à
+              l’usage autonome. Les fonctions MCP et de direct Wi-Fi demandent
+              une connexion réseau locale ; votre client IA peut avoir ses
+              propres besoins d’accès à Internet.
+            </p>
+          </details>
+          <details>
+            <summary>
+              Mon ancien téléphone est-il compatible ?<span aria-hidden="true"
+                >+</span
+              >
+            </summary>
+            <p>
+              Le projet exige actuellement Android 16 (API 36) au minimum.
+              Vérifiez la version Android dans les réglages du téléphone. La
+              caméra, l’encodage et les performances doivent être testés sur
+              votre modèle ; la 4K dépend notamment de ses capacités.
+            </p>
+          </details>
+          <details>
+            <summary>
+              Que peut faire l’agent connecté par MCP ?<span aria-hidden="true"
+                >+</span
+              >
+            </summary>
+            <p>
+              Consulter les événements, les statistiques, des images de clips et
+              les diagnostics. Avec votre autorisation distincte, il peut
+              démarrer ou arrêter la surveillance, ajuster la sensibilité et les
+              seuils, marquer un passage à conserver, annoter un événement et
+              acquitter une alerte de déplacement. Le démarrage exige que
+              l’application soit à l’écran. Les commandes sont journalisées ;
+              aucune commande de suppression n’est exposée.
+            </p>
+          </details>
+          <details>
+            <summary>
+              Mes images peuvent-elles quitter mon téléphone ?<span
+                aria-hidden="true"
+                >+</span
+              >
+            </summary>
+            <p>
+              Les clips restent dans le stockage privé de l’application. Le
+              partage d’un clip, le direct Wi-Fi et MCP ouvrent volontairement
+              un accès aux données concernées. Si votre client MCP utilise un
+              modèle distant, les images et métadonnées consultées peuvent
+              sortir du téléphone et être traitées par son fournisseur.
+            </p>
+          </details>
+          <details>
+            <summary>
+              Puis-je voir le direct depuis un navigateur ?<span
+                aria-hidden="true"
+                >+</span
+              >
+            </summary>
+            <p>
+              Le direct Wi-Fi optionnel publie une image JPEG par seconde, avec
+              un PIN de 12 chiffres généré sur l’appareil. Il utilise HTTP : les
+              images et le PIN ne sont pas chiffrés pendant le transport.
+              Réservez cet usage à un réseau local de confiance, sans exposition
+              publique.
+            </p>
+          </details>
+          <details>
+            <summary>
+              La détection et l’enregistrement sont-ils garantis ?<span
+                aria-hidden="true"
+                >+</span
+              >
+            </summary>
+            <p>
+              La détection est une estimation : un passage non reconnu ne peut
+              pas être récupéré. Le dépôt documente encore des validations sur
+              matériel réel, notamment pour l’orientation, la continuité des
+              clips et la capture écran éteint. Effectuez des essais dans vos
+              conditions d’éclairage et vérifiez régulièrement le stockage et
+              l’état de la caméra.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+    <footer class="footer wrap">
+      <div>
+        <a class="brand" href="#"
+          ><img
+            src="./assets/mark.svg"
+            width="30"
+            height="30"
+            alt=""
+          />NovaGuard</a
+        >
+        <p>Une caméra locale. Une nouvelle perspective.</p>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/devdownin/novaguard"
+          >GitHub
+          <svg
+            class="inline-icon"
+            aria-hidden="true"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          >
+            <path d="M6 18 18 6M6 6h12v12" /></svg></a
+        ><a href="./guide-mcp.html"
+          >Documentation MCP
+          <svg
+            class="inline-icon"
+            aria-hidden="true"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          >
+            <path d="M6 18 18 6M6 6h12v12" /></svg></a
+        ><a href="https://github.com/devdownin/novaguard/blob/main/LICENSE"
+          >Licence GPL v3
+          <svg
+            class="inline-icon"
+            aria-hidden="true"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          >
+            <path d="M6 18 18 6M6 6h12v12" /></svg
+        ></a>
+      </div>
+      <p class="footer-bottom">
+        Projet open source de devdownin. Filmez dans le respect des personnes et
+        de la réglementation applicable.
+      </p>
+    </footer>
+  </body>
+</html>
