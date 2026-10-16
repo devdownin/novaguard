@@ -4,6 +4,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { color, font, MAX_FONT_SCALE } from '../theme';
 import { useAppState, useViewfinderState } from '../state/AppStateContext';
 import { useAutoZoom } from '../camera/useAutoZoom';
+import { useCameraDeviceRecovery } from '../camera/useCameraDeviceRecovery';
 import { formatDuration } from '../utils/date';
 import { formatFrameRate } from '../camera/frameRate';
 import { GridOverlay } from './GridOverlay';
@@ -122,6 +123,7 @@ export function Viewfinder() {
   // The same selection CameraFeed makes: whether a device exists at all is
   // what tells "starting" from "no camera", and the list can arrive a render late.
   const device = useCameraDevice(devicePositionFor(settings.camera), physicalDeviceFilterFor(settings.camera));
+  useCameraDeviceRecovery(perms.cam && device == null, monitoring);
   const [graceOver, setGraceOver] = useState(false);
   useEffect(() => {
     setGraceOver(false);

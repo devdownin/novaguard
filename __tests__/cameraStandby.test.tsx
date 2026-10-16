@@ -13,6 +13,8 @@ import { useCameraDevice, useCameraPermission } from 'react-native-vision-camera
 import { AppStateProvider, useAppState } from '../src/state/AppStateContext';
 import { Viewfinder } from '../src/components/Viewfinder';
 import { NO_DEVICE_GRACE_MS, standbyLabelKey } from '../src/camera/deviceSelection';
+import { DEVICE_REFRESH_ATTEMPTS, DEVICE_REFRESH_INTERVAL_MS } from '../src/camera/useCameraDeviceRecovery';
+import { refreshCameraDevices } from '../src/surveillance/foregroundService';
 import { t } from '../src/i18n';
 
 jest.mock('../src/surveillance/foregroundService');
@@ -71,4 +73,24 @@ describe('the viewfinder', () => {
     await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(NO_DEVICE_GRACE_MS + 100); });
     expect(texts()).toContain(t('view.noCamera'));
   });
+
+  it('asks VisionCamera for its camera list again while it has none, then gives up', async () => {
+    (useCameraDevice as jest.Mock).mockReturnValue(undefined);
+    await startMonitoring();
+    expect(refreshCameraDevices).toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => {
+      jest.advanceTimersByTime(DEVICE_REFRESH_INTERVAL_MS * (DEVICE_REFRESH_ATTEMPTS + 5));
+    });
+    const calls = (refreshCameraDevices as jest.Mock).mock.calls.length;
+    expect(calls).toBeGreaterThanOrEqual(DEVICE_REFRESH_ATTEMPTS);
+    expect(calls).toBeLessThanOrEqual(DEVICE_REFRESH_ATTEMPTS + 3);
+  });
+
+  it('asks nothing once a camera is known', async () => {
+    (useCameraDevice as jest.Mock).mockReturnValue({ id: 'back', position: 'back', neutralZoom: 1 });
+    await startMonitoring();
+    await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(DEVICE_REFRESH_INTERVAL_MS * 3); });
+    expect(refreshCameraDevices).not.toHaveBeenCalled();
+  });
 });
+

@@ -175,6 +175,16 @@ export function shareRecording(path: string): boolean {
   }
 }
 
+/** Asks VisionCamera to emit its camera list again; see `useCameraDeviceRecovery`. */
+export function refreshCameraDevices(): boolean {
+  if (!NativeSurveillanceService) return false;
+  try {
+    return NativeSurveillanceService.refreshCameraDevices();
+  } catch {
+    return false;
+  }
+}
+
 /** SHA-256 of a recording, or '' when it cannot be read (see `evidence.ts`). */
 export async function hashRecording(path: string): Promise<string> {
   if (!NativeSurveillanceService) return '';

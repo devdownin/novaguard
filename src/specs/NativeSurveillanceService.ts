@@ -40,6 +40,14 @@ export interface Spec extends TurboModule {
   shareRecording(path: string): boolean;
 
   /**
+   * Asks VisionCamera to emit its camera list again. Its manager reads the list
+   * before CameraX has finished initialising and never re-emits it afterwards,
+   * so on the new architecture the app could see zero cameras for good (see
+   * `useCameraDeviceRecovery`). False when the manager is not reachable.
+   */
+  refreshCameraDevices(): boolean;
+
+  /**
    * Lower-case hex SHA-256 of a recording, or '' when it cannot be read. Off
    * the calling thread: a long 4K clip is hundreds of megabytes to stream.
    */

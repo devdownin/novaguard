@@ -12,7 +12,7 @@ export function physicalDeviceFilterFor(camera: CameraSetting): DeviceFilter | u
 }
 
 /** How long the device list may stay empty before "no camera" is believed. */
-export const NO_DEVICE_GRACE_MS = 3000;
+export const NO_DEVICE_GRACE_MS = 5000;
 
 export type StandbyKey = 'view.grantCamera' | 'view.cameraStarting' | 'view.noCamera' | 'view.standby';
 

@@ -7,7 +7,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 ## [Non publié]
 
 ### Corrigé
-- Au lancement de la surveillance, le viseur affichait « Aucune caméra détectée » le temps que l’aperçu apparaisse. Il affiche désormais « Démarrage de la caméra… », et ne parle d’absence de caméra que si aucune n’a été trouvée au bout de 3 s.
+- Aucune caméra n’était jamais trouvée : VisionCamera lit la liste des caméras avant que CameraX ait fini de s’initialiser et ne la renvoie plus ensuite (nouvelle architecture). L’application la lui redemande chaque seconde tant qu’aucune caméra n’est connue (15 fois au plus, et de nouveau à chaque démarrage de la surveillance).
+- Au lancement, le viseur affiche « Démarrage de la caméra… » au lieu de « Aucune caméra détectée », qui n’apparaît plus que si aucune caméra n’a été trouvée au bout de 5 s.
 
 ### Confidentialité
 - La politique de confidentialité décrivait le serveur MCP comme « strictement en lecture seule » ; elle décrit désormais la lecture, la vue en direct et le pilotage, chacun avec son interrupteur.
