@@ -27,10 +27,14 @@ describe('the version', () => {
   });
 
   it('has a section in the changelog and a link at its foot', () => {
-    const changelog = read('CHANGELOG.md');
-    const v = packageJson.version.replace(/\./g, '\\.');
-    expect(changelog).toMatch(new RegExp(`^## \\[${v}\\] - \\d{4}-\\d{2}-\\d{2}$`, 'm'));
-    expect(changelog).toMatch(new RegExp(`^\\[${v}\\]: https://github\\.com/`, 'm'));
+    // Plain string comparisons rather than a pattern built from the version:
+    // a version is data, and escaping it by hand is how a pattern goes wrong.
+    const lines = read('CHANGELOG.md').split('\n');
+    const prefix = `## [${packageJson.version}] - `;
+    const heading = lines.find(line => line.startsWith(prefix));
+    expect(heading).toBeDefined();
+    expect(heading!.slice(prefix.length)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(lines.some(line => line.startsWith(`[${packageJson.version}]: https://github.com/`))).toBe(true);
   });
 
   it('points "Non publié" at the commits after it', () => {
