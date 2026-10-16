@@ -6,6 +6,7 @@ import androidx.fragment.app.FragmentActivity
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReadableArray
+import com.mrousavy.camera.react.CameraDevicesManager
 import com.facebook.react.bridge.UiThreadUtil
 import java.util.concurrent.Executors
 
@@ -105,6 +106,21 @@ class SurveillanceServiceModule(reactContext: ReactApplicationContext) :
    */
   override fun extractThumbnail(clipPath: String, promise: Promise) {
     thumbnails.execute { promise.resolve(ClipThumbnail.extract(clipPath)) }
+  }
+
+  /**
+   * VisionCamera 4.7's `CameraDevicesManager` builds its list from CameraX,
+   * which initialises asynchronously; `getConstants()` and `initialize()` both
+   * run before that finishes on the new architecture, both see an empty list,
+   * and nothing emits it again once CameraX is ready. Re-emitting is public
+   * and idempotent, so JS asks for it until a device shows up.
+   */
+  override fun refreshCameraDevices(): Boolean = try {
+    val manager = reactApplicationContext.getNativeModule(CameraDevicesManager::class.java)
+    manager?.sendAvailableDevicesChangedEvent()
+    manager != null
+  } catch (e: Exception) {
+    false
   }
 
   /** Never rejects: an unreadable clip resolves to "", and the report says so. */

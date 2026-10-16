@@ -6,6 +6,10 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ## [Non publié]
 
+### Corrigé
+- Aucune caméra n’était jamais trouvée : VisionCamera lit la liste des caméras avant que CameraX ait fini de s’initialiser et ne la renvoie plus ensuite (nouvelle architecture). L’application la lui redemande chaque seconde tant qu’aucune caméra n’est connue (15 fois au plus, et de nouveau à chaque démarrage de la surveillance).
+- Au lancement, le viseur affiche « Démarrage de la caméra… » au lieu de « Aucune caméra détectée », qui n’apparaît plus que si aucune caméra n’a été trouvée au bout de 5 s.
+
 ### Confidentialité
 - La politique de confidentialité décrivait le serveur MCP comme « strictement en lecture seule » ; elle décrit désormais la lecture, la vue en direct et le pilotage, chacun avec son interrupteur.
 - « Exporter comme preuve » (fiche d’un évènement) : tous les clips du passage et un rapport texte — horaires, genres vus, segments manquants, empreinte SHA-256 de chaque fichier avec la commande pour la vérifier — partagés en une seule fois.

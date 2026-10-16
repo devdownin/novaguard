@@ -57,6 +57,8 @@ CameraFeed (frame processor, worklet)
 Ces pièges ont tous déjà coûté un bug en production. Ils justifient des choix
 qui, sans ça, paraissent tordus.
 
+**La liste des caméras peut rester vide pour toujours.** VisionCamera 4.7 la lit dans `getConstants()` et la renvoie à `initialize()`, deux moments qui, en nouvelle architecture, précèdent la fin de l'initialisation asynchrone de CameraX — et rien ne la renvoie ensuite. `useCameraDevice` rendait donc `undefined` à jamais et le viseur disait « aucune caméra » sur un téléphone qui en a trois. `useCameraDeviceRecovery` demande à `CameraDevicesManager.sendAvailableDevicesChangedEvent()` (public, idempotent) de réémettre la liste chaque seconde tant qu'aucune caméra n'est connue. À retirer le jour où la bibliothèque émet elle-même la liste une fois CameraX prêt.
+
 **La caméra ne nous appartient pas.** Un appel entrant, une autre application,
 une politique constructeur : CameraX rend l'erreur et cesse de livrer. Comme
 l'écran d'un téléphone de surveillance est éteint, l'interruption doit être dite

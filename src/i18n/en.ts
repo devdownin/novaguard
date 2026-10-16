@@ -75,6 +75,7 @@ export const en: Record<StringKey, string> = {
 
   // ── viewfinder ───────────────────────────────────────────────────────
   'view.standby': 'CAMERA ON STANDBY',
+  'view.cameraStarting': 'STARTING THE CAMERA…',
   'view.noCamera': 'NO CAMERA FOUND',
   'view.grantCamera': 'ALLOW THE CAMERA',
   'view.grantCameraWhere': 'Setup → Privacy → Permissions',

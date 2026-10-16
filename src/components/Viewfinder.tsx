@@ -4,10 +4,13 @@ import LinearGradient from 'react-native-linear-gradient';
 import { color, font, MAX_FONT_SCALE } from '../theme';
 import { useAppState, useViewfinderState } from '../state/AppStateContext';
 import { useAutoZoom } from '../camera/useAutoZoom';
+import { useCameraDeviceRecovery } from '../camera/useCameraDeviceRecovery';
 import { formatDuration } from '../utils/date';
 import { formatFrameRate } from '../camera/frameRate';
 import { GridOverlay } from './GridOverlay';
 import { CameraFeed } from './CameraFeed';
+import { useCameraDevice } from 'react-native-vision-camera';
+import { devicePositionFor, NO_DEVICE_GRACE_MS, physicalDeviceFilterFor, standbyLabelKey } from '../camera/deviceSelection';
 import { DetectionOverlay } from './DetectionOverlay';
 import { ZoneLayer } from './ZoneLayer';
 import { LiveClock } from './LiveClock';
@@ -117,11 +120,20 @@ export function Viewfinder() {
     maxCameraZoom,
   });
 
-  const standbyLabel = t(!perms.cam
-    ? 'view.grantCamera'
-    : monitoring
-      ? 'view.noCamera'
-      : 'view.standby');
+  // The same selection CameraFeed makes: whether a device exists at all is
+  // what tells "starting" from "no camera", and the list can arrive a render late.
+  const device = useCameraDevice(devicePositionFor(settings.camera), physicalDeviceFilterFor(settings.camera));
+  useCameraDeviceRecovery(perms.cam && device == null, monitoring);
+  const [graceOver, setGraceOver] = useState(false);
+  useEffect(() => {
+    setGraceOver(false);
+    if (!monitoring) return;
+    const timer = setTimeout(() => setGraceOver(true), NO_DEVICE_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [monitoring, settings.camera]);
+  const standbyLabel = t(standbyLabelKey({
+    cameraPermission: perms.cam, monitoring, deviceFound: device != null, graceOver,
+  }));
   const standbySubtext = !perms.cam ? t('view.grantCameraWhere') : undefined;
 
   const fault = statusIsFault(surveillanceStatus);
