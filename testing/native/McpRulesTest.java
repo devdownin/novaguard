@@ -1,4 +1,6 @@
 import com.novaguard.surveillance.McpRules;
+import java.util.Arrays;
+import java.util.Collections;
 
 /** Checks the MCP server's pure decisions. */
 public final class McpRulesTest {
@@ -92,6 +94,31 @@ public final class McpRulesTest {
     check(McpRules.sampleSizeFor(1280, 720, 768) == 1, "already close: no reduction");
     check(McpRules.sampleSizeFor(720, 1280, 320) == 4, "portrait counts its longest side");
     check(McpRules.sampleSizeFor(1920, 1080, 0) == 1, "no edge, no reduction");
+
+    check(McpRules.negotiate("2025-06-18").equals("2025-06-18"), "a known version is given back");
+    check(McpRules.negotiate("2024-10-07").equals(McpRules.LATEST_PROTOCOL), "an unknown one is offered the latest");
+    check(McpRules.negotiate(null).equals(McpRules.LATEST_PROTOCOL), "and so is none");
+    check(McpRules.responseProtocol(null, "2025-03-26").equals("2025-03-26"), "initialize answers with what it agreed");
+    check(McpRules.responseProtocol("2025-06-18", null).equals("2025-06-18"), "later requests get their own version back");
+    check(McpRules.responseProtocol(null, null) == null, "no header asked, none given");
+    check(McpRules.rejectsProtocolHeader("1999-01-01"), "an unknown header is refused");
+    check(!McpRules.rejectsProtocolHeader(null) && !McpRules.rejectsProtocolHeader(""), "an absent one is not");
+    check(!McpRules.rejectsProtocolHeader(McpRules.LATEST_PROTOCOL), "nor a known one");
+
+    check("192.168.1.42".equals(McpRules.lanAddress(Arrays.asList(
+      new String[] {"rmnet_data0", "10.64.12.7"},
+      new String[] {"tun0", "10.8.0.2"},
+      new String[] {"wlan0", "192.168.1.42"}))), "Wi-Fi wins over cellular and VPN whatever the order");
+    check("192.168.1.42".equals(McpRules.lanAddress(Arrays.asList(
+      new String[] {"p2p0", "192.168.49.1"}, new String[] {"wlan0", "192.168.1.42"}))),
+      "Wi-Fi wins over an interface listed before it");
+    check(McpRules.lanAddress(Arrays.asList(
+      new String[] {"rmnet0", "10.64.12.7"}, new String[] {"tun0", "10.8.0.2"})) == null, "cellular and VPN are never a LAN");
+    check("192.168.43.1".equals(McpRules.lanAddress(Collections.singletonList(new String[] {"swlan0", "192.168.43.1"}))),
+      "a hotspot is a LAN");
+    check("172.20.0.3".equals(McpRules.lanAddress(Collections.singletonList(new String[] {"usb0", "172.20.0.3"}))),
+      "an unknown interface is kept when nothing better exists");
+    check(McpRules.lanAddress(Collections.emptyList()) == null, "nothing, nothing");
 
     System.out.println("McpRulesTest passed");
   }

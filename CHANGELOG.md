@@ -27,6 +27,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 - « Ce qu’un assistant IA peut voir et faire » (Réglages, bloc confidentialité) ouvre la page « Services MCP » même serveur éteint.
 
 ### Serveur MCP
+- Réglages → Serveur MCP propose la configuration de sept clients (config JSON, Claude Code, LibreChat, Open WebUI, AnythingLLM, OpenClaw, Hermes Agent), chacune dans la forme que ce client attend ; la config JSON déclare enfin son transport (`type: http`). Guide complet : `docs/CONNEXION.md`.
+- La configuration copiée et le QR code portent le jeton de lecture, même pilotage actif. Le jeton de pilotage ne s’y trouve que si on le choisit (« Jeton de la configuration »).
+- Réglages dit que claude.ai, ChatGPT et Copilot Studio ne peuvent pas joindre le téléphone, et qu’un client doit l’adresser par son IP.
+- L’adresse Wi-Fi est choisie parmi les interfaces du téléphone : avec un VPN ou les données mobiles actives, l’URL affichée, le contrôle `Host` et le certificat HTTPS retenaient l’adresse de cette autre interface, et le Wi-Fi était refusé.
+- `MCP-Protocol-Version` renvoie la version négociée (puis celle du client) au lieu de `2025-06-18` en dur ; une version inconnue est refusée en `400`, et `initialize` propose `2026-07-28` à un client qui n’en connaît aucune.
 - Réglages s’ouvre sur une carte « Assistant IA (MCP) » : état du serveur, ce qui empêche le pilotage le cas échéant, et « Voir les services MCP ». La page était deux sections plus bas, où personne ne la trouvait.
 - HTTPS (Réglages → Serveur MCP → « Chiffrer les connexions », éteint par défaut) : une autorité propre au téléphone, dont la clé reste dans l’Android Keystore, émet le certificat du serveur pour son adresse du moment ; on installe une fois son certificat sur l’ordinateur de l’agent et on compare l’empreinte affichée. Un changement d’adresse IP ne casse plus la connexion.
 - Vue en direct pour l’agent (Réglages → Serveur MCP, éteinte par défaut) : nouvel outil `get_live_frame`, une image de ce que voit la caméra pendant la surveillance, sans rien enregistrer.

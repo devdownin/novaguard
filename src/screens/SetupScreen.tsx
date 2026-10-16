@@ -21,6 +21,9 @@ import { getMcpCaCertificate } from '../surveillance/mcpServer';
 import { QrCode } from '../components/QrCode';
 import { controlLive } from '../surveillance/mcpControl';
 import { controlAvailability } from '../surveillance/mcpServices';
+import {
+  CLIENT_NAMES, clientFragment, fragmentToken, genericConfig, McpClientId, nextClient, TokenChoice,
+} from '../surveillance/mcpClients';
 import { ShieldCheckIcon } from '../components/icons';
 import { StringKey, t, tn, tValue } from '../i18n';
 import { useLandscape } from '../utils/useLandscape';
@@ -61,6 +64,8 @@ export function SetupScreen() {
 
   const [showToken, setShowToken] = React.useState(false);
   const [showQr, setShowQr] = React.useState(false);
+  const [mcpClient, setMcpClient] = React.useState<McpClientId>('json');
+  const [tokenChoice, setTokenChoice] = React.useState<TokenChoice>('read');
   const [copiedLabel, setCopiedLabel] = React.useState<string | null>(null);
 
   // The server's own address, not the streaming server's. Without a token it
@@ -88,19 +93,11 @@ export function SetupScreen() {
 
   const controlActive = settings.mcpControlEnabled && settings.mcpControlToken.length > 0
     && controlLive(settings.mcpControlExpiresAt, Date.now());
-  const clientToken = controlActive ? settings.mcpControlToken : settings.mcpToken;
-
-  const mcpClientConfig = {
-    mcpServers: {
-      novaguard: {
-        url: mcpServerUrl,
-        // The control token grants reading too, so a client set up for
-        // control needs only that one.
-        headers: clientToken ? { Authorization: `Bearer ${clientToken}` } : {},
-      },
-    },
-  };
-  const getMcpJsonConfig = () => JSON.stringify(mcpClientConfig, null, 2);
+  // Reading unless the owner picks control: the control token reads too, so a
+  // client set up for control needs only that one — and only that client should.
+  const clientToken = fragmentToken(settings, controlActive ? tokenChoice : 'read', Date.now());
+  const clientLabel = mcpClient === 'json' ? t('setup.mcpClient.json') : CLIENT_NAMES[mcpClient];
+  const tokenChoiceLabel = t(tokenChoice === 'control' ? 'setup.mcpFragmentToken.control' : 'setup.mcpFragmentToken.read');
 
   const mcpAvailability = controlAvailability(settings, Date.now());
 
@@ -634,6 +631,27 @@ export function SetupScreen() {
             ) : null}
           </View>
 
+          <SettingRow label={t('setup.mcpClient')} subtitle={t('setup.mcpClient.sub')}>
+            <ValueButton
+              label={clientLabel}
+              onPress={() => setMcpClient(nextClient)}
+              accessibilityLabel={t('a11y.setting', { name: t('setup.mcpClient'), value: clientLabel })}
+            />
+          </SettingRow>
+
+          {controlActive ? (
+            <SettingRow label={t('setup.mcpFragmentToken')} subtitle={t('setup.mcpFragmentToken.sub')}>
+              <ValueButton
+                label={tokenChoiceLabel}
+                onPress={() => setTokenChoice(c => (c === 'read' ? 'control' : 'read'))}
+                accessibilityLabel={t('a11y.setting', { name: t('setup.mcpFragmentToken'), value: tokenChoiceLabel })}
+              />
+            </SettingRow>
+          ) : null}
+
+          <Text style={styles.hint}>{t('setup.mcpHost.hint')}</Text>
+          <Text style={styles.hint}>{t('setup.mcpClient.unsupported')}</Text>
+
           <View style={[styles.subBlock, styles.aboutButtonsRow]}>
             <PrimaryOutlineButton
               label={copiedLabel === 'url' ? t('setup.mcpCopy.copied') : t('setup.mcpCopy.url')}
@@ -649,7 +667,7 @@ export function SetupScreen() {
             ) : null}
             <SecondaryOutlineButton
               label={copiedLabel === 'config' ? t('setup.mcpCopy.copied') : t('setup.mcpCopy.config')}
-              onPress={() => copyToClipboard(getMcpJsonConfig(), 'config')}
+              onPress={() => copyToClipboard(clientFragment(mcpClient, mcpServerUrl, clientToken), 'config')}
               style={styles.flex1}
             />
           </View>
@@ -662,7 +680,7 @@ export function SetupScreen() {
             {/* Compact JSON: every byte saved is a smaller symbol, easier to read off a screen. */}
             {showQr ? (
               <View style={styles.qr}>
-                <QrCode value={JSON.stringify(mcpClientConfig)} size={220} accessibilityLabel={t('setup.mcpQr.label')} />
+                <QrCode value={JSON.stringify(genericConfig(mcpServerUrl, clientToken))} size={220} accessibilityLabel={t('setup.mcpQr.label')} />
                 {clientToken ? <Text style={styles.hint}>{t('setup.mcpQr.hint')}</Text> : null}
               </View>
             ) : null}

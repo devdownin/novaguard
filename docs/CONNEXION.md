@@ -1,8 +1,8 @@
 # NovaGuard — Connexion des agents IA par MCP
 
-- Version : 2.0 (audit de la proposition 1.0 contre le code)
+- Version : 2.1
 - Date : 16 octobre 2026
-- Statut : parcours de connexion fondés sur le serveur tel qu’implémenté ; parcours clients **non qualifiés sur appareil**
+- Statut : **finalisée**. Décisions prises (§12) ; lots 0 et 3 implémentés ; parcours clients **non qualifiés sur appareil** (§10)
 - Référence du serveur : [`mcp.md`](../mcp.md) (contrat des outils) et `android/app/src/main/java/com/novaguard/surveillance/McpServerModule.kt`
 - Clients étudiés : Claude (Claude Code, Claude Desktop, claude.ai), ChatGPT, Microsoft Copilot Studio, LibreChat, Open WebUI, AnythingLLM, OpenClaw, Hermes Agent (Nous Research)
 
@@ -72,7 +72,7 @@ Il n’y a ni fournisseur d’identité, ni gestion de secrets externe, ni journ
 - `GET` sur `/mcp` rend `405` — comportement prévu par le transport pour un serveur sans flux. `GET /health` rend `{"status":"ok"}` et sert de sonde réseau.
 - Le chemin n’est pas contrôlé : l’URL publiée est `…/mcp`, c’est celle à configurer.
 - `Content-Type: application/json` exigé (`415` sinon), corps ≤ 256 Kio (`413`), 64 en-têtes au plus (`431`).
-- Versions négociées : `2024-11-05`, `2025-03-26`, `2025-06-18`, `2026-07-28` ; une version inconnue reçoit `2025-06-18`.
+- Versions négociées : `2024-11-05`, `2025-03-26`, `2025-06-18`, `2026-07-28` ; une version inconnue reçoit `2026-07-28`. Chaque réponse porte `MCP-Protocol-Version` : la version négociée sur `initialize`, celle du client ensuite ; un en-tête de version inconnue est refusé en `400`, son absence (client antérieur à 2025-06-18) est acceptée.
 - Pas de `stdio`. Un client qui ne parle que `stdio` passe par un pont (§6.1, Claude Desktop) ; ce pont ne doit rien écrire sur sa sortie standard en dehors du protocole.
 
 ### 3.3 Adressage et réseau
@@ -85,7 +85,7 @@ Il n’y a ni fournisseur d’identité, ni gestion de secrets externe, ni journ
 
 Contrôles qui décident si un client se connecte :
 
-- **`Host`** doit valoir exactement `127.0.0.1:port`, `localhost:port`, `[::1]:port` ou `<IPv4 LAN>:port`, sinon `421`. Conséquences : adresser le téléphone **par son IP**, port explicite ; un reverse proxy doit transmettre ce `Host` inchangé ; un nom mDNS, un nom de service Docker ou un port implicite (443 derrière un proxy) est refusé.
+- **`Host`** doit valoir exactement `127.0.0.1:port`, `localhost:port`, `[::1]:port` ou `<IPv4 LAN>:port`, sinon `421`. L’IPv4 LAN est celle du Wi-Fi, du point d’accès ou de l’Ethernet, jamais celle d’un VPN ou des données mobiles (`McpRules.lanAddress`). Le LAN est servi en IPv4 seulement. Conséquences : adresser le téléphone **par son IP**, port explicite ; un reverse proxy doit transmettre ce `Host` inchangé ; un nom mDNS, un nom de service Docker ou un port implicite (443 derrière un proxy) est refusé.
 - **`Origin`**, s’il est présent, doit être l’origine du serveur (`403` sinon). Les clients serveur n’en envoient pas ; un client exécuté dans un navigateur et parlant directement au téléphone est refusé, et c’est voulu (*DNS rebinding*).
 - **Débit et connexions** : 120 requêtes par minute et par IP, 8 connexions simultanées dont 4 par IP, échéance de 15 s pour lire une requête. Un client multi-utilisateur (LibreChat, Open WebUI, AnythingLLM) et tout conteneur derrière une NAT présentent **une seule IP** : tous leurs utilisateurs partagent ce budget, et chaque `wait_for_event` en cours (≤ 25 s) y occupe une place.
 - **Découverte** : le serveur s’annonce en DNS-SD (`_novaguard-mcp._tcp`, TXT `path=/mcp`, `auth=bearer`) dès qu’il écoute hors boucle locale. L’IP du téléphone est un bail DHCP ; réserver son adresse sur le routeur est le moyen le plus simple de garder une configuration valide. mDNS ne traverse ni les réseaux Docker en pont ni la plupart des VLAN invités.
@@ -285,19 +285,23 @@ Elle existe : **Réglages → Serveur MCP** (en tête de l’écran Réglages, c
 
 1. Activation, port, mode (« Lecture seule strict » / « Lecture et pilotage »), HTTPS, vue en direct.
 2. Jeton de lecture et jeton de pilotage, avec durée et date d’expiration.
-3. « Copier l’URL », « Copier le jeton », « Copier la config JSON », QR code de la configuration (jeton compris, avec l’avertissement correspondant).
+3. « Client de l’agent » et « Jeton de la configuration » (§7.2), puis « Copier l’URL », « Copier le jeton », « Copier la configuration », QR code de la config JSON (jeton compris, avec l’avertissement correspondant).
 4. Certificat de la CA et son empreinte, en HTTPS.
 5. « Voir les services MCP » : ce qu’un agent peut lire et faire avec les réglages actuels.
 6. Dernière activité IA et journal des appels de pilotage.
 
-### 7.2 Ce qui reste à ajouter
+### 7.2 Ajouts de la version 2.1
 
-| Manque | Proposition |
-| --- | --- |
-| La config JSON n’a qu’une forme, sans champ `type`, et n’est directement valide pour aucun des clients du §6 | Un fragment par client (§6), choisi dans une liste ; les clients non pris en charge y figurent avec la raison |
-| La config copiée porte le jeton de **pilotage** dès que le pilotage est actif (`SetupScreen.tsx`, `clientToken`) | Choisir explicitement le jeton du fragment, lecture par défaut (§4.2) |
-| Aucun avertissement sur `Host` | Afficher « adressez le téléphone par son IP » sous l’URL, et une suggestion de réservation DHCP |
-| Aucune preuve par client | Afficher le nombre de requêtes et la dernière activité **par IP de pair**, sans plus : un nom de client est autodéclaré et ne prouve rien |
+| Manque relevé | Réponse | Où |
+| --- | --- | --- |
+| Une seule config JSON, sans `type`, valide pour aucun client | « Client de l’agent » : sept fragments, chacun dans la forme du §6 ; la config JSON et le QR code déclarent `type: http` | `src/surveillance/mcpClients.ts` |
+| La config portait le jeton de pilotage dès que le pilotage était actif | « Jeton de la configuration » : lecture par défaut, pilotage seulement si choisi et encore valide | `fragmentToken` |
+| Clients cloud présentés comme les autres | Absents de la liste ; une ligne dit pourquoi ils ne peuvent pas joindre le téléphone | `setup.mcpClient.unsupported` |
+| Aucun avertissement sur `Host` | « Adressez le téléphone par cette IP… » et la réservation DHCP | `setup.mcpHost.hint` |
+
+Reste à faire : activité par IP de pair (nombre de requêtes, dernière activité), sans plus — un nom de client est autodéclaré et ne prouve rien.
+
+Les fragments embarquent le jeton en clair pour être collés tels quels (niveau A) ; le provisionnement scripté (niveau B, §9.1) remplace la valeur par une variable d’environnement quand le client la substitue. Le choix du client et du jeton n’est pas un réglage : il n’est ni persisté ni lu ailleurs que sur cet écran.
 
 ### 7.3 États affichables
 
@@ -377,14 +381,16 @@ Exécuter AC-01 à AC-14 sur les sept parcours pris en charge, en HTTP puis en H
 
 Fait (§0). Écarts relevés dans le code, à traiter dans leur propre PR :
 
-| Écart | Où | Effet |
-| --- | --- | --- |
-| L’en-tête `MCP-Protocol-Version` vaut toujours `2025-06-18`, même quand `2026-07-28` a été négocié | `McpServerModule.kt`, `respond(… LATEST_PROTOCOL)` | Un client strict peut rejeter la réponse ; renvoyer la version négociée |
-| Une version inconnue reçoit `2025-06-18` alors que `2026-07-28` est prise en charge, et l’interface comme `mcp.md` annoncent `2026-07-28` | `LATEST_PROTOCOL`, `fr.ts` `setup.mcpEnabled.sub` | Contrat et affichage divergents ; choisir une seule version de référence |
-| L’IP LAN est la première IPv4 non locale de n’importe quelle interface active | `localIpAddress()` | Avec un VPN ou des données mobiles actives, l’IP retenue peut ne pas être celle du Wi-Fi : `Host` refusé, certificat sans la bonne IP, URL affichée fausse. Préférer l’interface Wi-Fi ; à vérifier sur appareil |
-| IPv6 LAN absente du contrôle `Host` et du certificat | `expectedAuthorities()`, `certificateAddresses()` | Un client en IPv6 seul reçoit `421` ; documenter IPv4 comme exigence ou l’ajouter |
-| La config copiée et le QR portent le jeton de pilotage dès que le pilotage est actif | `SetupScreen.tsx` | Contraire au moindre privilège (§4.2) |
-| Le fragment JSON n’a pas de `type` | `SetupScreen.tsx` | Rejeté ou mal interprété par les clients qui l’exigent |
+| Écart | Où | Effet | Statut |
+| --- | --- | --- | --- |
+| L’en-tête `MCP-Protocol-Version` valait toujours `2025-06-18`, même quand `2026-07-28` était négocié | `McpServerModule.kt` | Un client strict pouvait rejeter la réponse | Corrigé : `McpRules.responseProtocol`, testé sur JVM |
+| Une version inconnue recevait `2025-06-18` alors que l’interface et `mcp.md` annoncent `2026-07-28` | `LATEST_PROTOCOL` | Contrat et affichage divergents | Corrigé : `McpRules.LATEST_PROTOCOL = 2026-07-28` |
+| L’IP LAN était la première IPv4 non locale de n’importe quelle interface | `localIpAddress()` | Avec VPN ou données mobiles : `Host` refusé, certificat sans la bonne IP, URL fausse | Corrigé : `McpRules.lanAddress` ; à vérifier sur appareil |
+| IPv6 LAN absente du contrôle `Host` et du certificat | `expectedAuthorities()`, `certificateAddresses()` | Un client en IPv6 seul reçoit `421` | Décidé : IPv4 exigée et documentée (§12) |
+| La config et le QR portaient le jeton de pilotage dès que le pilotage était actif | `SetupScreen.tsx` | Contraire au moindre privilège (§4.2) | Corrigé (§7.2) |
+| Le fragment JSON n’avait pas de `type` | `SetupScreen.tsx` | Rejeté par les clients qui l’exigent | Corrigé (§7.2) |
+
+Le Kotlin modifié n’est compilé par aucune vérification locale : le build APK de la PR (job `changes` de `ci.yml`) le valide.
 
 ### Lot 1 — Guides des clients scriptables
 
@@ -396,20 +402,24 @@ LibreChat, Open WebUI, puis AnythingLLM après qualification de son transport HT
 
 ### Lot 3 — Interface
 
-Fragments par client et choix du jeton dans Réglages (§7.2), activité par pair, avertissement `Host`. Tests Jest : un fragment par client, jeton de lecture par défaut, aucun fragment pour un client non pris en charge.
+Fait, sauf l’activité par pair (§7.2). Tests : `__tests__/mcpClients.test.ts` (un fragment par client, jeton de lecture par défaut, aucun jeton de pilotage expiré), `__tests__/setupUx.test.tsx` (choix du jeton dans le QR code, liste des clients).
 
 ### Lot 4 — Maintien
 
 Associer chaque fragment à une version testée et à une date. Requalifier après changement significatif du client ou du protocole.
 
-Le lot « clients SaaS » de la v1.0 est retiré tant que la décision du §12 n’est pas prise.
+Le lot « clients SaaS » de la v1.0 est retiré (§12).
 
-## 12. Décisions à prendre
+## 12. Décisions
 
-- **Accès depuis un cloud tiers** (claude.ai, ChatGPT, Copilot Studio). Le permettre veut dire un tunnel sortant ou un relais, donc une connexion sortante, une adresse publique pour une caméra et une révision de `PRIVACY.md`, du formulaire *Data safety* et de `playRelease.test.ts`. La position actuelle est non, et ce document en part.
-- **Version de protocole de référence** : `2025-06-18` ou `2026-07-28`, une seule pour le code, `mcp.md` et l’interface.
-- **Clients multi-utilisateurs** : un jeton par instance suffit-il, ou faut-il des jetons de lecture multiples révocables séparément ?
-- **IPv6 LAN** : prise en charge ou exigence IPv4 documentée.
+| Question | Décision | Conséquence |
+| --- | --- | --- |
+| Accès depuis un cloud tiers (claude.ai, ChatGPT, Copilot Studio) | **Non.** Aucun tunnel, relais ni redirection de port | `PRIVACY.md`, *Data safety* et `playRelease.test.ts` restent vrais ; ces clients sont exclus du sélecteur et nommés comme tels |
+| Version de protocole de référence | **`2026-07-28`**, une seule pour le code (`McpRules.LATEST_PROTOCOL`), `mcp.md` et l’interface | Les versions antérieures restent négociables |
+| Clients multi-utilisateurs | **Un jeton de lecture par téléphone**, partagé par l’instance ; jamais le jeton de pilotage | Révoquer un client, c’est régénérer le jeton et reconfigurer les autres ; des jetons multiples seraient une évolution du serveur |
+| IPv6 sur le LAN | **IPv4 exigée**, documentée | Un client en IPv6 seul n’est pas pris en charge |
+
+Ces décisions se rouvrent par une révision de ce document, pas au fil d’une intégration.
 
 ## 13. Sources
 
