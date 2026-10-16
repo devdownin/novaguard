@@ -120,7 +120,7 @@ it('offers nothing to share for a sighting with no file', async () => {
   const { tree } = await openSheet([event(1, null)], 1);
 
   expect(button(tree, 'Partager')).toBeNull();
-  expect(labels(tree)).toContain('Supprimer');
+  expect(labels(tree)).toContain('Effacer');
 });
 
 it('says so when the file is gone instead of looking like it did nothing', async () => {

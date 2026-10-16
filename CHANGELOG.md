@@ -6,6 +6,9 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ## [Non publié]
 
+### Modifié
+- Fiche d’une vidéo : « Conserver » devient « Garder » (« Ne plus garder »), « Supprimer » devient « Effacer » (« Effacer cette séquence »).
+
 ### Corrigé
 - Aucune caméra n’était jamais trouvée : VisionCamera lit la liste des caméras avant que CameraX ait fini de s’initialiser et ne la renvoie plus ensuite (nouvelle architecture). L’application la lui redemande chaque seconde tant qu’aucune caméra n’est connue (15 fois au plus, et de nouveau à chaque démarrage de la surveillance).
 - Au lancement, le viseur affiche « Démarrage de la caméra… » au lieu de « Aucune caméra détectée », qui n’apparaît plus que si aucune caméra n’a été trouvée au bout de 5 s.

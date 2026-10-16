@@ -59,7 +59,7 @@ export const fr = {
   "detail.sequence": "Séquence {index} sur {count}",
   "detail.selectSequence": "Ouvrir la séquence {index}",
   "detail.missingSequence": "Séquence {index} · sans vidéo",
-  "detail.deleteSequence": "Supprimer cette séquence",
+  "detail.deleteSequence": "Effacer cette séquence",
   "detail.playError": "Lecture interrompue. Réessayez ou choisissez une autre séquence.",
 
   // ── surveillance screen ──────────────────────────────────────────────
@@ -126,9 +126,9 @@ export const fr = {
   'detail.size': 'Taille',
   'detail.file': 'Fichier',
   'detail.share': 'Partager',
-  'detail.delete': 'Supprimer',
-  'detail.keep': 'Conserver',
-  'detail.unkeep': 'Ne plus conserver',
+  'detail.delete': 'Effacer',
+  'detail.keep': 'Garder',
+  'detail.unkeep': 'Ne plus garder',
   'detail.kept': 'Conservé · jamais supprimé automatiquement',
   'detail.shareError': 'PARTAGE IMPOSSIBLE · LE FICHIER N’EST PLUS LÀ',
   'hist.event.agentNote': 'Agent : {verdict}',
