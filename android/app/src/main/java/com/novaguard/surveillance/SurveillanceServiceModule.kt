@@ -35,8 +35,8 @@ class SurveillanceServiceModule(reactContext: ReactApplicationContext) :
 
   override fun lastError(): String = SurveillanceService.lastError.orEmpty()
 
-  override fun notifyDetection(title: String, body: String, passageId: String) {
-    DetectionNotifier.notify(reactApplicationContext, title, body, passageId)
+  override fun notifyDetection(title: String, body: String, passageId: String, picture: Boolean) {
+    DetectionNotifier.notify(reactApplicationContext, title, body, passageId, picture)
   }
 
   override fun dismissDetection() {

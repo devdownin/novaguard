@@ -18,17 +18,18 @@ import kotlin.concurrent.withLock
 
 /**
  * Called from the frame processor twice a second while the owner allows the
- * live view; does nothing at all until an agent has asked for a still.
+ * live view or pictures in alerts; does nothing at all until one of them has
+ * asked for a still.
  */
 class LiveFramePlugin : FrameProcessorPlugin() {
   override fun callback(frame: Frame, params: MutableMap<String, Any>?): Any? {
-    McpLiveFrame.offer(frame)
+    LiveStill.offer(frame)
     return null
   }
 }
 
 /**
- * What the camera sees now, for `get_live_frame`.
+ * What the camera sees now, for `get_live_frame` and the detection alert.
  *
  * The frame path pays nothing while nobody asks: `offer` reads one volatile and
  * returns. When a request is pending, the YUV planes are copied on the camera
@@ -36,7 +37,7 @@ class LiveFramePlugin : FrameProcessorPlugin() {
  * (JPEG, downscale, rotation) runs on a thread of its own, so the analysis of
  * the next frame is not held up by an agent's question.
  */
-internal object McpLiveFrame {
+internal object LiveStill {
   private const val TAG = "NovaGuardLive"
   private const val QUALITY = 72
 
@@ -72,11 +73,18 @@ internal object McpLiveFrame {
   }
 
   /** Base64 JPEG and when it was taken, or null if no frame arrived within `timeoutMs`. */
-  fun capture(maxEdge: Int, timeoutMs: Long): Pair<String, Long>? {
+  fun capture(maxEdge: Int, timeoutMs: Long): Pair<String, Long>? =
+    captureBytes(maxEdge, timeoutMs)?.let { (jpeg, at) -> Base64.encodeToString(jpeg, Base64.NO_WRAP) to at }
+
+  /**
+   * JPEG and when it was taken, or null within `timeoutMs`. Two askers at once
+   * (an agent and an alert) share the next frame, at the larger of their sizes.
+   */
+  fun captureBytes(maxEdge: Int, timeoutMs: Long): Pair<ByteArray, Long>? {
     val askedAt = System.currentTimeMillis()
     val deadline = askedAt + timeoutMs
     lock.withLock {
-      this.maxEdge = maxEdge
+      this.maxEdge = if (wanted) maxOf(this.maxEdge, maxEdge) else maxEdge
       wanted = true
       while (latestAt < askedAt) {
         val left = deadline - System.currentTimeMillis()
@@ -84,7 +92,7 @@ internal object McpLiveFrame {
         delivered.await(left, TimeUnit.MILLISECONDS)
       }
       val jpeg = latest ?: return null
-      return Base64.encodeToString(jpeg, Base64.NO_WRAP) to latestAt
+      return jpeg to latestAt
     }
   }
 

@@ -5,6 +5,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.Settings
 import android.util.Log
@@ -12,6 +14,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.novaguard.MainActivity
 import com.novaguard.R
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * The "a person or animal was seen" alert.
@@ -26,23 +30,53 @@ import com.novaguard.R
  * either lies about them or has to create a channel per combination. NovaGuard
  * ships one channel and sends the user to the system page for it instead
  * (see [openChannelSettings]).
+ *
+ * The picture follows the alert rather than delaying it: the text is posted at
+ * once, and the same notification is reposted silently with a still when the
+ * camera delivers one (`LiveStill`, which works with the screen off — there is
+ * no preview to capture then). It is never bridged to a watch (`setLocalOnly`):
+ * what the camera saw does not leave the phone.
  */
 object DetectionNotifier {
 
   private const val TAG = "NovaGuardNotifier"
   private const val CHANNEL_ID = "novaguard.detections"
   private const val NOTIFICATION_ID = 1002
+  private const val PICTURE_EDGE = 720
+  private const val PICTURE_TIMEOUT_MS = 2_500L
 
-  fun notify(context: Context, title: String, body: String, passageId: String) {
+  /** Which alert a late picture belongs to: a newer alert, or a dismissal, wins. */
+  private val serial = AtomicInteger()
+  private val pictures = Executors.newSingleThreadExecutor()
+
+  fun notify(context: Context, title: String, body: String, passageId: String, picture: Boolean) {
+    val mine = serial.incrementAndGet()
     try {
-      post(context, title, body, passageId)
+      post(context, title, body, passageId, null)
     } catch (e: Exception) {
       // An alert is never worth crashing surveillance for.
       Log.w(TAG, "Detection notification refused: ${e.message}")
+      return
+    }
+    if (!picture) return
+    pictures.execute {
+      try {
+        val jpeg = LiveStill.captureBytes(PICTURE_EDGE, PICTURE_TIMEOUT_MS)?.first ?: return@execute
+        val bitmap = BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size) ?: return@execute
+        // Only onto the alert it was taken for, and only while it is still on
+        // screen: reposting a swiped-away alert would bring it back.
+        if (serial.get() != mine || !showing(context)) return@execute
+        post(context, title, body, passageId, bitmap)
+      } catch (e: Exception) {
+        Log.w(TAG, "Alert picture unavailable: ${e.message}")
+      }
     }
   }
 
-  private fun post(context: Context, title: String, body: String, passageId: String) {
+  private fun showing(context: Context): Boolean =
+    context.getSystemService(NotificationManager::class.java).activeNotifications.any { it.id == NOTIFICATION_ID }
+
+  private fun post(context: Context, title: String, body: String, passageId: String, picture: Bitmap?) {
     createChannel(context)
 
     // VIEW + data is what React Native's Linking reads (getInitialURL on a cold
@@ -55,7 +89,7 @@ object DetectionNotifier {
       context, 0, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-    val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+    val builder = NotificationCompat.Builder(context, CHANNEL_ID)
       .setContentTitle(title)
       .setContentText(body)
       // A drawable, not the launcher mipmap — see SurveillanceService.
@@ -68,7 +102,14 @@ object DetectionNotifier {
       // detail stays hidden until unlock. What the camera saw is not something
       // to display to whoever picks the phone up.
       .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-      .build()
+      .setLocalOnly(true)
+    if (picture != null) {
+      // The repost of an alert already rung: the picture must not ring it again.
+      builder.setOnlyAlertOnce(true)
+        .setLargeIcon(picture)
+        .setStyle(NotificationCompat.BigPictureStyle().bigPicture(picture).bigLargeIcon(null as Bitmap?))
+    }
+    val notification = builder.build()
 
     // Throws nothing when POST_NOTIFICATIONS is denied; the post is simply
     // dropped, which is the behaviour we want — the app must not depend on it.
@@ -81,6 +122,7 @@ object DetectionNotifier {
   }
 
   fun dismiss(context: Context) {
+    serial.incrementAndGet()
     try {
       NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
     } catch (e: Exception) {

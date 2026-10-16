@@ -200,6 +200,12 @@ export interface Settings {
    * correct detection of somebody nobody asked about.
    */
   zone: DetectionZone | null;
+  /**
+   * Parts of the frame where nothing counts: a television, a window onto the
+   * neighbour's, a curtain in a draught. Judged on the foot point like `zone`,
+   * at most `MAX_EXCLUSIONS` of them.
+   */
+  exclusions: DetectionZone[];
   post: PostRoll;
   /** Remembered even when strict mode sets the effective post-roll to zero. */
   tolerance: PresenceTolerance;
@@ -209,6 +215,12 @@ export interface Settings {
   autoDel: boolean;
   notif: boolean;
   notifDet: boolean;
+  /** A still of what the camera saw, in the detection alert. */
+  notifPicture: boolean;
+  /** Alerts held back between `quietStart` and `quietEnd`, local hours; recording carries on. */
+  quietHours: boolean;
+  quietStart: number;
+  quietEnd: number;
   localStreamEnabled: boolean;
   localStreamPort: number;
   localStreamPin: string;

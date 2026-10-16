@@ -27,7 +27,8 @@ export interface Spec extends TurboModule {
    * system notifications would only be noise.
    */
   /** `passageId` makes a tap on the alert open that passage (see `passageIdFromUrl`). */
-  notifyDetection(title: string, body: string, passageId: string): void;
+  /** `picture`: follow the alert with a still of what the camera sees, when one arrives in time. */
+  notifyDetection(title: string, body: string, passageId: string, picture: boolean): void;
   dismissDetection(): void;
 
   /**

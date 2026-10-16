@@ -64,9 +64,9 @@ describe('with the native module present', () => {
 
   it('posts and clears the detection alert', () => {
     const api = load();
-    api.notifyDetection('Personne détectée', 'À 14:32 · enregistrement en cours', 'p-1');
+    api.notifyDetection('Personne détectée', 'À 14:32 · enregistrement en cours', 'p-1', true);
     expect(mockNative.notifyDetection).toHaveBeenCalledWith(
-      'Personne détectée', 'À 14:32 · enregistrement en cours', 'p-1',
+      'Personne détectée', 'À 14:32 · enregistrement en cours', 'p-1', true,
     );
     api.dismissDetectionAlert();
     expect(mockNative.dismissDetection).toHaveBeenCalled();
@@ -79,7 +79,7 @@ describe('with the native module present', () => {
 
   it('never lets a failing alert interrupt surveillance', () => {
     mockNative.notifyDetection.mockImplementation(() => { throw new Error('no channel'); });
-    expect(() => load().notifyDetection('x', 'y', 'p')).not.toThrow();
+    expect(() => load().notifyDetection('x', 'y', 'p', false)).not.toThrow();
   });
 });
 
@@ -91,7 +91,7 @@ describe('with the native module missing', () => {
     expect(api.startForegroundService()).toBe(false);
     expect(() => api.stopForegroundService()).not.toThrow();
     expect(api.isForegroundServiceRunning()).toBe(false);
-    expect(() => api.notifyDetection('x', 'y', 'p')).not.toThrow();
+    expect(() => api.notifyDetection('x', 'y', 'p', false)).not.toThrow();
     expect(() => api.dismissDetectionAlert()).not.toThrow();
     expect(() => api.openDetectionChannelSettings()).not.toThrow();
     expect(mockNative.start).not.toHaveBeenCalled();

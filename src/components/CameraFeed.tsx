@@ -16,7 +16,7 @@ import { interpretDetections } from '../ml/interpretDetections';
 import { letterboxFor, letterboxInto } from '../ml/letterbox';
 import { analysisCropFor, cropInBuffer } from '../ml/analysisCrop';
 import { liftShadows, sceneSample } from '../ml/lowLight';
-import { liveFrameWanted } from '../surveillance/mcpControl';
+import { stillsWanted } from '../surveillance/mcpControl';
 import { SENSITIVITY_PROFILES } from '../ml/sensitivity';
 import { tunedSettings } from '../camera/autoTune';
 import { frameErrorMessage } from '../camera/frameErrors';
@@ -253,7 +253,7 @@ export function CameraFeed({
   const cropWidth = crop.width;
   const cropHeight = crop.height;
   const streamEnabled = chosen.localStreamEnabled;
-  const liveFrameEnabled = liveFrameWanted(chosen, monitoring);
+  const liveFrameEnabled = stillsWanted(chosen, monitoring);
   const viewW = viewWidth || 1;
   const viewH = viewHeight || 1;
 
@@ -303,8 +303,8 @@ export function CameraFeed({
       });
     }
     if (liveFrameEnabled) {
-      // A volatile read on the native side until an agent asks for a still
-      // (`McpLiveFrame`): the copy and the JPEG are paid only for a request.
+      // A volatile read on the native side until an agent or an alert asks for
+      // a still (`LiveStill`): the copy and the JPEG are paid only for a request.
       runAtTargetFps(2, () => {
         'worklet';
         try {

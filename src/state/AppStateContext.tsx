@@ -22,7 +22,7 @@ import { confirmedTracksIfChanged, primaryTrack, Track, updateTracks } from '../
 import { calibrationProbes, NO_PROBES, Probe } from '../ml/calibration';
 import { acknowledgeMove, IDLE_WATCH, TamperWatch, watchScene } from '../surveillance/tamper';
 import { trackerOptionsFor } from '../ml/sensitivity';
-import { detectionsInZone } from '../ml/zone';
+import { detectionsInZone, withExclusion } from '../ml/zone';
 import { Clip, useRecorder } from '../recording/useRecorder';
 import { useBufferedRecorder } from '../recording/useBufferedRecorder';
 import { TOLERANCE_OPTIONS, usesBufferedCapture } from '../recording/presenceMode';
@@ -214,6 +214,12 @@ interface AppStateValue {
   cancelZoneEdit: () => void;
   /** `null` clears the zone: the camera watches the whole frame again. */
   saveZone: (zone: DetectionZone | null) => void;
+  /** What the editor draws while `zoneEditing`: the watched zone, or one more zone to ignore. */
+  zoneEditKind: 'zone' | 'exclusion';
+  beginExclusionEdit: () => void;
+  /** Adds an ignored zone, dropping the oldest past `MAX_EXCLUSIONS`. */
+  saveExclusion: (zone: DetectionZone) => void;
+  clearExclusions: () => void;
   setSensitivity: (s: Sensitivity) => void;
   setThreshold: (v: number) => void;
   setAnimalThreshold: (v: number) => void;
@@ -226,6 +232,10 @@ interface AppStateValue {
   toggleAutoDel: () => void;
   toggleNotif: () => void;
   toggleNotifDet: () => void;
+  toggleNotifPicture: () => void;
+  toggleQuietHours: () => void;
+  setQuietStart: (hour: number) => void;
+  setQuietEnd: (hour: number) => void;
   toggleLocalStream: () => void;
   localStreamStatus: LocalServerStatus;
   toggleMcpServer: () => void;
@@ -757,6 +767,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // Declared here rather than beside its own callbacks, because the frame path
   // below reads it and has to be defined after everything it touches.
   const [zoneEditing, setZoneEditing] = useState(false);
+  const [zoneEditKind, setZoneEditKind] = useState<'zone' | 'exclusion'>('zone');
   const zoneEditingRef = useLatest(zoneEditing);
   const monitoringRef = useLatest(monitoring);
   /**
@@ -1203,7 +1214,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // other setting on this path — a dependency here would rebuild the worklet.
     // The zone comes first: a detection outside it is not a subject, so it
     // must not open a track, keep one alive, or hold off a post-roll.
-    const watched = detectionsInZone(detections, settingsRef.current.zone);
+    const watched = detectionsInZone(detections, settingsRef.current.zone, settingsRef.current.exclusions);
     // Through the tuned settings: "Sensibilité" moves three things together
     // (see `sensitivity.ts`), so a notch the tuner steps down has to reach
     // `confirmAfter` and the start score as well as the cadence — otherwise it
@@ -1281,7 +1292,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (shouldAlert(settingsRef.current, lastAlertRef.current, now)) {
           lastAlertRef.current = now;
           const { title, body } = alertContent(primary.kind, now);
-          notifyDetection(title, body, passageIdRef.current ?? '');
+          notifyDetection(title, body, passageIdRef.current ?? '', settingsRef.current.notifPicture);
         }
       } else {
         if (recordingIdRef.current() == null && attemptAt >= nextRecordingAttemptRef.current) {
@@ -1762,6 +1773,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const toggleAutoDel = useCallback(() => patchSettings({ autoDel: !settings.autoDel }), [patchSettings, settings.autoDel]);
   const toggleNotif = useCallback(() => patchSettings({ notif: !settings.notif }), [patchSettings, settings.notif]);
   const toggleNotifDet = useCallback(() => patchSettings({ notifDet: !settings.notifDet }), [patchSettings, settings.notifDet]);
+  const toggleNotifPicture = useCallback(() => patchSettings({ notifPicture: !settings.notifPicture }), [patchSettings, settings.notifPicture]);
+  const toggleQuietHours = useCallback(() => patchSettings({ quietHours: !settings.quietHours }), [patchSettings, settings.quietHours]);
+  const setQuietStart = useCallback((hour: number) => patchSettings({ quietStart: hour }), [patchSettings]);
+  const setQuietEnd = useCallback((hour: number) => patchSettings({ quietEnd: hour }), [patchSettings]);
   const openAlertSoundSettings = useCallback(() => openDetectionChannelSettings(), []);
 
   const [mcpStatus, setMcpStatus] = useState<McpServerStatus>(MCP_SERVER_STOPPED);
@@ -1956,11 +1971,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   // Drawing happens on the viewfinder, so the camera tab has to be the one on
   // screen — the row that starts this lives in Setup.
-  const beginZoneEdit = useCallback(() => { setTab('cam'); setZoneEditing(true); }, []);
+  const beginZoneEdit = useCallback(() => { setTab('cam'); setZoneEditKind('zone'); setZoneEditing(true); }, []);
+  const beginExclusionEdit = useCallback(() => { setTab('cam'); setZoneEditKind('exclusion'); setZoneEditing(true); }, []);
   const cancelZoneEdit = useCallback(() => setZoneEditing(false), []);
   const saveZone = useCallback((zone: DetectionZone | null) => {
     setZoneEditing(false);
     patchSettings({ zone });
+  }, [patchSettings]);
+  const saveExclusion = useCallback((zone: DetectionZone) => {
+    setZoneEditing(false);
+    patchSettings({ exclusions: withExclusion(settingsRef.current.exclusions, zone) });
+  }, [patchSettings, settingsRef]);
+  const clearExclusions = useCallback(() => {
+    setZoneEditing(false);
+    patchSettings({ exclusions: [] });
   }, [patchSettings]);
 
   // Leaving the camera tab abandons the drawing: the editor is off screen, and
@@ -2119,9 +2143,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     pendingBulkDelete, askDeleteMany, cancelDeleteMany, doDeleteMany,
     confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
-    togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
+    togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone, zoneEditKind, beginExclusionEdit, saveExclusion, clearExclusions,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleNotifPicture, toggleQuietHours, setQuietStart, setQuietEnd, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo,
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
@@ -2131,9 +2155,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     toggleKeep, setAgentNote, confirmDelete, askDelete, cancelDelete, doDelete, pendingBulkDelete, askDeleteMany, cancelDeleteMany, doDeleteMany,
     confirmWipe, askWipe, cancelWipe, doWipe,
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
-    togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone,
+    togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone, zoneEditKind, beginExclusionEdit, saveExclusion, clearExclusions,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleNotifPicture, toggleQuietHours, setQuietStart, setQuietEnd, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo, onb, perms, onbNext, onbFinish, grantPermission,
   ]);
 

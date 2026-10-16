@@ -20,12 +20,31 @@ import { t } from '../i18n';
  */
 export const ALERT_COOLDOWN_MS = 60_000;
 
+/**
+ * Whether `at` falls in the quiet window, in local hours. `start` is included,
+ * `end` is not; a window that wraps midnight (22 → 7) is the usual one, and a
+ * window that starts where it ends is empty rather than the whole day — a
+ * phone that never alerts is what the master switch is for.
+ */
+export function inQuietHours(start: number, end: number, at: number): boolean {
+  const hour = new Date(at).getHours();
+  if (start === end) return false;
+  return start < end ? hour >= start && hour < end : hour >= start || hour < end;
+}
+
+export type AlertSettings = Pick<Settings, 'notif' | 'notifDet' | 'quietHours' | 'quietStart' | 'quietEnd'>;
+
+/**
+ * Quiet hours hold back the alert and nothing else: the passage is recorded
+ * and filed as always, so the morning's history still has it.
+ */
 export function shouldAlert(
-  settings: Pick<Settings, 'notif' | 'notifDet'>,
+  settings: AlertSettings,
   lastAlertAt: number | null,
   now: number,
 ): boolean {
   if (!settings.notif || !settings.notifDet) return false;
+  if (settings.quietHours && inQuietHours(settings.quietStart, settings.quietEnd, now)) return false;
   if (lastAlertAt == null) return true;
   return now - lastAlertAt >= ALERT_COOLDOWN_MS;
 }
