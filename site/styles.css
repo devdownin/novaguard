@@ -2019,3 +2019,49 @@ details p {
     text-align: center;
   }
 }
+
+/* Version 1.1 release highlights. */
+.version-link {
+  margin-right: 24px;
+}
+.version-section {
+  padding-bottom: 68px;
+  border-bottom: 1px solid #ded8d4;
+}
+.version-status {
+  padding: 17px 20px;
+  border-left: 3px solid #8f6bb0;
+  background: #e8e2ee;
+  color: #60516d;
+  font-size: 12px;
+  line-height: 1.9;
+  margin: -15px 0 30px;
+}
+.version-status strong {
+  color: #40314d;
+}
+.version-status a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.version-cards .feature-card {
+  padding: 27px 24px;
+}
+.version-cards h3 {
+  font-size: 26px;
+}
+.version-detail {
+  font-size: 11px;
+  line-height: 1.9;
+  color: #6b6371;
+  margin: 25px 0 17px;
+}
+@media (max-width: 560px) {
+  .version-status {
+    padding: 15px;
+    font-size: 11px;
+  }
+  .version-cards h3 {
+    font-size: 25px;
+  }
+}
