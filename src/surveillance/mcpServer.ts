@@ -150,6 +150,7 @@ export function buildMcpSnapshot(input: McpSnapshotInput): string {
         preciseDetection: settings.preciseDetection,
         autoZoom: settings.autoZoom,
         zoneConfigured: Boolean(settings.zone),
+        ignoredZones: settings.exclusions.length,
       },
       recording: {
         quality: settings.quality,
@@ -161,6 +162,9 @@ export function buildMcpSnapshot(input: McpSnapshotInput): string {
       notifications: {
         enabled: settings.notif,
         detectionNotifications: settings.notifDet,
+        alertPicture: settings.notifPicture,
+        // Local hours on the phone, start included and end excluded.
+        quietHours: settings.quietHours ? { start: settings.quietStart, end: settings.quietEnd } : null,
       },
     },
     // Paths go across because the native side needs them to open the file; it

@@ -6,6 +6,12 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ## [Non publié]
 
+### Ajouté
+- L’alerte de détection montre ce que voit la caméra, écran éteint compris (Réglages → Notifications → « Image dans l’alerte », activé par défaut). Le texte part aussitôt et l’image suit dès que la caméra la livre, sans faire sonner une seconde fois. Elle n’est visible qu’après déverrouillage et n’est jamais transmise à une montre.
+- Heures calmes (Réglages → Notifications) : pas d’alerte sur une plage horaire, par exemple de 22 h à 7 h ; les passages sont enregistrés et rangés dans l’Historique comme d’habitude.
+- Zones ignorées (Réglages → Détection) : jusqu’à trois rectangles — une télé, une fenêtre, un rideau — où rien ne déclenche. Le critère est celui de la zone de détection, les pieds : quelqu’un qui passe devant reste détecté.
+- `get_configuration` (MCP) indique le nombre de zones ignorées, l’image dans l’alerte et les heures calmes.
+
 ### Modifié
 - L’écran d’accueil reste affiché environ 2 s au lancement au lieu de disparaître aussitôt. La caméra démarre dessous pendant ce temps : la surveillance reprend aussi vite qu’avant.
 - Fiche d’une vidéo : « Conserver » devient « Garder » (« Ne plus garder »), « Supprimer » devient « Effacer » (« Effacer cette séquence »).

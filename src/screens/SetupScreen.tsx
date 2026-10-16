@@ -22,7 +22,7 @@ import { QrCode } from '../components/QrCode';
 import { controlLive } from '../surveillance/mcpControl';
 import { controlAvailability } from '../surveillance/mcpServices';
 import { ShieldCheckIcon } from '../components/icons';
-import { StringKey, t, tValue } from '../i18n';
+import { StringKey, t, tn, tValue } from '../i18n';
 import { useLandscape } from '../utils/useLandscape';
 import { formatWhen } from '../utils/date';
 import { devicePositionFor, physicalDeviceFilterFor } from '../camera/deviceSelection';
@@ -55,6 +55,9 @@ export function SetupScreen() {
   const device = useCameraDevice(devicePositionFor(settings.camera), physicalDeviceFilterFor(settings.camera));
   const nightSupported = device?.supportsLowLightBoost === true;
   const showServers = settings.exp.adv === true || settings.mcpEnabled || settings.localStreamEnabled;
+  const exclusionLabel = settings.exclusions.length === 0
+    ? t('setup.exclusions.none')
+    : tn('setup.exclusions.count.other', settings.exclusions.length);
 
   const [showToken, setShowToken] = React.useState(false);
   const [showQr, setShowQr] = React.useState(false);
@@ -186,6 +189,15 @@ export function SetupScreen() {
                 name: t('setup.zone'),
                 value: t(settings.zone ? 'setup.zone.set' : 'setup.zone.all'),
               })}
+            />
+          </SettingRow>
+          <SettingRow label={t('setup.exclusions')} subtitle={t('setup.exclusions.sub')}>
+            <ValueButton
+              testID="exclusions-button"
+              label={exclusionLabel}
+              onPress={s.beginExclusionEdit}
+              active={settings.exclusions.length > 0}
+              accessibilityLabel={t('a11y.setting', { name: t('setup.exclusions'), value: exclusionLabel })}
             />
           </SettingRow>
           <View style={styles.subBlock}>
@@ -323,6 +335,46 @@ export function SetupScreen() {
           <SettingRow label={t('setup.notifDet')}>
             <Switch value={settings.notifDet} onValueChange={s.toggleNotifDet} accessibilityLabel={t('setup.notifDet')} />
           </SettingRow>
+          <SettingRow label={t('setup.notifPicture')} subtitle={t('setup.notifPicture.sub')}>
+            <Switch value={settings.notifPicture} onValueChange={s.toggleNotifPicture} accessibilityLabel={t('setup.notifPicture')} />
+          </SettingRow>
+          <SettingRow label={t('setup.quiet')} subtitle={t('setup.quiet.sub')}>
+            <Switch value={settings.quietHours} onValueChange={s.toggleQuietHours} accessibilityLabel={t('setup.quiet')} />
+          </SettingRow>
+          {settings.quietHours && (
+            <>
+              {([
+                ['setup.quiet.start', settings.quietStart, s.setQuietStart],
+                ['setup.quiet.end', settings.quietEnd, s.setQuietEnd],
+              ] as const).map(([key, hour, set]) => (
+                <View key={key} style={[styles.subBlock, styles.thresholdBlock]}>
+                  <View style={styles.thresholdRow}>
+                    <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.subLabel}>{t(key)}</Text>
+                    <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.thresholdValue}>{t('value.hour', { hour })}</Text>
+                  </View>
+                  <Slider
+                    testID={key}
+                    accessibilityRole="adjustable"
+                    accessibilityLabel={t(key)}
+                    accessibilityValue={{ min: 0, max: 23, now: hour, text: t('value.hour', { hour }) }}
+                    minimumValue={0}
+                    maximumValue={23}
+                    step={1}
+                    value={hour}
+                    onSlidingComplete={set}
+                    minimumTrackTintColor={color.accent}
+                    maximumTrackTintColor={color.neutral800}
+                    thumbTintColor={color.accent}
+                  />
+                </View>
+              ))}
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.hint}>
+                {settings.quietStart === settings.quietEnd
+                  ? t('setup.quiet.empty')
+                  : t('setup.quiet.summary', { start: t('value.hour', { hour: settings.quietStart }), end: t('value.hour', { hour: settings.quietEnd }) })}
+              </Text>
+            </>
+          )}
           <SecondaryOutlineButton
             label={t('setup.sound')}
             onPress={s.openAlertSoundSettings}

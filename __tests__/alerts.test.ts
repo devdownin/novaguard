@@ -1,6 +1,6 @@
-import { ALERT_COOLDOWN_MS, alertContent, passageIdFromUrl, shouldAlert } from '../src/surveillance/alerts';
+import { ALERT_COOLDOWN_MS, alertContent, inQuietHours, passageIdFromUrl, shouldAlert } from '../src/surveillance/alerts';
 
-const ON = { notif: true, notifDet: true };
+const ON = { notif: true, notifDet: true, quietHours: false, quietStart: 22, quietEnd: 7 };
 
 describe('shouldAlert', () => {
   const now = Date.UTC(2026, 4, 3, 14, 32);
@@ -10,11 +10,11 @@ describe('shouldAlert', () => {
   });
 
   it('stays quiet while notifications are switched off entirely', () => {
-    expect(shouldAlert({ notif: false, notifDet: true }, null, now)).toBe(false);
+    expect(shouldAlert({ ...ON, notif: false }, null, now)).toBe(false);
   });
 
   it('stays quiet when per-detection alerts alone are off', () => {
-    expect(shouldAlert({ notif: true, notifDet: false }, null, now)).toBe(false);
+    expect(shouldAlert({ ...ON, notifDet: false }, null, now)).toBe(false);
   });
 
   it('holds back a second alert inside the cooldown', () => {
@@ -31,6 +31,40 @@ describe('shouldAlert', () => {
     // The cooldown is about not turning the phone into a buzzer; which animal
     // or person triggered it does not change that.
     expect(shouldAlert(ON, now - 5_000, now)).toBe(false);
+  });
+});
+
+describe('quiet hours', () => {
+  // Local hours: the suite runs under TZ=Europe/Paris, where these are not UTC.
+  const at = (hour: number, minute = 0) => new Date(2026, 4, 3, hour, minute).getTime();
+  const QUIET = { ...ON, quietHours: true };
+
+  it('holds the alert back across midnight, from the start hour to the end hour', () => {
+    expect(shouldAlert(QUIET, null, at(22))).toBe(false);
+    expect(shouldAlert(QUIET, null, at(2, 30))).toBe(false);
+    expect(shouldAlert(QUIET, null, at(6, 59))).toBe(false);
+  });
+
+  it('alerts outside the window, the end hour included', () => {
+    expect(shouldAlert(QUIET, null, at(7))).toBe(true);
+    expect(shouldAlert(QUIET, null, at(14))).toBe(true);
+    expect(shouldAlert(QUIET, null, at(21, 59))).toBe(true);
+  });
+
+  it('alerts at any hour while the switch is off, whatever the window says', () => {
+    expect(shouldAlert(ON, null, at(2))).toBe(true);
+  });
+
+  it('reads a window that does not wrap midnight', () => {
+    expect(inQuietHours(9, 18, at(12))).toBe(true);
+    expect(inQuietHours(9, 18, at(8))).toBe(false);
+    expect(inQuietHours(9, 18, at(18))).toBe(false);
+  });
+
+  it('treats a window that starts where it ends as empty, not as the whole day', () => {
+    // Silencing every alert is what the master switch is for; a slider left
+    // on the same hour twice must not do it quietly.
+    for (const hour of [0, 7, 13, 23]) expect(inQuietHours(7, 7, at(hour))).toBe(false);
   });
 });
 

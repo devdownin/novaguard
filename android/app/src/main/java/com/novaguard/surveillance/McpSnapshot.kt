@@ -439,6 +439,7 @@ internal class Snapshot private constructor(
             .put("preciseDetection", detection.optBoolean("preciseDetection"))
             .put("autoZoom", detection.optBoolean("autoZoom"))
             .put("zoneConfigured", detection.optBoolean("zoneConfigured"))
+            .put("ignoredZones", detection.optInt("ignoredZones"))
         )
         .put(
           "recording",
@@ -454,6 +455,13 @@ internal class Snapshot private constructor(
           JSONObject()
             .put("enabled", notifications.optBoolean("enabled"))
             .put("detectionNotifications", notifications.optBoolean("detectionNotifications"))
+            .put("alertPicture", notifications.optBoolean("alertPicture"))
+            .put(
+              "quietHours",
+              notifications.optJSONObject("quietHours")?.let {
+                JSONObject().put("start", it.optInt("start")).put("end", it.optInt("end"))
+              } ?: JSONObject.NULL,
+            )
         )
     }
   }

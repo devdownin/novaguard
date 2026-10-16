@@ -320,7 +320,8 @@ Returns safe diagnostic configuration, for example:
     "threshold":0.6,
     "preciseDetection":false,
     "autoZoom":true,
-    "zoneConfigured":false
+    "zoneConfigured":false,
+    "ignoredZones":1
   },
   "recording":{
     "quality":"1080p",
@@ -329,9 +330,16 @@ Returns safe diagnostic configuration, for example:
     "retention":"30 jours",
     "automaticDeletion":true
   },
-  "notifications":{"enabled":true,"detectionNotifications":true}
+  "notifications":{
+    "enabled":true,
+    "detectionNotifications":true,
+    "alertPicture":true,
+    "quietHours":{"start":22,"end":7}
+  }
 }
 ```
+
+`quietHours` is `null` when off; `start` and `end` are local hours on the phone, `start` included, `end` excluded. During them no alert is shown, and passages are still recorded. `ignoredZones` counts the parts of the frame where nothing counts.
 
 Forbidden fields: `localStreamPin`, credentials, access tokens, Android permission tokens and arbitrary absolute paths.
 

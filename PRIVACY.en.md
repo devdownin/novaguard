@@ -80,7 +80,9 @@ under its own policy.
   disable monitoring.
 - **Notifications** — optional: the alert on a detection, and the ongoing
   notification showing that the camera is active. Refusing it does not disable
-  monitoring.
+  monitoring. The alert can carry a picture of what the camera sees (a
+  setting): it shows only once the phone is unlocked and is never passed to a
+  watch or any other connected device.
 - **Foreground service (camera / microphone)** — lets monitoring continue with
   the screen off. Without it, Android cuts camera access as soon as the app
   stops being visible.

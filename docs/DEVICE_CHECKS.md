@@ -32,6 +32,22 @@ tool() {  # tool <jeton> <outil sans préfixe> [arguments JSON]
 - [ ] Relancer l'application après un export : le rapport n'a pas été supprimé par le balayage
       (il vit dans `recordings/exports/`), et le passage est intact.
 
+## Démarrage
+
+- [ ] Démarrage à froid, surveillance reprise au lancement : la caméra est trouvée (pas
+      d’« Aucune caméra détectée »), l’écran d’accueil reste environ 2 s et l’image est
+      là quand il s’efface.
+
+## Alertes
+
+- [ ] Écran éteint, quelqu’un passe : l’alerte sonne une fois, puis l’image arrive dans
+      la même notification (moins de 3 s) **sans** seconde sonnerie. Écran verrouillé,
+      l’image n’apparaît qu’après déverrouillage.
+- [ ] Montre connectée (Wear OS) : l’alerte n’y est pas relayée, ni le texte ni l’image.
+- [ ] Notification balayée avant l’arrivée de l’image : elle ne revient pas.
+- [ ] Heures calmes couvrant l’heure actuelle : un passage est enregistré et rangé dans
+      l’Historique, sans alerte ; hors de la plage, l’alerte revient.
+
 ## Surveillance
 
 - [ ] **Image noire** : masquer l'objectif 5 s → statut « Image noire » au viseur
@@ -39,6 +55,10 @@ tool() {  # tool <jeton> <outil sans préfixe> [arguments JSON]
 - [ ] **Champ de vue modifié** : tourner le téléphone, pièce vide, 8 s → alerte ;
       « C'est voulu » la lève et la nouvelle vue devient la référence.
 - [ ] Une personne qui traverse le champ pendant ce temps ne déclenche **pas** l'alerte.
+- [ ] **Zone ignorée** autour d’une télé allumée sur une scène avec des personnes :
+      aucun enregistrement ; quelqu’un qui passe devant l’écran est enregistré.
+      La zone s’affiche en pointillés au viseur, et reste au même endroit de la pièce
+      téléphone tourné en paysage.
 - [ ] Mode calibrage (Réglages → Avancé) : pistes en attente et détections sous
       le seuil dessinées en pointillés, avec leur confiance.
 

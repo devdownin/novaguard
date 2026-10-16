@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { color, font, MAX_FONT_SCALE } from '../theme';
 import { useAppState, useViewfinderState } from '../state/AppStateContext';
@@ -57,8 +57,20 @@ function Mask({ box }: { box: DetectionBox }) {
   );
 }
 
+/** An ignored zone: dimmed like what the watched zone leaves out, with a dashed edge. */
+function Ignored({ box }: { box: DetectionBox }) {
+  return (
+    <View style={[styles.mask, styles.ignored, {
+      left: `${box.x * 100}%`, top: `${box.y * 100}%`,
+      width: `${box.width * 100}%`, height: `${box.height * 100}%`,
+    }]} />
+  );
+}
+
 export function ZoneLayer({ viewWidth, viewHeight }: { viewWidth: number; viewHeight: number }) {
-  const { settings, zoneEditing, saveZone, cancelZoneEdit } = useAppState();
+  const {
+    settings, zoneEditing, zoneEditKind, saveZone, saveExclusion, clearExclusions, cancelZoneEdit,
+  } = useAppState();
   const { frameAspect } = useViewfinderState();
   const [drag, setDrag] = useState<Drag | null>(null);
 
@@ -67,6 +79,10 @@ export function ZoneLayer({ viewWidth, viewHeight }: { viewWidth: number; viewHe
   // not the one that existed at that render.
   const dragRef = useRef<Drag | null>(null);
   const setBoth = (next: Drag | null) => { dragRef.current = next; setDrag(next); };
+
+  // Each drawing starts blank: the last rectangle saved would otherwise come
+  // back armed, one tap from being saved a second time.
+  useEffect(() => { dragRef.current = null; setDrag(null); }, [zoneEditing, zoneEditKind]);
 
   const responder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -87,16 +103,22 @@ export function ZoneLayer({ viewWidth, viewHeight }: { viewWidth: number; viewHe
 
   if (viewWidth <= 0 || viewHeight <= 0) return null;
 
+  const ignored = settings.exclusions.map(box => uprightBoxToViewBox(box, frameAspect, viewWidth, viewHeight));
+  const editingExclusion = zoneEditing && zoneEditKind === 'exclusion';
+
   if (!zoneEditing) {
-    if (!settings.zone) return null;
-    const shown = uprightBoxToViewBox(settings.zone, frameAspect, viewWidth, viewHeight);
+    if (!settings.zone && ignored.length === 0) return null;
+    const shown = settings.zone && uprightBoxToViewBox(settings.zone, frameAspect, viewWidth, viewHeight);
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Mask box={shown} />
-        <View style={[styles.zoneOutline, {
-          left: `${shown.x * 100}%`, top: `${shown.y * 100}%`,
-          width: `${shown.width * 100}%`, height: `${shown.height * 100}%`,
-        }]} />
+        {shown && <Mask box={shown} />}
+        {shown && (
+          <View style={[styles.zoneOutline, {
+            left: `${shown.x * 100}%`, top: `${shown.y * 100}%`,
+            width: `${shown.width * 100}%`, height: `${shown.height * 100}%`,
+          }]} />
+        )}
+        {ignored.map((box, i) => <Ignored key={i} box={box} />)}
       </View>
     );
   }
@@ -113,6 +135,7 @@ export function ZoneLayer({ viewWidth, viewHeight }: { viewWidth: number; viewHe
   return (
     <View style={StyleSheet.absoluteFill}>
       <View style={StyleSheet.absoluteFill} {...responder.panHandlers}>
+        {editingExclusion && ignored.map((box, i) => <Ignored key={i} box={box} />)}
         {rect && (
           <View style={[styles.drawn, usable ? styles.drawnUsable : styles.drawnTooSmall, {
             left: rect.left, top: rect.top, width: rect.width, height: rect.height,
@@ -122,7 +145,7 @@ export function ZoneLayer({ viewWidth, viewHeight }: { viewWidth: number; viewHe
 
       <View style={styles.editorBar}>
         <Text style={styles.editorHint} maxFontSizeMultiplier={MAX_FONT_SCALE}>
-          {t(drawn && !usable ? 'zone.tooSmall' : 'zone.hint')}
+          {t(drawn && !usable ? 'zone.tooSmall' : editingExclusion ? 'zone.exclusion.hint' : 'zone.hint')}
         </Text>
         <View style={styles.editorButtons}>
           <Pressable
@@ -133,14 +156,30 @@ export function ZoneLayer({ viewWidth, viewHeight }: { viewWidth: number; viewHe
           >
             <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.editorButtonText}>{t('zone.cancel')}</Text>
           </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.editorButton, pressed && styles.editorButtonPressed]}
-            accessibilityRole="button"
-            accessibilityLabel={t('zone.all')}
-            onPress={() => saveZone(null)}
-          >
-            <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.editorButtonText}>{t('zone.all')}</Text>
-          </Pressable>
+          {editingExclusion ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.editorButton, ignored.length === 0 && styles.editorButtonOff,
+                pressed && ignored.length > 0 && styles.editorButtonPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: ignored.length === 0 }}
+              accessibilityLabel={t('zone.exclusion.clear')}
+              disabled={ignored.length === 0}
+              onPress={clearExclusions}
+            >
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.editorButtonText}>{t('zone.exclusion.clear')}</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={({ pressed }) => [styles.editorButton, pressed && styles.editorButtonPressed]}
+              accessibilityRole="button"
+              accessibilityLabel={t('zone.all')}
+              onPress={() => saveZone(null)}
+            >
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.editorButtonText}>{t('zone.all')}</Text>
+            </Pressable>
+          )}
           <Pressable
             style={({ pressed }) => [
               styles.editorButton, styles.editorButtonPrimary,
@@ -153,7 +192,11 @@ export function ZoneLayer({ viewWidth, viewHeight }: { viewWidth: number; viewHe
             // Converted on the way in, once: the stored zone has to mean the
             // same part of the room after the phone is turned or the viewfinder
             // is a different size.
-            onPress={() => saveZone(viewBoxToUprightBox(drawn!, frameAspect, viewWidth, viewHeight))}
+            onPress={() => {
+              const box = viewBoxToUprightBox(drawn!, frameAspect, viewWidth, viewHeight);
+              if (editingExclusion) saveExclusion(box);
+              else saveZone(box);
+            }}
           >
             <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={[styles.editorButtonText, styles.editorButtonTextPrimary]}>{t('zone.save')}</Text>
           </Pressable>
@@ -172,6 +215,12 @@ const styles = StyleSheet.create({
   maskBottom: { left: 0, right: 0, bottom: 0 },
   maskLeft: { left: 0 },
   maskRight: { right: 0 },
+  ignored: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(233,233,237,0.35)',
+    borderRadius: 4,
+  },
   zoneOutline: {
     position: 'absolute',
     borderWidth: 1,

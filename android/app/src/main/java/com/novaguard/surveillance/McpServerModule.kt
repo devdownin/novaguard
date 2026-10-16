@@ -824,7 +824,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       throw McpException("NOVAGUARD_DEVICE_UNAVAILABLE", "Surveillance is stopped: there is no camera feed to look at", -32603)
     }
     val edge = McpFrames.clampEdge(args.optInt("maxEdge", McpFrames.DEFAULT_MAX_EDGE))
-    val (jpeg, at) = McpLiveFrame.capture(edge, LIVE_FRAME_TIMEOUT_MS)
+    val (jpeg, at) = LiveStill.capture(edge, LIVE_FRAME_TIMEOUT_MS)
       ?: throw McpException("NOVAGUARD_TIMEOUT", "No camera frame arrived in time; the camera may be interrupted", -32603)
     val summary = JSONObject().put("capturedAt", isoOf(at)).put("status", snapshot.statusJson())
     val content = JSONArray()

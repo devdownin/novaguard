@@ -83,7 +83,9 @@ que l'application destinataire en fait relève de sa propre politique.
   désactive pas la surveillance.
 - **Notifications** — facultatif : alerte lors d'une détection, et notification
   permanente signalant que la caméra est active. Refuser ne désactive pas la
-  surveillance.
+  surveillance. L'alerte peut porter une image de ce que voit la caméra
+  (réglable) : elle n'est visible qu'après déverrouillage et n'est jamais
+  transmise à une montre ou à un autre appareil connecté.
 - **Service de premier plan (caméra / microphone)** — permet à la surveillance
   de continuer écran éteint. Sans lui, Android coupe la caméra dès que
   l'application n'est plus visible.

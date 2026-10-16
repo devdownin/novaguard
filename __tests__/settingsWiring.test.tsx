@@ -17,6 +17,7 @@ import { defaultSettings } from '../src/state/defaults';
 import { Settings } from '../src/state/types';
 import { FrameDetection } from '../src/ml/types';
 import { DEFAULT_TRACKER_OPTIONS } from '../src/ml/tracker';
+import { notifyDetection } from '../src/surveillance/foregroundService';
 
 jest.mock('../src/surveillance/foregroundService');
 
@@ -110,6 +111,11 @@ it('writes each control back to disk', async () => {
     state.toggleAutoDel();
     state.toggleNotif();
     state.toggleNotifDet();
+    state.toggleNotifPicture();
+    state.toggleQuietHours();
+    state.setQuietStart(21);
+    state.setQuietEnd(6);
+    state.saveExclusion({ x: 0.1, y: 0.1, width: 0.2, height: 0.2 });
     state.toggleMcpServer();
     state.toggleResumeOnLaunch();
     state.togglePreciseDetection();
@@ -138,6 +144,11 @@ it('writes each control back to disk', async () => {
     autoDel: !defaultSettings.autoDel,
     notif: !defaultSettings.notif,
     notifDet: !defaultSettings.notifDet,
+    notifPicture: !defaultSettings.notifPicture,
+    quietHours: !defaultSettings.quietHours,
+    quietStart: 21,
+    quietEnd: 6,
+    exclusions: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.2 }],
     mcpEnabled: !defaultSettings.mcpEnabled,
     resumeOnLaunch: !defaultSettings.resumeOnLaunch,
     preciseDetection: !defaultSettings.preciseDetection,
@@ -329,6 +340,99 @@ describe('the detection zone', () => {
 
     await ReactTestRenderer.act(async () => { handle.state.setTab('hist'); });
     expect(handle.state.zoneEditing).toBe(false);
+  });
+});
+
+/**
+ * Ignored zones, end to end: drawn through the same editor as the zone, and
+ * read by `reportDetections` on every frame.
+ */
+describe('ignored zones', () => {
+  const TV = { x: 0.3, y: 0.15, width: 0.3, height: 0.35 };
+  const onScreen = (dx: number): FrameDetection =>
+    ({ kind: 'Personne', confidence: 0.9, box: { x: 0.35 + dx, y: 0.2, width: 0.15, height: 0.25 } });
+
+  const seeTwice = async (handle: Awaited<ReturnType<typeof mountProvider>>) => {
+    await ReactTestRenderer.act(async () => {
+      handle.state.reportDetections([onScreen(0)], 9 / 16);
+      handle.state.reportDetections([onScreen(0.01)], 9 / 16);
+    });
+  };
+
+  it('opens no session for what is seen inside one', async () => {
+    const handle = await mountProvider();
+    await ReactTestRenderer.act(async () => { handle.state.beginExclusionEdit(); });
+    expect(handle.state.zoneEditing).toBe(true);
+    expect(handle.state.zoneEditKind).toBe('exclusion');
+    await ReactTestRenderer.act(async () => { handle.state.saveExclusion(TV); });
+    expect(handle.state.zoneEditing).toBe(false);
+    // The watched zone is left alone: ignoring a television is not drawing a zone.
+    expect(handle.state.settings.zone).toBeNull();
+
+    await seeTwice(handle);
+    expect(handle.state.det).toBeNull();
+  });
+
+  it('records again once they are cleared', async () => {
+    const handle = await mountProvider();
+    await ReactTestRenderer.act(async () => { handle.state.saveExclusion(TV); });
+    await ReactTestRenderer.act(async () => { handle.state.clearExclusions(); });
+    expect(handle.state.settings.exclusions).toEqual([]);
+    await seeTwice(handle);
+    expect(handle.state.det).toBe('Personne');
+  });
+});
+
+/**
+ * Quiet hours and the alert picture are consumed where the alert is sent: the
+ * passage is still recorded, only the interruption changes.
+ */
+describe('the detection alert', () => {
+  const seePerson = async (handle: Awaited<ReturnType<typeof mountProvider>>) => {
+    await ReactTestRenderer.act(async () => {
+      handle.state.reportDetections([person(0.3)], 9 / 16);
+      handle.state.reportDetections([person(0.31)], 9 / 16);
+    });
+  };
+  const alert = notifyDetection as jest.Mock;
+
+  it('asks for a picture by default, and not once switched off', async () => {
+    const handle = await mountProvider();
+    await seePerson(handle);
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(alert.mock.calls[0][3]).toBe(true);
+
+    alert.mockClear();
+    const other = await mountProvider();
+    await ReactTestRenderer.act(async () => { other.state.toggleNotifPicture(); });
+    await seePerson(other);
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(alert.mock.calls[0][3]).toBe(false);
+  });
+
+  it('records without alerting during quiet hours', async () => {
+    const handle = await mountProvider();
+    const hour = new Date().getHours();
+    await ReactTestRenderer.act(async () => {
+      handle.state.toggleQuietHours();
+      handle.state.setQuietStart(hour);
+      handle.state.setQuietEnd((hour + 1) % 24);
+    });
+    await seePerson(handle);
+    expect(handle.state.det).toBe('Personne');
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it('alerts outside them', async () => {
+    const handle = await mountProvider();
+    const hour = new Date().getHours();
+    await ReactTestRenderer.act(async () => {
+      handle.state.toggleQuietHours();
+      handle.state.setQuietStart((hour + 1) % 24);
+      handle.state.setQuietEnd((hour + 2) % 24);
+    });
+    await seePerson(handle);
+    expect(alert).toHaveBeenCalledTimes(1);
   });
 });
 

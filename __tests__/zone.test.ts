@@ -11,7 +11,7 @@
  * @format
  */
 
-import { detectionsInZone, inZone, isUsableZone, MIN_ZONE_SIDE } from '../src/ml/zone';
+import { detectionsInZone, inZone, isUsableZone, MAX_EXCLUSIONS, MIN_ZONE_SIDE, withExclusion } from '../src/ml/zone';
 import { uprightBoxToViewBox, viewBoxToUprightBox } from '../src/camera/framing';
 import { FrameDetection } from '../src/ml/types';
 
@@ -90,6 +90,42 @@ describe('detectionsInZone', () => {
 
   it('can drop everything', () => {
     expect(detectionsInZone([outside], GARDEN)).toEqual([]);
+  });
+});
+
+describe('ignored zones', () => {
+  /** A television on the wall, its lower edge at y = 0.5. */
+  const TV = { x: 0.3, y: 0.15, width: 0.3, height: 0.35 };
+  /** What the detector reads on its screen: the box sits on the screen itself. */
+  const onScreen: FrameDetection = { kind: 'Personne', confidence: 0.8, box: { x: 0.35, y: 0.2, width: 0.15, height: 0.25 } };
+  /** Someone walking in front of it, head over the screen, feet on the floor below. */
+  const inFront: FrameDetection = { kind: 'Personne', confidence: 0.9, box: { x: 0.38, y: 0.2, width: 0.14, height: 0.7 } };
+
+  it('drops what is read inside an ignored zone', () => {
+    expect(detectionsInZone([onScreen], null, [TV])).toEqual([]);
+  });
+
+  it('keeps someone standing in front of it, whose body covers it', () => {
+    // The box overlaps the television almost entirely; the feet do not.
+    expect(inFront.box.y).toBeLessThan(TV.y + TV.height);
+    expect(detectionsInZone([inFront, onScreen], null, [TV])).toEqual([inFront]);
+  });
+
+  it('applies on top of the watched zone, not instead of it', () => {
+    const WHOLE_RIGHT = { x: 0.3, y: 0, width: 0.7, height: 1 };
+    const elsewhere = standing(0.2, 0.9);
+    expect(detectionsInZone([onScreen, inFront, elsewhere], WHOLE_RIGHT, [TV])).toEqual([inFront]);
+  });
+
+  it('returns the same array when nothing falls in one', () => {
+    const all = [inFront];
+    expect(detectionsInZone(all, null, [TV])).toBe(all);
+  });
+
+  it('keeps the latest ones, the oldest dropped past the cap', () => {
+    const boxes = Array.from({ length: MAX_EXCLUSIONS + 1 }, (_, i) => ({ x: i / 10, y: 0, width: 0.1, height: 0.1 }));
+    const list = boxes.reduce(withExclusion, [] as typeof boxes);
+    expect(list).toEqual(boxes.slice(1));
   });
 });
 

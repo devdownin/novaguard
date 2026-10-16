@@ -47,3 +47,15 @@ export function agentControlLive(settings: Settings, now: number): boolean {
 export function liveFrameWanted(settings: Settings, monitoring: boolean): boolean {
   return monitoring && settings.mcpEnabled && settings.mcpLiveFrameEnabled;
 }
+
+/**
+ * Whether the frame processor offers frames to `LiveStill` at all: for an
+ * agent's live view, or for the picture in a detection alert. Either way the
+ * native side reads one volatile per offer until somebody asks. Who may ask is
+ * decided elsewhere — the server still refuses `get_live_frame` unless
+ * `mcpLiveFrameEnabled` is on, whatever reaches the plugin.
+ */
+export function stillsWanted(settings: Settings, monitoring: boolean): boolean {
+  return liveFrameWanted(settings, monitoring)
+    || (monitoring && settings.notif && settings.notifDet && settings.notifPicture);
+}

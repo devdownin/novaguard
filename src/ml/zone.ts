@@ -44,17 +44,45 @@ export function inZone(box: DetectionBox, zone: DetectionBox): boolean {
 }
 
 /**
- * The detections the zone lets through, reusing the input array when it lets
+ * How many zones may be ignored. A television, a window and a curtain; past
+ * that, the zone itself is the tool, and every rectangle added is a part of the
+ * room a real visitor could stand in unseen.
+ */
+export const MAX_EXCLUSIONS = 3;
+
+/** The list with `added` at the end, the oldest dropped past `MAX_EXCLUSIONS`. */
+export function withExclusion(exclusions: DetectionBox[], added: DetectionBox): DetectionBox[] {
+  return [...exclusions, added].slice(-MAX_EXCLUSIONS);
+}
+
+/**
+ * Whether a detection counts: feet inside the zone, if there is one, and inside
+ * none of the ignored zones.
+ *
+ * The same foot point for both, and it is what keeps an ignored zone from
+ * hiding people. A television is drawn round the screen; something read on it
+ * has its box, and so its bottom edge, on the screen. Someone walking in front
+ * of it has their feet on the floor below.
+ */
+function counts(box: DetectionBox, zone: DetectionBox | null, exclusions: DetectionBox[]): boolean {
+  if (zone != null && !inZone(box, zone)) return false;
+  for (const excluded of exclusions) if (inZone(box, excluded)) return false;
+  return true;
+}
+
+/**
+ * The detections the zones let through, reusing the input array when they let
  * all of them through — which, with no zone set or a subject in shot, is every
  * frame the app ever analyses.
  */
 export function detectionsInZone(
   detections: FrameDetection[],
   zone: DetectionBox | null,
+  exclusions: DetectionBox[] = [],
 ): FrameDetection[] {
-  if (zone == null) return detections;
+  if (zone == null && exclusions.length === 0) return detections;
   let kept = 0;
-  for (const detection of detections) if (inZone(detection.box, zone)) kept++;
+  for (const detection of detections) if (counts(detection.box, zone, exclusions)) kept++;
   if (kept === detections.length) return detections;
-  return detections.filter(detection => inZone(detection.box, zone));
+  return detections.filter(detection => counts(detection.box, zone, exclusions));
 }
