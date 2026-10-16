@@ -80,7 +80,7 @@ The server answers reads from a snapshot the app pushes when the history, the st
 ## 5. Deployment
 
 - **Loopback** (no token): the socket binds `127.0.0.1` only. Reading needs no token there; control always needs the control token, so another app on the phone cannot switch the camera off.
-- **LAN** (a read or control token is set): the socket binds all interfaces; every non-loopback request needs a token. In plain HTTP the token is readable on a shared Wi-Fi.
+- **LAN** (a read or control token is set): the socket binds all interfaces; every non-loopback request needs a token. The LAN address the server answers to (`Host`, certificate, URL shown) is the Wi-Fi, hotspot or Ethernet one; VPN and cellular interfaces are never taken for it (`McpRules.lanAddress`). Only IPv4 is served on the LAN. In plain HTTP the token is readable on a shared Wi-Fi.
 - **HTTPS** (switch "Chiffrer les connexions", off by default): the phone creates its own authority once — EC P-256, private key in the Android Keystore, never exported — and issues under it a server certificate for its current addresses (loopback and the Wi-Fi IP), reissued at the next handshake when the address changes. The owner installs the authority's PEM on the client once (system store, or `NODE_EXTRA_CA_CERTS` for Node clients) and compares the SHA-256 fingerprint Réglages shows. Every connection, loopback included, is then TLS. Certificates are built by `McpCertificates.java`, which `scripts/test-presence-native.sh` parses back, verifies and uses in a real TLS handshake.
 - **Discovery.** On the LAN the server is advertised over DNS-SD as `NovaGuard`, type `_novaguard-mcp._tcp`, TXT `path=/mcp`, `auth=bearer`: the phone's address is a DHCP lease, and a client that browses (`dns-sd -B _novaguard-mcp._tcp`, `avahi-browse -r _novaguard-mcp._tcp`) finds it again after it moves. Réglages also shows the client configuration as a QR code.
 - Public Internet exposure and port forwarding are not supported.
@@ -118,6 +118,8 @@ Target protocol: MCP `2026-07-28`.
   }
 }
 ```
+
+`initialize` returns the requested version when it is one of `2024-11-05`, `2025-03-26`, `2025-06-18`, `2026-07-28`, and `2026-07-28` otherwise. Every response carries `MCP-Protocol-Version`: the negotiated version on `initialize`, the client's own header afterwards; a later request whose header names an unknown version is HTTP 400, and a request without the header (clients older than 2025-06-18) is answered without it.
 
 Control tools appear in `tools/list` only while control is enabled on the device and the control token has not expired; `get_live_frame` only while the owner's live-view switch is on.
 

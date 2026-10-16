@@ -1,7 +1,11 @@
 package com.novaguard.surveillance;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The MCP server's decisions that do not need Android, JSON or a socket.
@@ -64,6 +68,73 @@ public final class McpRules {
       default:
         return false;
     }
+  }
+
+  /** Versions `initialize` may agree on; the latest is what an unknown request is offered. */
+  public static final String LATEST_PROTOCOL = "2026-07-28";
+  private static final Set<String> SUPPORTED_PROTOCOLS =
+    new HashSet<>(Arrays.asList("2024-11-05", "2025-03-26", "2025-06-18", LATEST_PROTOCOL));
+
+  public static boolean supportsProtocol(String version) {
+    return version != null && SUPPORTED_PROTOCOLS.contains(version);
+  }
+
+  /** Negotiated, never imposed: a client that asks for a version this server knows gets it back. */
+  public static String negotiate(String requested) {
+    return supportsProtocol(requested) ? requested : LATEST_PROTOCOL;
+  }
+
+  /**
+   * A request after `initialize` that names a version this server does not
+   * speak is a 400 for the transport. No header at all is an older client, and
+   * is answered: the header only exists since 2025-06-18.
+   */
+  public static boolean rejectsProtocolHeader(String header) {
+    return header != null && !header.isEmpty() && !supportsProtocol(header);
+  }
+
+  /**
+   * The `MCP-Protocol-Version` a response carries: the negotiated one on
+   * `initialize`, the client's own afterwards. It used to be a constant, so a
+   * client that had agreed on another version read every answer as a mismatch.
+   * Null means the header is left out.
+   */
+  public static String responseProtocol(String header, String negotiated) {
+    if (negotiated != null) return negotiated;
+    return supportsProtocol(header) ? header : null;
+  }
+
+  /**
+   * The LAN address the server answers to, from `{interface, IPv4}` pairs in
+   * enumeration order. The first non-loopback address used to win, whatever
+   * carried it: with a VPN or mobile data up, that is `tun0` or `rmnet0`, so the
+   * URL shown was wrong, the Wi-Fi address got 421 and the certificate did not
+   * cover it. Wi-Fi, hotspot and Ethernet come first; tunnels and cellular are
+   * never a LAN. Null when nothing qualifies.
+   */
+  public static String lanAddress(List<String[]> candidates) {
+    String fallback = null;
+    for (String[] candidate : candidates) {
+      String name = candidate[0] == null ? "" : candidate[0].toLowerCase();
+      String ip = candidate[1];
+      if (ip == null || ip.startsWith("127.") || isNotLan(name)) continue;
+      if (isLocalLink(name)) return ip;
+      if (fallback == null) fallback = ip;
+    }
+    return fallback;
+  }
+
+  private static final String[] LOCAL_LINKS = {"wlan", "swlan", "ap", "eth"};
+  private static final String[] NOT_LAN = {"tun", "ppp", "rmnet", "ccmni", "clat", "v4-", "dummy", "ipsec", "pdp"};
+
+  private static boolean isLocalLink(String name) {
+    for (String prefix : LOCAL_LINKS) if (name.startsWith(prefix)) return true;
+    return false;
+  }
+
+  private static boolean isNotLan(String name) {
+    for (String prefix : NOT_LAN) if (name.startsWith(prefix)) return true;
+    return false;
   }
 
   /** Who a request is from, in increasing privilege. */

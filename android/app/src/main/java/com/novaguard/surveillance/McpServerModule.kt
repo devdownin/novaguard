@@ -384,6 +384,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       var origin: String? = null
       var host: String? = null
       var contentType = ""
+      var protocolHeader: String? = null
       var headerCount = 0
       while (true) {
         val line = readLine(socket, input, MAX_LINE_BYTES, deadline) ?: break
@@ -397,6 +398,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
           "origin" -> origin = value
           "host" -> host = value
           "content-type" -> contentType = value.lowercase()
+          "mcp-protocol-version" -> protocolHeader = value
         }
       }
 
@@ -442,12 +444,22 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
         return respond(output, 400, parseErrorResponse())
       }
 
+      val negotiated = if (request.optString("method") == "initialize") {
+        McpRules.negotiate(request.optJSONObject("params")?.optString("protocolVersion"))
+      } else {
+        if (McpRules.rejectsProtocolHeader(protocolHeader)) {
+          return respond(output, 400, jsonError("Unsupported MCP-Protocol-Version"))
+        }
+        null
+      }
+
       val (principal, expired) = principalFor(authHeader, remote)
       val response = dispatch(request, principal, expired)
         ?: return respond(output, 202, "") // a notification: accepted, no body
 
       val status = httpStatusFor(response)
-      respond(output, status, response.toString(), mapOf("MCP-Protocol-Version" to LATEST_PROTOCOL))
+      val version = McpRules.responseProtocol(protocolHeader, negotiated)
+      respond(output, status, response.toString(), if (version != null) mapOf("MCP-Protocol-Version" to version) else emptyMap())
     } catch (e: Exception) {
       Log.w(TAG, "MCP client error: ${e.message}")
     } finally {
@@ -604,11 +616,10 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   }
 
   private fun initializeResult(params: JSONObject): JSONObject {
-    val requested = params.optString("protocolVersion")
     // Negotiate rather than refuse. Pinning one version and erroring on every
     // other means no client that does not already know this server's private
     // version string can complete a handshake.
-    val agreed = if (SUPPORTED_PROTOCOLS.contains(requested)) requested else LATEST_PROTOCOL
+    val agreed = McpRules.negotiate(params.optString("protocolVersion"))
     return JSONObject()
       .put("protocolVersion", agreed)
       .put(
@@ -1007,7 +1018,9 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   private fun sha256(value: String): ByteArray =
     MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
 
+  /** The Wi-Fi address, chosen by `McpRules.lanAddress` among every up interface's IPv4. */
   private fun localIpAddress(): String? {
+    val candidates = mutableListOf<Array<String>>()
     try {
       val interfaces = NetworkInterface.getNetworkInterfaces()
       while (interfaces.hasMoreElements()) {
@@ -1016,16 +1029,14 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
         val addresses = nic.inetAddresses
         while (addresses.hasMoreElements()) {
           val addr = addresses.nextElement()
-          if (!addr.isLoopbackAddress && addr is Inet4Address) {
-            val ip = addr.hostAddress
-            if (ip != null && !ip.startsWith("127.")) return ip
-          }
+          val ip = addr.hostAddress
+          if (!addr.isLoopbackAddress && addr is Inet4Address && ip != null) candidates.add(arrayOf(nic.name, ip))
         }
       }
     } catch (e: Exception) {
       Log.w(TAG, "Error resolving IP address: ${e.message}")
     }
-    return null
+    return McpRules.lanAddress(candidates)
   }
 
   private data class RateWindow(val count: Int, val resetAt: Long)
@@ -1035,8 +1046,6 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     private const val TAG = "NovaGuardMcp"
     private const val DEFAULT_PORT = 8081
     private const val SERVER_VERSION = "1.0.0"
-    private const val LATEST_PROTOCOL = "2025-06-18"
-    private val SUPPORTED_PROTOCOLS = setOf("2024-11-05", "2025-03-26", "2025-06-18", "2026-07-28")
     private const val MIN_TOKEN_LENGTH = 16
     private const val TOKEN_LENGTH = 32
     private const val TOKEN_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
