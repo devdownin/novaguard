@@ -23,7 +23,7 @@ python3 -m http.server 8000 --directory site
 
 Ouvrir `http://localhost:8000`. Le site ne nécessite aucun backend. Le sélecteur des deux modes est un bouton de présentation ; il ne se connecte pas à une caméra. Sans JavaScript, les deux présentations restent lisibles. Les questions utilisent les éléments HTML natifs `details` et `summary`.
 
-Le logo et les schémas décoratifs sont créés pour cette présentation. Le visuel principal et la galerie utilisent les trois captures Android réelles fournies par l’utilisateur, conservées sans retouche. Les légendes précisent les états visibles : surveillance inactive, historique vide et réglages. L’ancien téléphone illustratif, ses surimpressions et sa scène SVG ont été retirés. Aucune police, image ou bibliothèque n’est chargée depuis un service tiers. Aucun formulaire, cookie d’analyse ou traceur n’est ajouté.
+Le logo et les schémas décoratifs sont créés pour cette présentation. Le visuel principal et la galerie utilisent les trois captures Android réelles fournies par l’utilisateur, conservées sans retouche. Les légendes précisent les états visibles : surveillance inactive, historique avec un passage et réglages avec le serveur MCP éteint. L’ancien téléphone illustratif, ses surimpressions et sa scène SVG ont été retirés. Aucune police, image ou bibliothèque n’est chargée depuis un service tiers. Aucun formulaire, cookie d’analyse ou traceur n’est ajouté.
 
 ## Analyse du projet et positionnement
 
@@ -110,7 +110,7 @@ python3 scripts/update-site-release.py --metadata /tmp/novaguard-release.json
 
 ## Captures Android et démonstration vidéo demandées
 
-Le point 1 est réalisé avec les trois captures fournies par l’utilisateur : `1000038182.jpg` (Surveillance), `1000038183.jpg` (Historique) et `1000038184.jpg` (Réglages). Elles sont publiées dans `site/assets/screens/`, sans retouche ni recadrage, avec leurs proportions natives (575 × 1280). Le visuel principal montre la vraie capture Surveillance ; une galerie présente les trois écrans avec des liens directs vers les fichiers en taille réelle, utilisables au clavier et sans JavaScript. Les captures ne montrent ni détection active ni clip enregistré : les légendes le disent explicitement. Aucun résultat fictif n’est ajouté. Le point 2 reste en attente des clips source pour la démonstration réelle. La provenance et le brief vidéo se trouvent dans `docs/SITE_MEDIA.md`.
+Le point 1 est réalisé avec les trois captures fournies par l’utilisateur : `1000038182.jpg` (Surveillance), `1000038232.jpg` (Historique) et `1000038231.jpg` (Réglages), actualisées le 16 octobre 2026. Elles sont publiées dans `site/assets/screens/`, sans retouche ni recadrage, avec leurs proportions natives (575 × 1280). Le visuel principal montre la vraie capture Surveillance ; une galerie présente les trois écrans avec des liens directs vers les fichiers en taille réelle, utilisables au clavier et sans JavaScript. L’historique montre un passage « Personne détectée » à 08:22 avec une vignette marquée 0:05 et un graphique de la journée. La capture Réglages montre le bloc « Assistant IA (MCP) », le serveur éteint et l’accès aux services. Les légendes distinguent ces états de la surveillance inactive affichée sur la capture Surveillance, prise séparément. Aucun résultat fictif n’est ajouté. Le point 2 reste en attente des clips source pour la démonstration réelle. La provenance et le brief vidéo se trouvent dans `docs/SITE_MEDIA.md`.
 
 ### Vérification de la mise à jour guide/installation
 
@@ -124,8 +124,16 @@ Le point média 1 est désormais intégré avec les captures reçues. Le point 2
 
 ### Vérification des captures réelles
 
-Les trois JPEG publiés ont été comparés octet par octet aux pièces jointes : ils sont identiques, de dimensions 575 × 1280 et totalisent 123 049 octets. Leurs empreintes sont consignées dans `docs/SITE_MEDIA.md`.
+Les trois JPEG publiés ont été comparés octet par octet aux pièces jointes : ils sont identiques, de dimensions 575 × 1280 et totalisent 116 519 octets. Leurs empreintes sont consignées dans `docs/SITE_MEDIA.md`.
 
 Le visuel principal et la galerie ont été parcourus sous `/novaguard/` à 1440, 1024, 768, 700, 390 et 320 px : proportions d’image conservées, aucun débordement horizontal et trois liens fonctionnels vers les JPEG en taille réelle. L’ouverture au clavier et l’ouverture sans JavaScript réussissent. Le parcours du guide MCP, la copie de configuration, les modes et l’installation ont également été rejoués avec succès. Les pages et leurs médias ne produisent ni erreur JavaScript ni échec HTTP local.
 
 `npm run typecheck`, `npm run lint` (0 erreur, 0 avertissement), `npm test -- --ci --runInBand` (89 suites, 956 tests), le contrôle de formatage, les liens/ancres/ARIA et `git diff --check` passent. Le workflow Pages vérifie désormais la présence des trois JPEG au lieu de la scène illustrative retirée. Cette intégration ne vérifie pas le fonctionnement d’une caméra réelle ; elle présente fidèlement les captures fournies.
+
+### Actualisation du 16 octobre 2026
+
+Les nouvelles captures Historique (`1000038232.jpg`) et Réglages (`1000038231.jpg`) remplacent les états précédents. Elles sont copiées sans modification ; les deux fichiers publiés ont été comparés octet par octet aux pièces jointes, et leurs empreintes SHA-256 et tailles sont actualisées dans `docs/SITE_MEDIA.md`. La capture Surveillance reste inchangée. Les trois fichiers totalisent maintenant 116 519 octets.
+
+Le README présente les trois écrans avec des liens vers les fichiers en taille réelle. Les légendes, textes alternatifs et descriptions du site indiquent le passage à 08:22, la vignette marquée 0:05 et le serveur MCP éteint. Le guide explique le nouveau bloc « Assistant IA (MCP) » et son bouton de consultation ; l’absence d’activation par ce bouton a été vérifiée dans `SetupScreen.tsx` (`openInfo('mcp')`).
+
+Vérifications fraîches : typecheck et lint sans erreur ni avertissement ; 90 suites et 966 tests Jest réussis ; formatage et `git diff --check` valides. Les parcours Chromium de la galerie passent sur six largeurs (320 à 1440 px), avec conservation des proportions et ouverture des JPEG au clavier et sans JavaScript. Le guide, les téléchargements, le presse-papiers et les liens/ancres/ARIA des deux pages ont été contrôlés. Les liens d’images du README pointent vers les fichiers présents dans le dépôt.

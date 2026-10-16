@@ -6,6 +6,18 @@ Caméra de surveillance intelligente, locale et open source. NovaGuard transform
 [![CI](https://github.com/devdownin/novaguard/actions/workflows/ci.yml/badge.svg)](https://github.com/devdownin/novaguard/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
+## Aperçu de l’application
+
+Captures Android réelles, conservées sans retouche. Cliquer sur une image l’ouvre en taille réelle.
+
+| Surveillance | Historique | Réglages et assistant IA |
+| :---: | :---: | :---: |
+| <a href="site/assets/screens/surveillance.jpg"><img src="site/assets/screens/surveillance.jpg" width="180" alt="Surveillance inactive, caméra en veille et bouton de démarrage"></a> | <a href="site/assets/screens/historique.jpg"><img src="site/assets/screens/historique.jpg" width="180" alt="Historique avec un passage Personne détectée à 08:22 et une vignette marquée 0:05"></a> | <a href="site/assets/screens/reglages.jpg"><img src="site/assets/screens/reglages.jpg" width="180" alt="Réglages avec le bloc Assistant IA MCP, le serveur éteint et le bouton Voir les services MCP"></a> |
+
+L’historique montre un passage et son emplacement dans la journée. Le bloc **Assistant IA (MCP)** des réglages indique ici que le serveur est éteint ; **Voir les services MCP** ouvre la liste des capacités sans l’activer. La capture Surveillance, prise séparément, montre la caméra en veille.
+
+[Découvrir l’application sur le site](https://devdownin.github.io/novaguard/#apercu) · [Connecter un agent avec le guide MCP](https://devdownin.github.io/novaguard/guide-mcp.html)
+
 ## Fonctionnalités
 
 - **Surveillance** — flux caméra en direct, indicateur d'état, démarrage/arrêt en un geste, dernières statistiques (dernière détection, détections du jour, espace disponible).
