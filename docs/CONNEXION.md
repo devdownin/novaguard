@@ -2,7 +2,7 @@
 
 - Version : 2.2
 - Date : 16 octobre 2026
-- Statut : décisions prises (§12) ; lots 0 et 3 implémentés ; parcours clients **non qualifiés sur appareil** (§10). **Accès depuis le cloud : décidé le 16 octobre 2026, par relais intégré à l’application (§14) ; le service `relay/` existe, l’application n’y est pas encore reliée.**
+- Statut : décisions prises (§12) ; lots 0 et 3 implémentés ; parcours clients **non qualifiés sur appareil** (§10). **Accès depuis le cloud : décidé le 16 octobre 2026, par relais intégré à l’application (§14) ; le service `relay/` et le client de l’application existent ; aucune instance n’est déployée, l’authentification OAuth (R3) manque, donc seule une clé d’API (Copilot Studio) peut s’y connecter.**
 - Référence du serveur : [`mcp.md`](../mcp.md) (contrat des outils) et `android/app/src/main/java/com/novaguard/surveillance/McpServerModule.kt`
 - Clients étudiés : Claude (Claude Code, Claude Desktop, claude.ai), ChatGPT, Microsoft Copilot Studio, LibreChat, Open WebUI, AnythingLLM, OpenClaw, Hermes Agent (Nous Research)
 
@@ -425,7 +425,7 @@ Ces décisions se rouvrent par une révision de ce document, pas au fil d’une 
 
 ## 14. Accès depuis le cloud : relais intégré
 
-Conception. Seul le service `relay/` (R1) existe. L’application ne s’y connecte pas encore, et cette section est la seule de ce document à décrire un changement du contrat de confidentialité.
+Conception. Le service `relay/` (R1) et le client de l’application (R2) existent. Cette section est la seule de ce document à décrire un changement du contrat de confidentialité, réécrit avec le code (§14.6).
 
 ### 14.1 Principe
 
@@ -478,14 +478,14 @@ Réglages → Serveur MCP, nouvelle ligne « Accès depuis le cloud », éteinte
 
 La connexion sortante n’est ouverte que tant que l’interrupteur est allumé et le serveur MCP actif.
 
-### 14.6 Contrat de confidentialité à réécrire
+### 14.6 Contrat de confidentialité
 
-La phrase « NovaGuard n’ouvre aucune connexion sortante » devient fausse dès que le code existe. Elle doit changer **dans la même PR**, jamais après :
+La phrase « NovaGuard n’ouvre aucune connexion sortante » devient fausse dès que le code existe. Elle a été réécrite **dans la même PR** que le client du relais, dans ces fichiers :
 
 | Fichier | Changement |
 | --- | --- |
 | `PRIVACY.md`, `PRIVACY.en.md` | Décrire la connexion optionnelle au relais, ce qui transite, qui l’exploite, comment la couper |
-| `docs/PLAY_STORE.md`, formulaire *Data safety* | Revoir « aucune connexion sortante » et la définition de « collecte » / « partage » de Google pour des données transmises à un relais que l’utilisateur choisit |
+| `docs/PLAY_STORE.md`, formulaire *Data safety* | Fait dans le dépôt ; reste à revalider dans la Console avant de publier une instance du relais : revoir « aucune connexion sortante » et la définition de « collecte » / « partage » de Google pour des données transmises à un relais que l’utilisateur choisit |
 | `CLAUDE.md` | Réécrire le paragraphe « `INTERNET` est déclarée, et seulement pour écouter » |
 | `mcp.md` §5, §6, §14 | Retirer « Public Internet exposure … not supported » ; décrire le relais |
 | `__tests__/playRelease.test.ts` | Le motif des connexions sortantes admet **un seul fichier** (le client du relais) ; toute autre connexion sortante échoue encore |
@@ -496,9 +496,9 @@ La phrase « NovaGuard n’ouvre aucune connexion sortante » devient fausse dè
 | --- | --- | --- |
 | R0 | Trancher l’hébergement (§14.2) et le modèle de confiance (§14.4) | **Fait** |
 | R1 | Service `relay/` : authentification par défi, transmission, quotas ; tests de protocole | **Fait** : `relay/`, 15 tests `node:test` dans le job `check` de la CI. Reste à le déployer |
-| R2 | Client du relais dans l’application (Kotlin) : connexion sortante, origine `relay` dans `McpRules`, tests JVM | R1 |
+| R2 | Client du relais dans l’application (Kotlin) : connexion sortante, origine `relay` dans `McpRules`, tests JVM | **Fait**, sauf l’action « Couper l’accès cloud » de la notification (R4). Le Kotlin est validé par le build APK de la PR ; rien n’a été essayé sur un téléphone |
 | R3 | Serveur d’autorisation OAuth sur le téléphone : métadonnées, DCR ou clients préenregistrés, consentement sur l’appareil, révocation | R2 |
-| R4 | Interface (§14.5), réécriture du contrat de confidentialité (§14.6) | R2, R3 |
+| R4 | Interface (§14.5) et réécriture du contrat de confidentialité (§14.6) | Contrat **fait** avec R2 ; interface en partie (interrupteur, consentement, état, adresse). Restent : liste des autorisations, « Couper l’accès cloud » dans la notification, adresse du relais modifiable |
 | R5 | Qualification de bout en bout avec chacun des trois clients cloud ; AC-17 à AC-20 ci-dessous | R4 |
 
 Critères d’acceptation à ajouter à §10 :

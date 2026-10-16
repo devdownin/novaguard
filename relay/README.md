@@ -3,7 +3,7 @@
 Lets claude.ai, ChatGPT and Copilot Studio reach a NovaGuard phone that has opted in. Design and
 privacy consequences: [`docs/CONNEXION.md`](../docs/CONNEXION.md) §14.
 
-The phone dials `wss://<relay>/connect`, proves it holds its Ed25519 key by signing a challenge, and
+The phone dials `wss://<relay>/connect`, proves it holds its P-256 key (the Android Keystore's) by signing a challenge, and
 is then reachable at `https://<relay>/d/<id>/mcp`. `<id>` is a hash of the key, so nobody can take
 another phone's address and the relay keeps no registry.
 

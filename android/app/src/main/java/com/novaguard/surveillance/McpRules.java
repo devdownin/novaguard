@@ -157,6 +157,17 @@ public final class McpRules {
     return PRINCIPAL_NONE;
   }
 
+  /**
+   * A request that came through the relay. It is never a loopback request —
+   * the relay's frames are delivered from inside this process, so loopback
+   * would otherwise hand the open internet reading without a token — and it
+   * never controls: the control token is not accepted from the cloud, whatever
+   * it matches. Only the read token opens it.
+   */
+  public static int relayPrincipal(boolean readTokenMatches) {
+    return readTokenMatches ? PRINCIPAL_READ : PRINCIPAL_NONE;
+  }
+
   /** `expiresAt` 0 means the owner chose no expiry; otherwise epoch ms. */
   public static boolean controlLive(long expiresAt, long now) {
     return expiresAt <= 0 || now < expiresAt;

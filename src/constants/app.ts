@@ -4,6 +4,13 @@ export const APP_LICENSE = 'GPL-3.0';
 export const REPO_URL = 'https://github.com/devdownin/novaguard';
 export const ISSUES_URL = `${REPO_URL}/issues`;
 
+/**
+ * The relay cloud clients reach this phone through (`relay/`, `docs/CONNEXION.md` §14).
+ * Empty until the project deploys one: the switch stays disabled and the app dials
+ * nothing, rather than guessing an address.
+ */
+export const RELAY_URL = '';
+
 export interface ThirdPartyLicense {
   name: string;
   /** What it does here, in the reader's language — resolved at render time. */

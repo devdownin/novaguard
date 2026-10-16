@@ -27,6 +27,7 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 - « Ce qu’un assistant IA peut voir et faire » (Réglages, bloc confidentialité) ouvre la page « Services MCP » même serveur éteint.
 
 ### Serveur MCP
+- **Accès depuis le cloud** (Réglages → Serveur MCP, éteint par défaut) : le téléphone ouvre une connexion sortante vers un relais pour que claude.ai, ChatGPT ou Copilot Studio puissent le joindre. Un consentement nomme le relais et dit qu'il voit tout ce qui passe. Par ce chemin, lecture seule avec le jeton d'accès — jamais de pilotage, et la vue en direct a son propre interrupteur. Aucun relais n'est encore configuré dans cette version : l'interrupteur reste grisé. `relay/` contient le service ; `PRIVACY.md`, `PRIVACY.en.md`, `docs/PLAY_STORE.md` et `CLAUDE.md` décrivent désormais cette connexion, la seule que l'application puisse ouvrir.
 - Réglages → Serveur MCP propose la configuration de sept clients (config JSON, Claude Code, LibreChat, Open WebUI, AnythingLLM, OpenClaw, Hermes Agent), chacune dans la forme que ce client attend ; la config JSON déclare enfin son transport (`type: http`). Guide complet : `docs/CONNEXION.md`.
 - La configuration copiée et le QR code portent le jeton de lecture, même pilotage actif. Le jeton de pilotage ne s’y trouve que si on le choisit (« Jeton de la configuration »).
 - Réglages dit que claude.ai, ChatGPT et Copilot Studio ne peuvent pas joindre le téléphone, et qu’un client doit l’adresser par son IP.

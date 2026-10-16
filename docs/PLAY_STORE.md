@@ -45,7 +45,7 @@ d'installations, si.
 | Politique de confidentialité, fr + en | ✅ [`PRIVACY.md`](../PRIVACY.md), [`PRIVACY.en.md`](../PRIVACY.en.md) — restent à publier à une URL |
 | Icône 512×512 | ✅ `assets/store/icon-512.png` |
 | Permissions justifiables une par une | ✅ vérifié par `__tests__/playRelease.test.ts` |
-| Aucune connexion sortante ; `INTERNET` réservée aux deux serveurs locaux | ✅ vérifiée par le même test |
+| Aucune connexion sortante, sauf le relais d'accès cloud (optionnel, éteint par défaut) ; `INTERNET` pour les deux serveurs locaux et ce relais | ✅ vérifiée par le même test : un seul fichier (`McpRelayClient.kt`) peut ouvrir une connexion |
 | Fiche Store, fr-FR et en-US | ✅ § 5, à coller dans la Console |
 | Visuel de présentation 1024×500 | ❌ à produire |
 | Captures d'écran | ❌ à produire sur appareil |
@@ -126,19 +126,24 @@ est un compteur oublié exactement une fois.
 Réponses, toutes vérifiables dans le code :
 
 - **Collectez-vous ou partagez-vous des données utilisateur ?** → **Non.** Rien
-  ne parvient au développeur ni à un tiers. La permission `INTERNET` est déclarée
-  pour deux serveurs locaux optionnels, éteints par défaut (direct Wi-Fi,
-  serveur MCP) : ils ne répondent qu'à un appareil du réseau local que le
-  propriétaire configure lui-même, à sa demande. L'application n'ouvre aucune
-  connexion sortante. **À revalider avec la définition de « collecte » de Google
-  au moment de chaque soumission** : c'est le seul point du formulaire qui
-  dépend d'une interprétation.
+  ne parvient au développeur ni à un tiers par défaut. La permission `INTERNET`
+  est déclarée pour deux serveurs locaux optionnels, éteints par défaut (direct
+  Wi-Fi, serveur MCP) : ils ne répondent qu'à un appareil du réseau local que le
+  propriétaire configure lui-même, à sa demande. **Une troisième option, éteinte
+  par défaut, ouvre une connexion sortante vers un relais exploité par le
+  projet** (accès depuis le cloud) : ce relais voit en clair, sans rien conserver,
+  les requêtes et les réponses de l'assistant que le propriétaire a connecté.
+  **À revalider avec la définition de « collecte » de Google au moment de chaque
+  soumission**, et en particulier le traitement éphémère par un relais exploité
+  par le développeur : c'est le point du formulaire qui dépend d'une
+  interprétation, et la mise en ligne du relais en dépend.
 - Aucune catégorie à cocher (ni photos/vidéos, ni audio, ni position, ni
   identifiants, ni diagnostics).
 - **Les données sont-elles chiffrées en transit ?** → **Non** par défaut : les
   deux serveurs locaux parlent HTTP sur le réseau local, et rien ne transite par
   Internet. Le serveur MCP propose HTTPS (autorité propre à l'appareil), mais
-  c'est une option éteinte par défaut, et le formulaire porte sur le défaut.
+  c'est une option éteinte par défaut, et le formulaire porte sur le défaut. Le
+  relais cloud, lui, est en TLS (`wss://`) du téléphone au relais.
 - **L'utilisateur peut-il demander la suppression de ses données ?** → oui, tout
   est local : suppression unitaire, « Tout supprimer », rétention automatique, et
   la désinstallation efface tout.

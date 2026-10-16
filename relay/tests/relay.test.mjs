@@ -5,11 +5,13 @@ import { WebSocket } from 'ws';
 import { createRelay } from '../src/relay.js';
 import { authenticate, deviceIdFor, route, SIGNED_PREFIX } from '../src/protocol.js';
 
-const rawKey = publicKey => publicKey.export({ format: 'der', type: 'spki' }).subarray(-32);
+const rawKey = publicKey => publicKey.export({ format: 'der', type: 'spki' });
+const newKeyPair = () => generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+const signNonce = (nonce, privateKey) => sign('sha256', Buffer.from(SIGNED_PREFIX + nonce), privateKey).toString('base64url');
 
 /** A phone: dials in, signs the challenge, and answers requests with `answer`. */
 async function phone(base, answer, { signWith } = {}) {
-  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const { publicKey, privateKey } = newKeyPair();
   const key = rawKey(publicKey);
   const ws = new WebSocket(`${base.replace('http', 'ws')}/connect`);
   const seen = [];
@@ -19,7 +21,7 @@ async function phone(base, answer, { signWith } = {}) {
       const frame = JSON.parse(data.toString());
       if (frame.t === 'challenge') {
         const signer = signWith ?? privateKey;
-        const sig = sign(null, Buffer.from(SIGNED_PREFIX + frame.nonce), signer).toString('base64url');
+        const sig = signNonce(frame.nonce, signer);
         ws.send(JSON.stringify({ t: 'hello', key: key.toString('base64url'), sig }));
       } else if (frame.t === 'ready') {
         resolve(frame);
@@ -38,7 +40,7 @@ const ok = body => () => ({ status: 200, headers: { 'content-type': 'application
 
 describe('protocol', () => {
   it('derives a 26-character id from the key, and nothing else', () => {
-    const { publicKey } = generateKeyPairSync('ed25519');
+    const { publicKey } = newKeyPair();
     const id = deviceIdFor(rawKey(publicKey));
     assert.match(id, /^[a-z2-7]{26}$/);
     assert.equal(id, deviceIdFor(rawKey(publicKey)));
@@ -57,13 +59,18 @@ describe('protocol', () => {
   });
 
   it('refuses a signature made over another nonce', () => {
-    const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+    const { publicKey, privateKey } = newKeyPair();
     const key = rawKey(publicKey).toString('base64url');
     const sig = sign(null, Buffer.from(`${SIGNED_PREFIX}one`), privateKey).toString('base64url');
     assert.ok(authenticate(key, sig, 'one'));
     assert.equal(authenticate(key, sig, 'two'), null);
     assert.equal(authenticate(key, 'AAAA', 'one'), null);
     assert.equal(authenticate('short', sig, 'one'), null);
+    const other = generateKeyPairSync('ec', { namedCurve: 'secp256k1' });
+    const wrongCurve = rawKey(other.publicKey).toString('base64url');
+    assert.equal(authenticate(wrongCurve, signNonce('one', other.privateKey), 'one'), null, 'only P-256 is accepted');
+    const ed = generateKeyPairSync('ed25519');
+    assert.equal(authenticate(rawKey(ed.publicKey).toString('base64url'), sign(null, Buffer.from(`${SIGNED_PREFIX}one`), ed.privateKey).toString('base64url'), 'one'), null, 'and no other algorithm');
     assert.equal(authenticate(undefined, undefined, 'one'), null);
   });
 });
@@ -122,7 +129,7 @@ describe('relay', () => {
   });
 
   it('refuses a phone that cannot sign the challenge', async () => {
-    const stranger = generateKeyPairSync('ed25519').privateKey;
+    const stranger = newKeyPair().privateKey;
     const p = await phone(base, ok('{}'), { signWith: stranger });
     p.ready.catch(() => {});
     const { code } = await p.closed;
@@ -130,14 +137,14 @@ describe('relay', () => {
   });
 
   it('keeps one connection per phone: the newer replaces the older', async () => {
-    const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+    const { publicKey, privateKey } = newKeyPair();
     const dial = () => {
       const ws = new WebSocket(`${base.replace('http', 'ws')}/connect`);
       const closed = new Promise(resolve => ws.once('close', code => resolve(code)));
       ws.on('message', data => {
         const frame = JSON.parse(data.toString());
         if (frame.t === 'challenge') {
-          const sig = sign(null, Buffer.from(SIGNED_PREFIX + frame.nonce), privateKey).toString('base64url');
+          const sig = signNonce(frame.nonce, privateKey);
           ws.send(JSON.stringify({ t: 'hello', key: rawKey(publicKey).toString('base64url'), sig }));
         }
       });

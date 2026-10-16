@@ -62,6 +62,10 @@ export const defaultSettings: Settings = {
   // Off until the owner has a client that trusts the device certificate: on by
   // default, every existing client would stop connecting.
   mcpTls: false,
+  // The only outgoing connection the app can make, so it starts off and is
+  // switched on after a consent that names the relay.
+  mcpCloudEnabled: false,
+  mcpCloudLiveFrame: false,
   exp: { surv: true, det: false, rec: false, sto: false, not: false, stream: false, mcp: false, adv: false, about: false },
 };
 

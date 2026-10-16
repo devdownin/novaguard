@@ -16,9 +16,6 @@ export const LIMITS = {
   pingIntervalMs: 20_000,
 };
 
-// DER prefix of an Ed25519 SubjectPublicKeyInfo; the raw 32-byte key follows.
-const SPKI_ED25519 = Buffer.from('302a300506032b6570032100', 'hex');
-
 const BASE32 = 'abcdefghijklmnopqrstuvwxyz234567';
 
 /* eslint-disable no-bitwise -- bit packing is the whole function */
@@ -43,9 +40,13 @@ function base32(bytes) {
  * The public identifier of a phone: a hash of its key, not something it picks.
  * Nobody can claim another phone's address without that phone's private key,
  * which is why the relay needs no registry and no pairing code.
+ *
+ * `spki` is the key as the phone's Android Keystore hands it out: an X.509
+ * SubjectPublicKeyInfo of a P-256 key. ECDSA rather than Ed25519 because every
+ * Keystore holds P-256, while Ed25519 is optional hardware support from API 33.
  */
-export function deviceIdFor(rawKey) {
-  return base32(createHash('sha256').update(rawKey).digest().subarray(0, 16));
+export function deviceIdFor(spki) {
+  return base32(createHash('sha256').update(spki).digest().subarray(0, 16));
 }
 
 export const DEVICE_ID_PATTERN = /^[a-z2-7]{26}$/;
@@ -54,15 +55,15 @@ export function newNonce() {
   return randomBytes(32).toString('base64url');
 }
 
-/** Null unless `key` is a base64url Ed25519 public key and `signature` signs `nonce` with it. */
+/** Null unless `key` is a base64url P-256 SPKI and `signature` (DER ECDSA/SHA-256) signs `nonce` with it. */
 export function authenticate(key, signature, nonce) {
-  if (typeof key !== 'string' || typeof signature !== 'string') return null;
-  const raw = Buffer.from(key, 'base64url');
-  if (raw.length !== 32) return null;
+  if (typeof key !== 'string' || typeof signature !== 'string' || key.length > 200) return null;
+  const spki = Buffer.from(key, 'base64url');
   try {
-    const publicKey = createPublicKey({ key: Buffer.concat([SPKI_ED25519, raw]), format: 'der', type: 'spki' });
-    const ok = verify(null, Buffer.from(SIGNED_PREFIX + nonce), publicKey, Buffer.from(signature, 'base64url'));
-    return ok ? deviceIdFor(raw) : null;
+    const publicKey = createPublicKey({ key: spki, format: 'der', type: 'spki' });
+    if (publicKey.asymmetricKeyType !== 'ec' || publicKey.asymmetricKeyDetails?.namedCurve !== 'prime256v1') return null;
+    const ok = verify('sha256', Buffer.from(SIGNED_PREFIX + nonce), publicKey, Buffer.from(signature, 'base64url'));
+    return ok ? deviceIdFor(spki) : null;
   } catch {
     return null;
   }

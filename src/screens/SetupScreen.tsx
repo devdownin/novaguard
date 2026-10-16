@@ -1,5 +1,5 @@
 import React from 'react';
-import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Slider from '@react-native-community/slider';
 import { useCameraDevice } from 'react-native-vision-camera';
@@ -11,7 +11,7 @@ import { presenceModeFor, usesBufferedCapture } from '../recording/presenceMode'
 import { formatBytes } from '../recording/library';
 import { describeClipGap, formatClipGap } from '../recording/clipGap';
 import { describeAutoTune, formatAutoTune } from '../camera/autoTune';
-import { APP_LICENSE, APP_VERSION, ISSUES_URL, REPO_URL } from '../constants/app';
+import { APP_LICENSE, APP_VERSION, ISSUES_URL, RELAY_URL, REPO_URL } from '../constants/app';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 import { SettingRow, StaticValue, ValueButton } from '../components/SetupRows';
 import { Switch } from '../components/Switch';
@@ -100,6 +100,26 @@ export function SetupScreen() {
   const tokenChoiceLabel = t(tokenChoice === 'control' ? 'setup.mcpFragmentToken.control' : 'setup.mcpFragmentToken.read');
 
   const mcpAvailability = controlAvailability(settings, Date.now());
+
+  // Cloud access is the one thing here that dials out, so it asks first and
+  // names the relay and what it can see; turning it off asks nothing.
+  const relayHost = RELAY_URL.replace(/^https:\/\//, '');
+  const cloudBlocker: StringKey | null = !RELAY_URL ? 'setup.mcpCloud.noRelay'
+    : !settings.mcpEnabled ? 'setup.mcpCloud.needsServer'
+    : !settings.mcpToken ? 'setup.mcpCloud.needsToken'
+    : null;
+  const onCloudToggle = () => {
+    if (settings.mcpCloudEnabled) return s.toggleMcpCloud();
+    Alert.alert(
+      t('setup.mcpCloud.consent.title'),
+      t('setup.mcpCloud.consent.body', { host: relayHost }),
+      [
+        { text: t('setup.mcpCloud.consent.cancel'), style: 'cancel' },
+        { text: t('setup.mcpCloud.consent.accept'), onPress: s.toggleMcpCloud },
+      ],
+    );
+  };
+  const relayState = s.mcpStatus.relayState ?? 'off';
 
   const controlExpiry = !settings.mcpControlToken ? null
     : settings.mcpControlExpiresAt <= 0 ? t('setup.mcpControlToken.forever')
@@ -687,6 +707,37 @@ export function SetupScreen() {
           </View>
 
           {s.mcpStatus.advertised ? <Text style={styles.hint}>{t('setup.mcpAdvertised')}</Text> : null}
+
+          <SettingRow label={t('setup.mcpCloud')} subtitle={t('setup.mcpCloud.sub')}>
+            <Switch
+              value={settings.mcpCloudEnabled}
+              onValueChange={onCloudToggle}
+              disabled={cloudBlocker !== null && !settings.mcpCloudEnabled}
+              accessibilityLabel={t('setup.mcpCloud')}
+            />
+          </SettingRow>
+          {cloudBlocker ? <Text style={styles.hint}>{t(cloudBlocker)}</Text> : null}
+          {settings.mcpCloudEnabled ? (
+            <View style={styles.subBlock} testID="mcp-cloud">
+              <Text style={styles.hint}>{t(`setup.mcpCloud.state.${relayState}`)}</Text>
+              {s.mcpStatus.relayUrl ? (
+                <PrimaryOutlineButton
+                  label={copiedLabel === 'cloudUrl' ? t('setup.mcpCopy.copied') : t('setup.mcpCloud.copyUrl')}
+                  onPress={() => copyToClipboard(s.mcpStatus.relayUrl!, 'cloudUrl')}
+                />
+              ) : null}
+              <Text style={styles.hint}>{t('setup.mcpCloud.readOnly')}</Text>
+              {settings.mcpLiveFrameEnabled ? (
+                <SettingRow label={t('setup.mcpCloudLive')} subtitle={t('setup.mcpCloudLive.sub')}>
+                  <Switch
+                    value={settings.mcpCloudLiveFrame}
+                    onValueChange={s.toggleMcpCloudLiveFrame}
+                    accessibilityLabel={t('setup.mcpCloudLive')}
+                  />
+                </SettingRow>
+              ) : null}
+            </View>
+          ) : null}
 
           <SettingRow label={t('setup.mcpLastActivity')}>
             <StaticValue
