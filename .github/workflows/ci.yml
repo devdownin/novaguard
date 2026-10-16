@@ -50,6 +50,11 @@ jobs:
       - name: Tests
         run: npm test -- --ci
 
+      - name: Relay
+        run: |
+          npm --prefix relay ci
+          npm --prefix relay test
+
       # The jobs above never compile Android resources, and `build-apk` only
       # runs after a merge — so an invalid resource file reaches `main` through
       # a green PR and breaks every APK build from then on. That is not

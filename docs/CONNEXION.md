@@ -2,7 +2,7 @@
 
 - Version : 2.2
 - Date : 16 octobre 2026
-- Statut : décisions prises (§12) ; lots 0 et 3 implémentés ; parcours clients **non qualifiés sur appareil** (§10). **Accès depuis le cloud : décidé le 16 octobre 2026, par relais intégré à l’application (§14) ; conception seulement, rien n’est implémenté.**
+- Statut : décisions prises (§12) ; lots 0 et 3 implémentés ; parcours clients **non qualifiés sur appareil** (§10). **Accès depuis le cloud : décidé le 16 octobre 2026, par relais intégré à l’application (§14) ; le service `relay/` existe, l’application n’y est pas encore reliée.**
 - Référence du serveur : [`mcp.md`](../mcp.md) (contrat des outils) et `android/app/src/main/java/com/novaguard/surveillance/McpServerModule.kt`
 - Clients étudiés : Claude (Claude Code, Claude Desktop, claude.ai), ChatGPT, Microsoft Copilot Studio, LibreChat, Open WebUI, AnythingLLM, OpenClaw, Hermes Agent (Nous Research)
 
@@ -421,11 +421,11 @@ Le lot « clients SaaS » de la v1.0 est retiré (§12).
 
 Ces décisions se rouvrent par une révision de ce document, pas au fil d’une intégration.
 
-**Restent ouvertes, et bloquent le lot R1** : qui héberge le relais (§14.2), et si l’on accepte qu’il voie le trafic en clair (§14.4).
+**Tranchées le 16 octobre 2026 :** le projet exploite le relais (§14.2), et le modèle de confiance où le relais voit le trafic en clair, images comprises, est accepté (§14.4). Il reste à déployer l’instance du projet : l’adresse n’existe pas encore, et l’application ne contient aucune valeur par défaut tant qu’elle n’existe pas.
 
 ## 14. Accès depuis le cloud : relais intégré
 
-Conception. Rien de cette section n’est implémenté, et elle est la seule de ce document à décrire un changement du contrat de confidentialité.
+Conception. Seul le service `relay/` (R1) existe. L’application ne s’y connecte pas encore, et cette section est la seule de ce document à décrire un changement du contrat de confidentialité.
 
 ### 14.1 Principe
 
@@ -443,8 +443,8 @@ Le téléphone n’écoute rien de plus : il initie la connexion, aucune redirec
 
 - Service minimal, sans stockage : il associe un identifiant d’appareil à une connexion WebSocket et transmet des trames. Il ne garde ni corps de requête, ni images, ni jetons ; ses journaux ne contiennent que l’heure, l’identifiant, le statut et la taille.
 - Code dans ce dépôt (`relay/`), **auto-hébergeable** : l’adresse du relais est un réglage de l’application. Aucune valeur par défaut n’est livrée tant que la question d’hébergement ci-dessous n’est pas tranchée.
-- **Décision ouverte : qui l’exploite.** Une instance du projet engage son mainteneur (disponibilité, coût, responsabilité sur ce qui y transite, abus) ; l’auto-hébergement laisse chaque propriétaire exploiter le sien et rend la fonction inutilisable pour qui ne sait pas le faire.
-- Appairage : l’application génère une paire de clés (Android Keystore) ; le relais associe l’identifiant à la clé publique au premier appairage, confirmé par un code à saisir sur l’écran du téléphone. Une connexion sans signature valide est refusée.
+- **Exploitation : le projet.** Une instance du projet est la valeur par défaut, ce qui engage son mainteneur (disponibilité, coût, abus, responsabilité sur ce qui y transite). Le code reste auto-hébergeable et l’adresse reste un réglage, pour qui préfère ne rien confier à l’instance du projet. Le déploiement et son adresse sont à fournir par le mainteneur ; `relay/Dockerfile` en est la base.
+- Appairage : l’application génère une paire de clés Ed25519 (Android Keystore). L’identifiant public est un **condensé de la clé**, donc personne ne peut prendre l’adresse d’un autre téléphone sans sa clé privée : le relais n’a ni registre ni code d’appairage. À chaque connexion il envoie un défi aléatoire que le téléphone signe ; une signature invalide ferme la connexion (code 4003).
 - Quotas par appareil, taille maximale de trame, une seule connexion par appareil (la nouvelle remplace l’ancienne), expiration des requêtes à 15 s comme en local.
 
 ### 14.3 Ce que le serveur du téléphone change
@@ -464,7 +464,7 @@ Le certificat public est celui du relais : il **termine TLS et voit en clair** l
 - consentement explicite à l’activation, qui nomme le relais utilisé et dit qu’il voit tout ce que l’agent demande ;
 - le fournisseur du client cloud reçoit en plus ce que l’agent lit (déjà vrai avec un modèle hébergé, `mcp.md` §14).
 
-**Décision ouverte :** accepter ce modèle de confiance pour une caméra, ou limiter l’accès cloud aux métadonnées (pas d’images, ni via `get_event_frames` ni via `get_live_frame`). La seconde option réduit le risque sans le supprimer et doit être tranchée avant R1.
+**Décision (16 octobre 2026) : ce modèle de confiance est accepté**, images comprises. Le consentement du §14.5 le dit sans l’atténuer.
 
 ### 14.5 Interface
 
@@ -494,8 +494,8 @@ La phrase « NovaGuard n’ouvre aucune connexion sortante » devient fausse dè
 
 | Lot | Contenu | Prérequis |
 | --- | --- | --- |
-| R0 | Trancher l’hébergement (§14.2) et le modèle de confiance (§14.4) | Décision du propriétaire |
-| R1 | Service `relay/` : appairage, transmission, quotas ; tests de protocole | R0 |
+| R0 | Trancher l’hébergement (§14.2) et le modèle de confiance (§14.4) | **Fait** |
+| R1 | Service `relay/` : authentification par défi, transmission, quotas ; tests de protocole | **Fait** : `relay/`, 15 tests `node:test` dans le job `check` de la CI. Reste à le déployer |
 | R2 | Client du relais dans l’application (Kotlin) : connexion sortante, origine `relay` dans `McpRules`, tests JVM | R1 |
 | R3 | Serveur d’autorisation OAuth sur le téléphone : métadonnées, DCR ou clients préenregistrés, consentement sur l’appareil, révocation | R2 |
 | R4 | Interface (§14.5), réécriture du contrat de confidentialité (§14.6) | R2, R3 |
