@@ -140,10 +140,12 @@ export function isForegroundServiceRunning(): boolean {
   }
 }
 
-export function notifyDetection(title: string, body: string, passageId: string, picture: boolean): void {
+export function notifyDetection(
+  title: string, body: string, passageId: string, picture: boolean, silent = false,
+): void {
   if (!NativeSurveillanceService) return;
   try {
-    NativeSurveillanceService.notifyDetection(title, body, passageId, picture);
+    NativeSurveillanceService.notifyDetection(title, body, passageId, picture, silent);
   } catch {
     // An alert that fails to post is not worth interrupting surveillance for.
   }

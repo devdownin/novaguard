@@ -541,6 +541,7 @@ export const en: Record<StringKey, string> = {
   'notif.person': 'Person detected',
   'notif.animal': 'Animal detected',
   'notif.detail': 'At {time} · recording',
+  'notif.repeat': 'At {time} · visit #{count} in {minutes} min · recording',
   'notif.since': '{status} · since {time}',
   'notif.resumed': '{status} · resumed at {time}',
   'notif.revokeControl': 'Cut agent control',

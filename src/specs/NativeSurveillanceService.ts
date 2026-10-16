@@ -28,7 +28,11 @@ export interface Spec extends TurboModule {
    */
   /** `passageId` makes a tap on the alert open that passage (see `passageIdFromUrl`). */
   /** `picture`: follow the alert with a still of what the camera sees, when one arrives in time. */
-  notifyDetection(title: string, body: string, passageId: string, picture: boolean): void;
+  /**
+   * `silent`: update the alert still on screen, keeping its picture, without
+   * ringing — and do nothing if it was swiped away or never posted.
+   */
+  notifyDetection(title: string, body: string, passageId: string, picture: boolean, silent: boolean): void;
   dismissDetection(): void;
 
   /**

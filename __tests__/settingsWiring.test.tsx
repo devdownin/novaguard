@@ -423,6 +423,30 @@ describe('the detection alert', () => {
     expect(alert).not.toHaveBeenCalled();
   });
 
+  it('counts a visit back inside the minute on the alert already on screen, without ringing again', async () => {
+    const handle = await mountProvider();
+    await seePerson(handle);
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(alert.mock.calls[0][4]).toBeFalsy();
+
+    // The subject leaves, the tracker lets go, someone comes back 20 s later.
+    await ReactTestRenderer.act(async () => {
+      jest.advanceTimersByTime(DEFAULT_TRACKER_OPTIONS.dropAfterMs + 100);
+      handle.state.reportDetections([], 9 / 16);
+    });
+    await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(20_000); });
+    await ReactTestRenderer.act(async () => {
+      handle.state.reportDetections([person(0.6)], 9 / 16);
+      handle.state.reportDetections([person(0.61)], 9 / 16);
+    });
+
+    expect(alert).toHaveBeenCalledTimes(2);
+    const [, body, , picture, silent] = alert.mock.calls[1];
+    expect(silent).toBe(true);
+    expect(picture).toBe(false);
+    expect(body).toContain('passage n° 2 en 10 min');
+  });
+
   it('alerts outside them', async () => {
     const handle = await mountProvider();
     const hour = new Date().getHours();

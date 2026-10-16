@@ -6,9 +6,12 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ## [Non publié]
 
+## [1.1.0] - 2026-10-16
+
 ### Ajouté
 - L’alerte de détection montre ce que voit la caméra, écran éteint compris (Réglages → Notifications → « Image dans l’alerte », activé par défaut). Le texte part aussitôt et l’image suit dès que la caméra la livre, sans faire sonner une seconde fois. Elle n’est visible qu’après déverrouillage et n’est jamais transmise à une montre.
 - Heures calmes (Réglages → Notifications) : pas d’alerte sur une plage horaire, par exemple de 22 h à 7 h ; les passages sont enregistrés et rangés dans l’Historique comme d’habitude.
+- Un passage qui revient dans la minute ne fait plus sonner l'alerte, mais la met à jour : « passage n° 3 en 10 min » remplace « enregistrement en cours » sur la notification encore affichée, avec son image. Une notification balayée ne revient pas.
 - Zones ignorées (Réglages → Détection) : jusqu’à trois rectangles — une télé, une fenêtre, un rideau — où rien ne déclenche. Le critère est celui de la zone de détection, les pieds : quelqu’un qui passe devant reste détecté.
 - `get_configuration` (MCP) indique le nombre de zones ignorées, l’image dans l’alerte et les heures calmes.
 
@@ -366,5 +369,6 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 - Section « À propos » : version, licence, lien vers le dépôt, licences tierces.
 - Persistance locale des réglages, permissions et de l'historique (`AsyncStorage`).
 
-[Non publié]: https://github.com/devdownin/novaguard/compare/v1.0.0...HEAD
+[Non publié]: https://github.com/devdownin/novaguard/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/devdownin/novaguard/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/devdownin/novaguard/releases/tag/v1.0.0
