@@ -285,6 +285,7 @@ Elle existe : **Réglages → Serveur MCP** (en tête de l’écran Réglages, c
 
 ### 7.1 Ce qu’elle fournit
 
+0. « Connecter un assistant » (§7.2 bis) : le parcours guidé, qui reprend les points ci-dessous sans demander de les connaître.
 1. Activation, port, mode (« Lecture seule strict » / « Lecture et pilotage »), HTTPS, vue en direct.
 2. Jeton de lecture et jeton de pilotage, avec durée et date d’expiration.
 3. « Client de l’agent » et « Jeton de la configuration » (§7.2), puis « Copier l’URL », « Copier le jeton », « Copier la configuration », QR code de la config JSON (jeton compris, avec l’avertissement correspondant).
@@ -530,6 +531,9 @@ Critères d’acceptation à ajouter à §10 :
 | AC-18 | Autorisation OAuth depuis claude.ai | Consentement sur le téléphone ; un refus ou une absence de réponse sous 2 minutes échoue proprement |
 | AC-19 | « Couper l’accès cloud » pendant un appel | Connexion sortante fermée, appel en cours refusé, plus aucune requête transmise (drapeau `relayCut` lu par chaque requête du relais ; vérifié par test côté JavaScript, à vérifier sur appareil côté natif) |
 | AC-20 | Interrupteur éteint | Aucune connexion sortante ouverte (vérifié sur appareil et par `playRelease.test.ts`) |
+| AC-21 | « Connecter un assistant » avec un obstacle (serveur éteint, jeton absent, pas de Wi-Fi, relais non renseigné…) | Un seul obstacle nommé, avec le bouton qui le lève quand il existe (`mcpConnect.test.ts`) |
+| AC-22 | Agent sur le même téléphone | Configuration du client sur `127.0.0.1`, aucun identifiant ; le jeton de pilotage seulement si « piloter » est choisi et valide |
+| AC-23 | Niveau d’accès | Le pilotage n’est sélectionnable que s’il est offert ; un choix périmé retombe sur la lecture ; un produit cloud ne reçoit jamais d’identifiant par ce parcours |
 
 ## 15. Sources
 
