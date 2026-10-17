@@ -62,7 +62,8 @@ l'application, et elle n'existe que tant que ce réglage est allumé.
 - Par ce chemin, l'assistant ne peut que **lire**, avec le jeton d'accès ou avec
   une autorisation que **vous confirmez sur le téléphone** (OAuth) ; le jeton de
   pilotage n'y est pas accepté. La vue en direct y a son propre interrupteur.
-  Chaque autorisation est listée dans les réglages et se révoque d'un geste ;
+  Chaque autorisation est listée dans les réglages et se révoque d'un geste ; vous
+  pouvez aussi la limiter à 24 heures au moment de l'accorder ;
   le téléphone n'en garde que des empreintes, jamais les jetons.
 - Le téléphone s'identifie auprès du relais par une clé qui ne quitte jamais
   l'Android Keystore ; l'adresse publique en est dérivée.

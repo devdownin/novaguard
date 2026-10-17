@@ -1,6 +1,6 @@
 # NovaGuard — Connexion des agents IA par MCP
 
-- Version : 2.2
+- Version : 2.3
 - Date : 16 octobre 2026
 - Statut : décisions prises (§12) ; lots 0 et 3 implémentés, relais et OAuth (R1 à R3) aussi ; parcours clients **non qualifiés sur appareil** (§10). **Accès depuis le cloud : décidé le 16 octobre 2026, par relais intégré à l’application (§14) ; le service `relay/`, le client de l’application et le serveur d’autorisation OAuth existent ; aucune instance du relais n’est déployée et rien n’a été essayé avec un vrai client cloud.**
 - Référence du serveur : [`mcp.md`](../mcp.md) (contrat des outils) et `android/app/src/main/java/com/novaguard/surveillance/McpServerModule.kt`
@@ -441,6 +441,9 @@ Le lot « clients SaaS » de la v1.0 est retiré (§12).
 | Accès depuis un cloud tiers (claude.ai, ChatGPT, Copilot Studio) | **Oui, par un relais intégré à l’application** (décision du 16 octobre 2026, qui remplace le « non » de la v2.1). L’application ouvre une connexion sortante vers un relais ; option éteinte par défaut | Fin de « aucune connexion sortante » : `PRIVACY.md`, `PRIVACY.en.md`, `docs/PLAY_STORE.md` (*Data safety*), `CLAUDE.md`, `mcp.md` §5 et `playRelease.test.ts` sont à réécrire dans la même PR que le code (§14.6) |
 | Version de protocole de référence | **`2026-07-28`**, une seule pour le code (`McpRules.LATEST_PROTOCOL`), `mcp.md` et l’interface | Les versions antérieures restent négociables |
 | Clients multi-utilisateurs | **Un jeton de lecture par téléphone**, partagé par l’instance ; jamais le jeton de pilotage | Révoquer un client, c’est régénérer le jeton et reconfigurer les autres ; des jetons multiples seraient une évolution du serveur |
+| Durée d’une autorisation OAuth | **Au choix du propriétaire à la demande** : 24 h ou sans limite (`Grant.validUntil`) | La fin choisie plafonne tous les jetons de l’assistant ; sans fin, le comportement antérieur (révocation, ou 30 jours sans usage) |
+| « Tester le serveur » | **De l’intérieur, sans socket, non compté** comme requête (`selfTest`) | Il prouve que le serveur répond ; « Connecté » reste réservé à un vrai appel |
+| Vocabulaire de l’interface | **« clé d’accès », « clé de pilotage »** | Les documents techniques et le protocole gardent « jeton » / *token* |
 | IPv6 sur le LAN | **IPv4 exigée**, documentée | Un client en IPv6 seul n’est pas pris en charge |
 
 Ces décisions se rouvrent par une révision de ce document, pas au fil d’une intégration.
