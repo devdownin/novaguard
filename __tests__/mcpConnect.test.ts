@@ -1,5 +1,5 @@
 import {
-  agentsFor, baselineOf, blocker, CLOUD_AGENTS, controlOffered, isCloudAgent, payloadFor, progress, WHERE,
+  agentsFor, baselineOf, blocker, CLOUD_AGENTS, controlOffered, grantSubtitle, isCloudAgent, payloadFor, progress, WHERE,
 } from '../src/surveillance/mcpConnect';
 import { MCP_SERVER_STOPPED, McpServerStatus } from '../src/surveillance/mcpServer';
 import { defaultSettings } from '../src/state/defaults';
@@ -102,6 +102,16 @@ describe('progress', () => {
     const pending = [{ id: 'a', clientName: 'Claude', host: 'claude.ai', code: '1234', expiresAt: 1 }];
     expect(progress(base, status({ pendingAuthorizations: pending }))).toBe('authorizing');
     expect(progress(base, status({ pendingAuthorizations: pending, requestCount: 1 }))).toBe('connected');
+  });
+});
+
+describe('grantSubtitle', () => {
+  const grant = { id: 'g', clientName: 'Claude', host: 'claude.ai', createdAt: 1, lastUsedAt: 1_760_000_000_000 };
+  it('names the end only when the owner chose one', () => {
+    expect(grantSubtitle(grant)).toContain('claude.ai');
+    expect(grantSubtitle(grant)).not.toMatch(/prend fin|ends/);
+    expect(grantSubtitle({ ...grant, validUntil: 1_760_086_400_000 })).toMatch(/prend fin|ends/);
+    expect(grantSubtitle({ ...grant, validUntil: 0 })).not.toMatch(/prend fin|ends/);
   });
 });
 

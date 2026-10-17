@@ -189,6 +189,7 @@ public final class McpOAuth {
     public final long expiresAt;
     int status = WAITING;
     String code;
+    long lifetimeMs;
 
     Pending(String id, String verification, Client client, String redirectUri, String state, String codeChallenge, long expiresAt) {
       this.id = id;
@@ -206,8 +207,10 @@ public final class McpOAuth {
     final String redirectUri;
     final String codeChallenge;
     final long expiresAt;
+    final long lifetimeMs;
 
-    CodeRecord(String clientId, String redirectUri, String codeChallenge, long expiresAt) {
+    CodeRecord(String clientId, String redirectUri, String codeChallenge, long expiresAt, long lifetimeMs) {
+      this.lifetimeMs = lifetimeMs;
       this.clientId = clientId;
       this.redirectUri = redirectUri;
       this.codeChallenge = codeChallenge;
@@ -232,6 +235,8 @@ public final class McpOAuth {
     public final String clientName;
     public final String redirectHost;
     public final long createdAt;
+    /** The instant the owner chose to end this authorization at, or 0 for none: it then lasts until revoked or unused for the refresh window. */
+    public long validUntil;
     public long lastUsedAt;
     public String accessDigest;
     public long accessExpiresAt;
@@ -251,6 +256,7 @@ public final class McpOAuth {
     Grant copy() {
       Grant g = new Grant(id, clientId, clientName, redirectHost, createdAt);
       g.lastUsedAt = lastUsedAt;
+      g.validUntil = validUntil;
       g.accessDigest = accessDigest;
       g.accessExpiresAt = accessExpiresAt;
       g.refreshDigest = refreshDigest;
@@ -371,10 +377,15 @@ public final class McpOAuth {
   }
 
   public synchronized boolean approve(String id) {
+    return approve(id, 0L);
+  }
+
+  /** `lifetimeMs` is how long the owner grants the access for; 0 or less leaves it open-ended. */
+  public synchronized boolean approve(String id, long lifetimeMs) {
     Pending p = pendings.get(id);
     if (p == null || p.status != Pending.WAITING || clock.getAsLong() >= p.expiresAt) return false;
     p.code = secret("nvc_");
-    codes.put(digest(p.code), new CodeRecord(p.client.id, p.redirectUri, p.codeChallenge, clock.getAsLong() + CODE_TTL_MS));
+    codes.put(digest(p.code), new CodeRecord(p.client.id, p.redirectUri, p.codeChallenge, clock.getAsLong() + CODE_TTL_MS, Math.max(0L, lifetimeMs)));
     p.status = Pending.APPROVED;
     return true;
   }
@@ -413,6 +424,7 @@ public final class McpOAuth {
     }
     for (Iterator<CodeRecord> it = codes.values().iterator(); it.hasNext(); ) if (now >= it.next().expiresAt) it.remove();
     for (Iterator<UsedCode> it = usedCodes.values().iterator(); it.hasNext(); ) if (now >= it.next().until) it.remove();
+    grants.removeIf(g -> g.validUntil > 0 && now >= g.validUntil);
   }
 
   // ------------------------------------------------------------------ tokens
@@ -446,7 +458,7 @@ public final class McpOAuth {
         } else if (!pkceMatches(verifier, record.codeChallenge)) {
           result = failure("invalid_grant", "PKCE verification failed");
         } else {
-          Grant grant = newGrant(client, record.redirectUri);
+          Grant grant = newGrant(client, record.redirectUri, record.lifetimeMs);
           usedCodes.put(key, new UsedCode(grant.id, clock.getAsLong() + USED_CODE_MEMORY_MS));
           result = new TokenResult(issue(grant), null, null);
           saved = true;
@@ -488,15 +500,21 @@ public final class McpOAuth {
     return result;
   }
 
-  private Grant newGrant(Client client, String redirectUri) {
+  private Grant newGrant(Client client, String redirectUri, long lifetimeMs) {
     if (grants.size() >= MAX_GRANTS) {
       Grant oldest = grants.get(0);
       for (Grant g : grants) if (g.lastUsedAt < oldest.lastUsedAt) oldest = g;
       grants.remove(oldest);
     }
     Grant grant = new Grant(secret("nvg_"), client.id, client.name, redirectHost(redirectUri), clock.getAsLong());
+    if (lifetimeMs > 0) grant.validUntil = grant.createdAt + lifetimeMs;
     grants.add(grant);
     return grant;
+  }
+
+  /** No token outlives the end the owner chose for the grant, whichever window it would otherwise get. */
+  private static long capped(Grant grant, long expiry) {
+    return grant.validUntil > 0 ? Math.min(expiry, grant.validUntil) : expiry;
   }
 
   /** New access and refresh tokens for a grant; the caller holds the lock. */
@@ -505,9 +523,9 @@ public final class McpOAuth {
     String access = secret("nva_");
     String refresh = secret("nvr_");
     grant.accessDigest = digest(access);
-    grant.accessExpiresAt = now + ACCESS_TTL_MS;
+    grant.accessExpiresAt = capped(grant, now + ACCESS_TTL_MS);
     grant.refreshDigest = digest(refresh);
-    grant.refreshExpiresAt = now + REFRESH_TTL_MS;
+    grant.refreshExpiresAt = capped(grant, now + REFRESH_TTL_MS);
     grant.lastUsedAt = now;
     return new Tokens(access, refresh, ACCESS_TTL_MS / 1000);
   }
@@ -534,7 +552,8 @@ public final class McpOAuth {
 
   public synchronized List<Grant> grants() {
     List<Grant> out = new ArrayList<>();
-    for (Grant g : grants) out.add(g.copy());
+    long now = clock.getAsLong();
+    for (Grant g : grants) if (g.validUntil == 0 || now < g.validUntil) out.add(g.copy());
     return out;
   }
 

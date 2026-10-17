@@ -21,6 +21,8 @@ const TOKEN = 'mcp_' + 'r'.repeat(32);
 let relayState: string;
 let requests: number;
 let grants: Array<Record<string, unknown>>;
+let termux: boolean;
+let selfTest: { ok: boolean; tools: number; ms: number };
 const status = () => ({
   running: true, port: 8081, ipAddress: '192.168.1.42', url: 'http://192.168.1.42:8081/mcp', hasToken: true,
   loopbackOnly: false, requestCount: requests, lastActivityAt: requests ? 1_760_000_000_000 : null,
@@ -34,6 +36,8 @@ const native = {
   startRelay: jest.fn(async () => { relayState = 'connected'; return status(); }),
   stopRelay: jest.fn(async () => { relayState = 'off'; return status(); }),
   revokeGrant: jest.fn(async (id: string) => { grants = grants.filter(g => g.id !== id); return true; }),
+  selfTest: jest.fn(async () => selfTest),
+  isTermuxInstalled: jest.fn(async () => termux),
   updateSnapshot: jest.fn(),
 };
 
@@ -65,6 +69,8 @@ beforeEach(async () => {
   relayState = 'off';
   requests = 0;
   grants = [];
+  termux = false;
+  selfTest = { ok: true, tools: 9, ms: 4 };
   await AsyncStorage.clear();
   (NativeModules as Record<string, unknown>).McpServer = native;
   (useCameraPermission as jest.Mock).mockReturnValue({ hasPermission: true, requestPermission: jest.fn() });
@@ -212,5 +218,72 @@ describe('authorized assistants', () => {
   it('shows nothing when no assistant has been authorized', async () => {
     await mount();
     expect(tree.root.findAllByProps({ testID: 'connect-grants' })).toHaveLength(0);
+  });
+});
+
+describe('shortcuts and proof', () => {
+  it('offers to resume the last assistant, and reaches its screen in one tap', async () => {
+    await AsyncStorage.setItem('@novaguard:connect:last:v1', JSON.stringify({ where: 'lan', agent: 'claude-code', access: 'read' }));
+    await mount();
+    await ReactTestRenderer.act(async () => {});
+    await press(t('connect.resume', { agent: 'Claude Code', where: t('connect.where.lan') }));
+    expect(payload()).toMatch(/^claude mcp add/);
+  });
+
+  it('remembers what it reached, and nothing before an assistant is chosen', async () => {
+    await mount();
+    await press(t('connect.where.lan'));
+    expect(await AsyncStorage.getItem('@novaguard:connect:last:v1')).toBeNull();
+    await press('Hermes Agent');
+    expect(JSON.parse((await AsyncStorage.getItem('@novaguard:connect:last:v1'))!))
+      .toEqual({ where: 'lan', agent: 'hermes', access: 'read' });
+  });
+
+  it('says so where Termux is installed', async () => {
+    termux = true;
+    await mount();
+    await ReactTestRenderer.act(async () => {});
+    expect(tree.root.find(n => n.props.accessibilityLabel?.includes(t('connect.where.phone.termux')))).toBeTruthy();
+  });
+
+  it('tests the server from the inside without calling it a connection', async () => {
+    await mount();
+    await press(t('connect.where.lan'));
+    await press('Claude Code');
+    await press(t('connect.test.run'));
+    expect(String(tree.root.findByProps({ testID: 'connect-test' }).props.children))
+      .toBe(t('connect.test.ok', { tools: 9, ms: 4 }));
+    expect(progressText()).toBe(t('connect.progress.waiting'));
+  });
+
+  it('reports a server that does not answer', async () => {
+    selfTest = { ok: false, tools: 0, ms: 0 };
+    await mount();
+    await press(t('connect.where.lan'));
+    await press('Claude Code');
+    await press(t('connect.test.run'));
+    expect(String(tree.root.findByProps({ testID: 'connect-test' }).props.children)).toBe(t('connect.test.fail'));
+  });
+
+  it('offers a QR code of what is copied for another machine, and none for the same phone', async () => {
+    await mount();
+    await press(t('connect.where.lan'));
+    await press('Claude Code');
+    expect(tree.root.findAllByProps({ accessibilityLabel: t('setup.mcpQr.label') })).toHaveLength(0);
+    await press(t('setup.mcpQr.show'));
+    expect(tree.root.findAllByProps({ accessibilityLabel: t('setup.mcpQr.label') }).length).toBeGreaterThan(0);
+    await ReactTestRenderer.act(async () => { state.closeInfo(); });
+    await ReactTestRenderer.act(async () => { await new Promise(resolve => setTimeout(resolve, 400)); });
+    await ReactTestRenderer.act(async () => { state.openInfo('connect'); });
+    await press(t('connect.where.phone'));
+    await press('Hermes Agent');
+    expect(tree.root.findAll(n => n.props.label === t('setup.mcpQr.show') && n.props.onPress)).toHaveLength(0);
+  });
+
+  it('draws who talks to whom on the cloud path, with the relay named', async () => {
+    await mount({ mcpRelayUrl: 'https://relay.test', mcpCloudEnabled: true });
+    await press(t('connect.where.cloud'));
+    await press('claude.ai');
+    expect(tree.root.find(n => n.props.accessibilityLabel === `${t('connect.diagram.a11y', { host: 'relay.test' })} ${t('connect.diagram.note')}`)).toBeTruthy();
   });
 });

@@ -4,6 +4,9 @@ import type { McpServerStatus } from './mcpServer';
 import { CLIENT_NAMES, clientFragment, fragmentToken, MCP_CLIENTS, McpClientId, TokenChoice } from './mcpClients';
 import { agentControlLive } from './mcpControl';
 import { normalizeRelayUrl } from './relayAddress';
+import { formatWhen } from '../utils/date';
+import { t } from '../i18n';
+import type { McpGrant } from './mcpServer';
 
 /**
  * The decisions behind "Connecter un assistant".
@@ -151,3 +154,11 @@ export function progress(baseline: Baseline, status: McpServerStatus): Progress 
 
 /** Whether the access step may offer control: the same test the server applies, not a second opinion. */
 export const controlOffered = (settings: Settings, now: number): boolean => agentControlLive(settings, now);
+
+/** The line under an authorized assistant: where it comes from, when it last called, and when the owner's grant ends. */
+export function grantSubtitle(grant: McpGrant): string {
+  const base = { host: grant.host, time: formatWhen(grant.lastUsedAt) };
+  return grant.validUntil
+    ? t('setup.mcpGrants.until', { ...base, until: formatWhen(grant.validUntil) })
+    : t('setup.mcpGrants.lastUsed', base);
+}

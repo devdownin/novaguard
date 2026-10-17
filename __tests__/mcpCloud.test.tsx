@@ -277,8 +277,19 @@ describe('an assistant waiting for the owner', () => {
     expect(native.approveAuthorization).not.toHaveBeenCalled();
     const buttons = alert.mock.calls[0][2]!;
     await ReactTestRenderer.act(async () => { buttons.find(b => b.text === t('mcpAuth.allow'))!.onPress!(); });
-    expect(native.approveAuthorization).toHaveBeenCalledWith('nvp_abc');
+    expect(native.approveAuthorization).toHaveBeenCalledWith('nvp_abc', 0);
     expect(native.denyAuthorization).not.toHaveBeenCalled();
+  });
+
+  it('can be allowed for a day, which the phone is told as a duration', async () => {
+    const alert = alertSpy();
+    await mount({ mcpCloudEnabled: true });
+    pending = [waiting];
+    await poll();
+    const buttons = alert.mock.calls[0][2]!;
+    expect(buttons.map(b => b.text)).toEqual([t('mcpAuth.deny'), t('mcpAuth.allowDay'), t('mcpAuth.allow')]);
+    await ReactTestRenderer.act(async () => { buttons.find(b => b.text === t('mcpAuth.allowDay'))!.onPress!(); });
+    expect(native.approveAuthorization).toHaveBeenCalledWith('nvp_abc', 24 * 3_600_000);
   });
 
   it('is refused by Refuser', async () => {

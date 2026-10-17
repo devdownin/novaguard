@@ -17,6 +17,7 @@ import { CollapsibleSection } from '../components/CollapsibleSection';
 import { SettingRow, StaticValue, ValueButton } from '../components/SetupRows';
 import { Switch } from '../components/Switch';
 import { SegmentedControl } from '../components/SegmentedControl';
+import { grantSubtitle } from '../surveillance/mcpConnect';
 import { askCloudConsent } from '../components/cloudConsent';
 import { PrimaryOutlineButton, SecondaryOutlineButton } from '../components/OutlineButton';
 import { getMcpCaCertificate } from '../surveillance/mcpServer';
@@ -731,7 +732,7 @@ export function SetupScreen() {
                 <SettingRow
                   key={grant.id}
                   label={grant.clientName}
-                  subtitle={t('setup.mcpGrants.lastUsed', { host: grant.host, time: formatWhen(grant.lastUsedAt) })}
+                  subtitle={grantSubtitle(grant)}
                 >
                   <ValueButton
                     label={t('setup.mcpGrants.revoke')}

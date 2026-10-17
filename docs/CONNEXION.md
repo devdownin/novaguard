@@ -317,6 +317,16 @@ Deux questions (où tourne l’assistant : sur le téléphone, sur le Wi-Fi, dan
 
 Deux ajouts à ce parcours : un **niveau d’accès** (« Regarder » par défaut, « Regarder et piloter » seulement tant que le pilotage est allumé et son jeton valide — `controlOffered`, même test que le serveur ; un choix devenu périmé retombe sur la lecture au lieu de copier un jeton mort) et la liste des **assistants autorisés**, avec révocation, sur le premier écran. Un assistant du cloud ne reçoit jamais d’identifiant d’ici et ne pilote pas, quoi qu’il demande.
 
+**Raccourcis et preuves** (version suivante) :
+
+- *Reprendre* : le dernier assistant connecté (où, lequel, niveau) est mémorisé sous sa propre clé (`@novaguard:connect:last:v1`, `connectMemory.ts`), pas dans les réglages ; une valeur que l’écran ne saurait plus proposer est ignorée.
+- *Termux* : `McpServerModule.isTermuxInstalled` (un `<queries><package com.termux/>` au manifeste, sans permission) ; si Termux est là, « Sur ce téléphone » le dit.
+- *Tester le serveur* : `McpServerModule.selfTest` interroge le serveur de l’intérieur (`tools/list`, sans socket). Il prouve que le serveur répond, pas qu’une autre machine l’atteint, et n’est pas compté dans `requestCount` : seule une vraie requête d’assistant fait passer l’écran à « Connecté ».
+- *QR code* de ce qui est copié, pour une autre machine (Wi-Fi, cloud) ; avec la même mise en garde que Réglages quand il contient la clé.
+- *Schéma du relais* sur le chemin cloud : assistant → relais → téléphone, avec le relais nommé et ce qu’il voit.
+- *Durée de l’autorisation OAuth* : à la demande, « Autoriser 24 h » ou « Autoriser, sans limite ». La fin choisie (`Grant.validUntil`) plafonne les jetons d’accès et de renouvellement, retire l’assistant de la liste à l’échéance et survit à un redémarrage ; sans fin choisie, le comportement est inchangé (révocation, ou 30 jours sans usage).
+- *Vocabulaire* : « clé d’accès » et « clé de pilotage » dans l’interface (français et anglais) ; les documents techniques gardent « jeton » / *token*.
+
 ### 7.3 États affichables
 
 NovaGuard ne voit que ce qui arrive sur son socket. Ces états se déduisent de ses propres compteurs, jamais de l’état interne d’un client :
@@ -534,6 +544,7 @@ Critères d’acceptation à ajouter à §10 :
 | AC-21 | « Connecter un assistant » avec un obstacle (serveur éteint, jeton absent, pas de Wi-Fi, relais non renseigné…) | Un seul obstacle nommé, avec le bouton qui le lève quand il existe (`mcpConnect.test.ts`) |
 | AC-22 | Agent sur le même téléphone | Configuration du client sur `127.0.0.1`, aucun identifiant ; le jeton de pilotage seulement si « piloter » est choisi et valide |
 | AC-23 | Niveau d’accès | Le pilotage n’est sélectionnable que s’il est offert ; un choix périmé retombe sur la lecture ; un produit cloud ne reçoit jamais d’identifiant par ce parcours |
+| AC-24 | Autorisation « 24 h » | Le droit prend fin à l’échéance : jeton d’accès refusé, renouvellement refusé, assistant retiré de la liste (`McpOAuthTest`) |
 
 ## 15. Sources
 

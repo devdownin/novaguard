@@ -1,6 +1,7 @@
 package com.novaguard.surveillance
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.BatteryManager
@@ -227,14 +228,15 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
         putString("clientName", g.clientName)
         putString("host", g.redirectHost)
         putDouble("createdAt", g.createdAt.toDouble())
+        putDouble("validUntil", g.validUntil.toDouble())
         putDouble("lastUsedAt", g.lastUsedAt.toDouble())
       })
     }
   }
 
   @ReactMethod
-  fun approveAuthorization(id: String, promise: Promise) {
-    val done = oauthServer.oauth.approve(id)
+  fun approveAuthorization(id: String, lifetimeMs: Double, promise: Promise) {
+    val done = oauthServer.oauth.approve(id, lifetimeMs.toLong())
     McpAuthNotifier.dismiss(reactContext)
     promise.resolve(done)
   }
@@ -244,6 +246,41 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     val done = oauthServer.oauth.deny(id)
     McpAuthNotifier.dismiss(reactContext)
     promise.resolve(done)
+  }
+
+  /**
+   * Asks the server, from the inside, for what an assistant asks first. This proves the server answers and
+   * how many tools it lists; it cannot prove another machine can reach the phone, and it is not counted as a
+   * request, so it never passes for an assistant's first call.
+   */
+  @ReactMethod
+  fun selfTest(promise: Promise) {
+    val result = Arguments.createMap()
+    val started = System.nanoTime()
+    val tools = if (!isServerRunning) 0 else try {
+      val request = JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", "tools/list")
+      dispatch(request, McpRules.PRINCIPAL_READ)?.optJSONObject("result")?.optJSONArray("tools")?.length() ?: 0
+    } catch (e: Exception) {
+      Log.w(TAG, "Self-test failed: ${e.message}")
+      0
+    }
+    result.putBoolean("ok", tools > 0)
+    result.putInt("tools", tools)
+    result.putDouble("ms", (System.nanoTime() - started) / 1_000_000.0)
+    promise.resolve(result)
+  }
+
+  /** Whether Termux, where most agents on the phone itself run, is installed (see `<queries>` in the manifest). */
+  @ReactMethod
+  fun isTermuxInstalled(promise: Promise) {
+    promise.resolve(
+      try {
+        reactContext.packageManager.getPackageInfo("com.termux", 0)
+        true
+      } catch (e: PackageManager.NameNotFoundException) {
+        false
+      },
+    )
   }
 
   /** Ends one assistant's access at once: its tokens stop working with the next request. */

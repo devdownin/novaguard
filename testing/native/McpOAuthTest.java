@@ -164,6 +164,29 @@ public final class McpOAuthTest {
     check(!oauth.revoke(newest), "once");
     check(changes.get() == before + 1, "and is persisted");
 
+    // ---- a lifetime chosen by the owner
+    long day = 24L * 3_600_000L;
+    pending = oauth.begin(client, CLAUDE, "t", challenge);
+    check(oauth.approve(pending.id, day), "approved for a day");
+    issued = oauth.exchangeCode(param(oauth.poll(pending.id).redirect, "code"), VERIFIER, client.id, CLAUDE);
+    McpOAuth.Grant timed = null;
+    for (McpOAuth.Grant g : oauth.grants()) if (g.validUntil > 0) timed = g;
+    check(timed != null && timed.validUntil == timed.createdAt + day, "the grant carries its end");
+    check(timed.refreshExpiresAt <= timed.validUntil, "no refresh token outlives it");
+    now.addAndGet(day - 1_000L);
+    McpOAuth.TokenResult lastHour = oauth.refresh(issued.tokens.refreshToken, client.id);
+    check(lastHour.tokens != null && oauth.authenticate(lastHour.tokens.accessToken), "usable until the end");
+    now.addAndGet(2_000L);
+    check(!oauth.authenticate(lastHour.tokens.accessToken), "dead at the end, though the access window was longer");
+    check("invalid_grant".equals(oauth.refresh(lastHour.tokens.refreshToken, client.id).error), "and cannot be refreshed");
+    for (McpOAuth.Grant g : oauth.grants()) check(g.validUntil == 0 || g.validUntil > now.get(), "an ended grant is no longer listed");
+    pending = oauth.begin(client, CLAUDE, "o", challenge);
+    check(oauth.approve(pending.id), "the old call still means no end");
+    issued = oauth.exchangeCode(param(oauth.poll(pending.id).redirect, "code"), VERIFIER, client.id, CLAUDE);
+    boolean open = false;
+    for (McpOAuth.Grant g : oauth.grants()) if (g.validUntil == 0 && g.createdAt == now.get()) open = true;
+    check(open, "open-ended when no lifetime is given");
+
     // ---- limits
     pending = oauth.begin(client, CLAUDE, "1", challenge);
     check(pending != null && oauth.begin(client, CLAUDE, "2", challenge) != null && oauth.begin(client, CLAUDE, "3", challenge) != null, "three prompts may wait");
