@@ -8,6 +8,7 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ### Ajouté
 - L’alerte de détection montre ce que voit la caméra, écran éteint compris (Réglages → Notifications → « Image dans l’alerte », activé par défaut). Le texte part aussitôt et l’image suit dès que la caméra la livre, sans faire sonner une seconde fois. Elle n’est visible qu’après déverrouillage et n’est jamais transmise à une montre.
+- « Connecter un assistant → Sur ce téléphone » précise que le programme doit tourner sur le téléphone : un assistant exécuté chez son éditeur (claude.ai, Claude Code sur le web) passe par « Dans le cloud ».
 - « Connecter un assistant » : reprise du dernier assistant en un appui, détection de Termux, « Tester le serveur » (réponse du serveur, sans compter comme connexion), QR code de la configuration, schéma du relais sur le chemin cloud.
 - Autorisation d’un assistant du cloud : « Autoriser 24 h » met fin à l’accès tout seul ; « Autoriser, sans limite » garde le comportement précédent.
 - Heures calmes (Réglages → Notifications) : pas d’alerte sur une plage horaire, par exemple de 22 h à 7 h ; les passages sont enregistrés et rangés dans l’Historique comme d’habitude.

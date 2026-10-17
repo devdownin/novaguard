@@ -97,6 +97,8 @@ Un client qui tourne sur le même appareil (Termux, par exemple) atteint `http:/
 
 Dans « Connecter un assistant », « Sur ce téléphone » propose les mêmes clients que le Wi-Fi (Claude Code, OpenClaw, Hermes…, qui tournent dans Termux), avec leur configuration sur l’adresse de boucle locale et sans aucun identifiant : le serveur allumé suffit, ni Wi-Fi ni jeton. Le niveau « piloter » ajoute le jeton de pilotage comme ailleurs.
 
+**Où tourne le client décide de l’adresse.** Une connexion MCP est ouverte par le programme qui l’utilise : Claude Code lancé dans Termux appelle `127.0.0.1` depuis le téléphone (seul le modèle est appelé chez Anthropic, pas le serveur MCP), alors que Claude Code sur le web, l’application Claude ou claude.ai s’exécutent chez l’éditeur et ne peuvent atteindre ni `127.0.0.1` ni une adresse du réseau local : ils passent par « Dans le cloud » (§14). L’écran « Sur ce téléphone » le dit.
+
 ## 4. Authentification et droits
 
 ### 4.1 Jetons
