@@ -112,6 +112,30 @@ tool() {  # tool <jeton> <outil sans préfixe> [arguments JSON]
 - [ ] Claude Desktop lancé avec `NODE_EXTRA_CA_CERTS=novaguard-ca.pem` et l'URL `https://…` : les outils se chargent.
 - [ ] Désinstaller et réinstaller l'application : nouvelle autorité, nouvelle empreinte ; l'ancien PEM est refusé.
 
+## Serveur MCP : accès cloud (relais et OAuth)
+
+À dérouler avec une instance du relais déployée.
+
+- [ ] Accès cloud allumé : l'état passe à « Connecté au relais » et l'adresse
+      publique se copie ; éteint, la connexion se ferme aussitôt.
+- [ ] Changer de réseau (Wi-Fi → données mobiles) : le téléphone se reconnecte
+      seul, l'adresse publique reste la même.
+- [ ] Avec un VPN actif, l'accès cloud et l'URL du réseau local restent justes.
+- [ ] Ajouter le connecteur dans claude.ai avec l'adresse publique : la page de
+      confirmation s'ouvre, affiche un code, et le téléphone demande la même
+      chose avec le même code. Après « Autoriser », le connecteur se charge et
+      les outils de lecture répondent ; les outils de pilotage sont absents.
+- [ ] Écran éteint, application cachée : la demande d'autorisation fait sonner
+      une notification, qui ouvre l'application sur la demande ; sans réponse,
+      elle disparaît au bout de 2 minutes et la page web le dit.
+- [ ] « Refuser » : le client reçoit `access_denied`. Une demande lancée puis
+      abandonnée expire sans rien émettre.
+- [ ] Réglages liste l'assistant ; « Révoquer » : la requête suivante du client
+      est refusée (401) et il redemande une autorisation.
+- [ ] Redémarrer l'application : l'assistant reste autorisé, sans nouvelle
+      confirmation. Effacer les données de l'application : il ne l'est plus.
+- [ ] Même chose avec ChatGPT et Copilot Studio.
+
 ## Serveur MCP : découverte et clients
 
 - [ ] `dns-sd -B _novaguard-mcp._tcp` (macOS) ou `avahi-browse -r _novaguard-mcp._tcp`

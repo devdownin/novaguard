@@ -59,9 +59,11 @@ l'application, et elle n'existe que tant que ce réglage est allumé.
   au téléphone, pas de bout en bout.
 - Il ne conserve rien : ses journaux ne contiennent que l'heure, l'identifiant de
   l'appareil, le statut et la taille d'une requête, jamais son contenu.
-- Par ce chemin, l'assistant ne peut que **lire**, avec le jeton d'accès ; le
-  jeton de pilotage n'y est pas accepté. La vue en direct y a son propre
-  interrupteur.
+- Par ce chemin, l'assistant ne peut que **lire**, avec le jeton d'accès ou avec
+  une autorisation que **vous confirmez sur le téléphone** (OAuth) ; le jeton de
+  pilotage n'y est pas accepté. La vue en direct y a son propre interrupteur.
+  Chaque autorisation est listée dans les réglages et se révoque d'un geste ;
+  le téléphone n'en garde que des empreintes, jamais les jetons.
 - Le téléphone s'identifie auprès du relais par une clé qui ne quitte jamais
   l'Android Keystore ; l'adresse publique en est dérivée.
 - Vous coupez l'accès en éteignant le réglage : la connexion se ferme aussitôt.

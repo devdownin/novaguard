@@ -46,10 +46,11 @@ import {
 } from '../surveillance/localStreamServer';
 import {
   McpServerStatus, MCP_SERVER_STOPPED, generateMcpToken as mintMcpToken,
-  buildMcpDiagnostics, getMcpServerStatus, onMcpCommand, onMcpControlRevoked, pushMcpSnapshot, resolveMcpCommand, startMcpRelay, startMcpServer, stopMcpRelay, stopMcpServer,
+  answerMcpAuthorization, buildMcpDiagnostics, getMcpServerStatus, onMcpCommand, onMcpControlRevoked, pushMcpSnapshot, resolveMcpCommand, revokeMcpGrant as revokeNativeMcpGrant, startMcpRelay, startMcpServer, stopMcpRelay, stopMcpServer,
 } from '../surveillance/mcpServer';
 import { executeMcpCommand } from '../surveillance/mcpCommands';
 import { RELAY_URL } from '../constants/app';
+import { McpAuthPrompt } from '../components/McpAuthPrompt';
 import { AGENT_LOG_KEY, AgentAction, appendAgentAction, parseAgentLog } from '../surveillance/agentLog';
 import { agentControlLive, controlExpiry, nextLifetime } from '../surveillance/mcpControl';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -250,6 +251,7 @@ interface AppStateValue {
   toggleMcpTls: () => void;
   toggleMcpCloud: () => void;
   toggleMcpCloudLiveFrame: () => void;
+  revokeMcpGrant: (id: string) => void;
   /** Control calls made by agents, newest first (`agentLog.ts`). */
   agentLog: AgentAction[];
   /** Live state of the native MCP server, or MCP_SERVER_STOPPED when it is off. */
@@ -1887,6 +1889,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [cloudWanted, cloudLiveAllowed, relayDown, relayUp]);
 
+  const answerAuthorization = useCallback((id: string, allow: boolean) => {
+    answerMcpAuthorization(id, allow)
+      .then(() => getMcpServerStatus().then(setMcpStatus))
+      .catch(() => {});
+  }, []);
+
+  const revokeMcpGrant = useCallback((id: string) => {
+    revokeNativeMcpGrant(id)
+      .then(() => getMcpServerStatus().then(setMcpStatus))
+      .catch(() => {});
+  }, []);
+
   // The live-view switch changes what the relay may carry; the connection is re-made to say so.
   const lastLiveAllowed = useRef(cloudLiveAllowed);
   useEffect(() => {
@@ -2184,7 +2198,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone, zoneEditKind, beginExclusionEdit, saveExclusion, clearExclusions,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleNotifPicture, toggleQuietHours, setQuietStart, setQuietEnd, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, toggleMcpCloud, toggleMcpCloudLiveFrame, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleNotifPicture, toggleQuietHours, setQuietStart, setQuietEnd, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, toggleMcpCloud, toggleMcpCloudLiveFrame, revokeMcpGrant, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo,
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
@@ -2196,12 +2210,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone, zoneEditKind, beginExclusionEdit, saveExclusion, clearExclusions,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleNotifPicture, toggleQuietHours, setQuietStart, setQuietEnd, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, toggleMcpCloud, toggleMcpCloudLiveFrame, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleNotifPicture, toggleQuietHours, setQuietStart, setQuietEnd, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, toggleMcpCloud, toggleMcpCloudLiveFrame, revokeMcpGrant, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo, onb, perms, onbNext, onbFinish, grantPermission,
   ]);
 
   return (
     <AppStateCtx.Provider value={value}>
+      <McpAuthPrompt enabled={settings.mcpCloudEnabled} pending={mcpStatus.pendingAuthorizations} onAnswer={answerAuthorization} />
       <ViewfinderProvider sink={viewfinder}>{children}</ViewfinderProvider>
     </AppStateCtx.Provider>
   );

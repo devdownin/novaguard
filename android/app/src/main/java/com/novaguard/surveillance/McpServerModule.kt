@@ -87,6 +87,10 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   @Volatile private var tls: Boolean = false
   /** The cloud relay connection while the owner has it on; null otherwise. See `McpRelayClient`. */
   @Volatile private var relay: McpRelayClient? = null
+  /** Authorization for cloud clients: registrations, pending requests, grants. Lives while the module does. */
+  private val oauthServer: McpOAuthServer by lazy {
+    McpOAuthServer(reactContext) { clientName -> McpAuthNotifier.post(reactContext, clientName) }
+  }
   /** Whether the live view may cross the relay: its own owner switch, on top of the live-view one. */
   @Volatile private var relayLiveAllowed: Boolean = false
   /** The DNS-SD registration while the socket is on the LAN, so a client finds a moved address. */
@@ -193,9 +197,63 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     relay = null
   }
 
+  /** The requests an assistant has made and the owner has yet to answer, with the code to compare. */
+  private fun pendingAuthorizations() = Arguments.createArray().apply {
+    if (relay == null) return@apply
+    for (p in oauthServer.oauth.waiting()) {
+      pushMap(Arguments.createMap().apply {
+        putString("id", p.id)
+        putString("clientName", p.client.name)
+        putString("host", McpOAuth.redirectHost(p.redirectUri))
+        putString("code", p.verification)
+        putDouble("expiresAt", p.expiresAt.toDouble())
+      })
+    }
+  }
+
+  private fun grantList() = Arguments.createArray().apply {
+    for (g in oauthServer.oauth.grants()) {
+      pushMap(Arguments.createMap().apply {
+        putString("id", g.id)
+        putString("clientName", g.clientName)
+        putString("host", g.redirectHost)
+        putDouble("createdAt", g.createdAt.toDouble())
+        putDouble("lastUsedAt", g.lastUsedAt.toDouble())
+      })
+    }
+  }
+
+  @ReactMethod
+  fun approveAuthorization(id: String, promise: Promise) {
+    val done = oauthServer.oauth.approve(id)
+    McpAuthNotifier.dismiss(reactContext)
+    promise.resolve(done)
+  }
+
+  @ReactMethod
+  fun denyAuthorization(id: String, promise: Promise) {
+    val done = oauthServer.oauth.deny(id)
+    McpAuthNotifier.dismiss(reactContext)
+    promise.resolve(done)
+  }
+
+  /** Ends one assistant's access at once: its tokens stop working with the next request. */
+  @ReactMethod
+  fun revokeGrant(id: String, promise: Promise) {
+    promise.resolve(oauthServer.oauth.revoke(id))
+  }
+
   /** A request the relay forwarded, through the same checks and dispatch as a socket's. */
   private fun handleRelay(req: RelayRequest): RelayReply {
     val json = mapOf("content-type" to "application/json")
+    val connection = relay
+    val issuer = connection?.issuer
+    if (issuer != null && McpRelayRules.oauthPath(req.path)) {
+      // The authorization server shares the relay's request budget, and answers without a token: it is
+      // what a client with none calls to get one.
+      if (!allowRequest(RELAY_PEER)) return RelayReply(429, json + mapOf("retry-after" to "60"), jsonError("Too Many Requests").toByteArray())
+      return oauthServer.handle(req, issuer) ?: RelayReply(404, json, jsonError("Not Found").toByteArray())
+    }
     if (!McpRelayRules.pathAllowed(req.path)) return RelayReply(404, json, jsonError("Not Found").toByteArray())
     if (req.body.size > McpRelayRules.MAX_REQUEST_BODY_BYTES) {
       return RelayReply(413, json, jsonError("Request Entity Too Large").toByteArray())
@@ -206,7 +264,14 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     )
     val reply = preflight(head, RELAY_PEER, viaRelay = true)
       ?: execute(head, String(req.body, Charsets.UTF_8), RELAY_PEER, viaRelay = true)
-    return RelayReply(reply.status, json + reply.headers.mapKeys { it.key.lowercase() }, reply.body.toByteArray(Charsets.UTF_8))
+    val headers = json + reply.headers.mapKeys { it.key.lowercase() }
+    // A client refused here learns where to obtain a token: the metadata document, not a guess.
+    val challenge = connection?.challenge
+    return if (reply.status == 401 && challenge != null) {
+      RelayReply(reply.status, headers + mapOf("www-authenticate" to challenge), reply.body.toByteArray(Charsets.UTF_8))
+    } else {
+      RelayReply(reply.status, headers, reply.body.toByteArray(Charsets.UTF_8))
+    }
   }
 
   @ReactMethod
@@ -376,6 +441,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     putBoolean("loopbackOnly", boundToLoopbackOnly)
     putString("relayState", relay?.state ?: McpRelayClient.STATE_OFF)
     putString("relayUrl", relay?.publicUrl)
+    putArray("pendingAuthorizations", pendingAuthorizations())
+    putArray("grants", grantList())
     putDouble("requestCount", requestCount.get().toDouble())
     val last = lastActivityAt.get()
     if (last > 0) putDouble("lastActivityAt", last.toDouble()) else putNull("lastActivityAt")
@@ -600,7 +667,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     fun matches(expected: ByteArray?) = expected != null && digest != null && MessageDigest.isEqual(expected, digest)
     // The cloud never holds the control token, and is never "on the phone": the
     // relay's frames are delivered inside this process, so loopback would be a lie.
-    if (viaRelay) return McpRules.relayPrincipal(matches(tokenDigest)) to false
+    if (viaRelay) return McpRules.relayPrincipal(matches(tokenDigest) || oauthServer.oauth.authenticate(presented)) to false
     val control = matches(controlDigest)
     val live = McpRules.controlLive(controlExpiresAt, System.currentTimeMillis())
     return McpRules.principal(control, live, matches(tokenDigest), isLoopback(remote)) to (control && !live)

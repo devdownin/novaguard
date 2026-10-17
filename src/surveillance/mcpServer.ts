@@ -27,6 +27,26 @@ export interface McpServerStatus {
   relayState?: RelayState;
   /** Where cloud clients reach this phone, once the relay has accepted it. */
   relayUrl?: string | null;
+  /** Assistants waiting for the owner's answer; each carries the code to compare with the web page. */
+  pendingAuthorizations?: McpPendingAuthorization[];
+  /** The assistants the owner has authorized, most recent use last known. Never a token. */
+  grants?: McpGrant[];
+}
+
+export interface McpPendingAuthorization {
+  id: string;
+  clientName: string;
+  host: string;
+  code: string;
+  expiresAt: number;
+}
+
+export interface McpGrant {
+  id: string;
+  clientName: string;
+  host: string;
+  createdAt: number;
+  lastUsedAt: number;
 }
 
 export type RelayState = 'off' | 'connecting' | 'connected' | 'offline' | 'refused';
@@ -257,6 +277,18 @@ export async function startMcpRelay(address: string, liveAllowed: boolean): Prom
   const module = nativeModule();
   if (!module?.startRelay) return MCP_SERVER_STOPPED;
   return module.startRelay(address, liveAllowed);
+}
+
+/** The owner's answer to an assistant waiting at the relay. False when it had already expired. */
+export async function answerMcpAuthorization(id: string, allow: boolean): Promise<boolean> {
+  const module = nativeModule();
+  const method = allow ? module?.approveAuthorization : module?.denyAuthorization;
+  return method ? method.call(module, id) : false;
+}
+
+export async function revokeMcpGrant(id: string): Promise<boolean> {
+  const module = nativeModule();
+  return module?.revokeGrant ? module.revokeGrant(id) : false;
 }
 
 export async function stopMcpRelay(): Promise<McpServerStatus> {

@@ -45,6 +45,12 @@ class McpRelayClient(
     private set
   @Volatile var publicUrl: String? = null
     private set
+  /** The authorization server's identifier, the relay's address plus the phone's; null until the relay has accepted this phone. */
+  @Volatile var issuer: String? = null
+    private set
+  /** What a 401 points a client at (RFC 9728). */
+  @Volatile var challenge: String? = null
+    private set
 
   @Volatile private var stopped = false
   @Volatile private var socket: WebSocket? = null
@@ -63,7 +69,7 @@ class McpRelayClient(
 
   fun stop() {
     stopped = true
-    publicUrl = null
+    forget()
     try { socket?.close(1000, "off") } catch (_: Exception) {}
     socket = null
     timer.shutdownNow()
@@ -71,6 +77,12 @@ class McpRelayClient(
     http.dispatcher.executorService.shutdown()
     http.connectionPool.evictAll()
     set(STATE_OFF)
+  }
+
+  private fun forget() {
+    publicUrl = null
+    issuer = null
+    challenge = null
   }
 
   private fun set(next: String) {
@@ -85,7 +97,7 @@ class McpRelayClient(
   }
 
   private fun retryOrStay(code: Int) {
-    publicUrl = null
+    forget()
     if (stopped) return
     if (!McpRelayRules.shouldReconnect(code)) return set(STATE_REFUSED)
     set(STATE_OFFLINE)
@@ -100,7 +112,10 @@ class McpRelayClient(
         "challenge" -> hello(webSocket, frame.optString("nonce"))
         "ready" -> {
           failures = 0
-          publicUrl = McpRelayRules.publicUrl(base, frame.optString("id"))
+          val id = frame.optString("id")
+          publicUrl = McpRelayRules.publicUrl(base, id)
+          issuer = McpRelayRules.issuer(base, id)
+          challenge = McpRelayRules.challenge(base, id)
           set(STATE_CONNECTED)
         }
         "req" -> serve(webSocket, frame)
