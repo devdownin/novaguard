@@ -11,7 +11,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 - Heures calmes (Réglages → Notifications) : pas d’alerte sur une plage horaire, par exemple de 22 h à 7 h ; les passages sont enregistrés et rangés dans l’Historique comme d’habitude.
 - « Connecter un assistant » (Réglages → Serveur MCP) : on indique où tourne l’assistant (téléphone, Wi-Fi, cloud) puis lequel, l’écran nomme ce qui empêche encore la connexion avec le bouton qui le lève, fournit l’adresse ou la configuration à copier et confirme dès que le téléphone a reçu une requête. L’adresse du relais devient modifiable depuis cet écran.
 - « Connecter un assistant » propose le niveau d’accès (regarder, ou regarder et piloter tant que le pilotage est actif) et liste les assistants déjà autorisés, avec leur dernière utilisation et un bouton « Révoquer ».
-- Zones ignorées (Réglages → Détection) : jusqu’à trois rectangles — une télé, une fenêtre, un rideau — où rien ne déclenche. Le critère est celui de la zone de détection, les pieds : quelqu’un qui passe devant reste détecté.
+- « Connecter un assistant → Sur ce téléphone » : un agent installé sur le même appareil (Termux…) reçoit sa configuration complète sur l’adresse locale, sans clé ni Wi-Fi.
+ → Détection) : jusqu’à trois rectangles — une télé, une fenêtre, un rideau — où rien ne déclenche. Le critère est celui de la zone de détection, les pieds : quelqu’un qui passe devant reste détecté.
 - `get_configuration` (MCP) indique le nombre de zones ignorées, l’image dans l’alerte et les heures calmes.
 
 ### Modifié

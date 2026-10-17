@@ -216,6 +216,7 @@ function ConnectStep(p: ConnectProps) {
         </View>
       ) : null}
 
+      {p.where === 'phone' ? <Text style={styles.hint}>{t('connect.phone.hint')}</Text> : null}
       {cloud ? (
         <Text style={styles.hint}>{t('connect.access.cloud')}</Text>
       ) : (

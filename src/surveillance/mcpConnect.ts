@@ -36,8 +36,8 @@ export function agentName(agent: AgentId): string | null {
 /** The assistants offered once the owner has said where theirs runs. */
 export function agentsFor(where: Where): AgentId[] {
   if (where === 'cloud') return [...CLOUD_AGENTS];
-  // An application on the phone has no configuration format of its own to offer: the address is the answer.
-  if (where === 'phone') return ['json'];
+  // An agent on the phone (Termux, typically) takes the same configuration as one on the Wi-Fi, minus the
+  // credential: loopback reads without a token, so nothing has to be copied across but the address.
   return [...MCP_CLIENTS];
 }
 

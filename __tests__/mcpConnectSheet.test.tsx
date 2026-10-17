@@ -83,7 +83,8 @@ it('starts from the question and leads a LAN client to its own configuration', a
 it('hands a local application the loopback address without the token', async () => {
   await mount();
   await press(t('connect.where.phone'));
-  await press(t('connect.agent.json'));
+  await press('Hermes Agent');
+  expect(texts()).toContain(t('connect.phone.hint'));
   expect(payload()).toContain('http://127.0.0.1:8081/mcp');
   expect(payload()).not.toContain(TOKEN);
 });

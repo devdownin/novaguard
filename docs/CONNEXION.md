@@ -95,6 +95,8 @@ Contrôles qui décident si un client se connecte :
 
 Un client qui tourne sur le même appareil (Termux, par exemple) atteint `http://127.0.0.1:8081/mcp` sans jeton en lecture. Le pilotage exige toujours le jeton de pilotage, y compris en boucle locale : une autre application du téléphone ne doit pas pouvoir éteindre la caméra.
 
+Dans « Connecter un assistant », « Sur ce téléphone » propose les mêmes clients que le Wi-Fi (Claude Code, OpenClaw, Hermes…, qui tournent dans Termux), avec leur configuration sur l’adresse de boucle locale et sans aucun identifiant : le serveur allumé suffit, ni Wi-Fi ni jeton. Le niveau « piloter » ajoute le jeton de pilotage comme ailleurs.
+
 ## 4. Authentification et droits
 
 ### 4.1 Jetons
