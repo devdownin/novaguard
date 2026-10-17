@@ -9,6 +9,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 ### Ajouté
 - L’alerte de détection montre ce que voit la caméra, écran éteint compris (Réglages → Notifications → « Image dans l’alerte », activé par défaut). Le texte part aussitôt et l’image suit dès que la caméra la livre, sans faire sonner une seconde fois. Elle n’est visible qu’après déverrouillage et n’est jamais transmise à une montre.
 - Heures calmes (Réglages → Notifications) : pas d’alerte sur une plage horaire, par exemple de 22 h à 7 h ; les passages sont enregistrés et rangés dans l’Historique comme d’habitude.
+- « Connecter un assistant » (Réglages → Serveur MCP) : on indique où tourne l’assistant (téléphone, Wi-Fi, cloud) puis lequel, l’écran nomme ce qui empêche encore la connexion avec le bouton qui le lève, fournit l’adresse ou la configuration à copier et confirme dès que le téléphone a reçu une requête. L’adresse du relais devient modifiable depuis cet écran.
+- « Connecter un assistant » propose le niveau d’accès (regarder, ou regarder et piloter tant que le pilotage est actif) et liste les assistants déjà autorisés, avec leur dernière utilisation et un bouton « Révoquer ».
 - Zones ignorées (Réglages → Détection) : jusqu’à trois rectangles — une télé, une fenêtre, un rideau — où rien ne déclenche. Le critère est celui de la zone de détection, les pieds : quelqu’un qui passe devant reste détecté.
 - `get_configuration` (MCP) indique le nombre de zones ignorées, l’image dans l’alerte et les heures calmes.
 

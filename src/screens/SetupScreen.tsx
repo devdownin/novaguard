@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Slider from '@react-native-community/slider';
 import { useCameraDevice } from 'react-native-vision-camera';
@@ -11,11 +11,13 @@ import { presenceModeFor, usesBufferedCapture } from '../recording/presenceMode'
 import { formatBytes } from '../recording/library';
 import { describeClipGap, formatClipGap } from '../recording/clipGap';
 import { describeAutoTune, formatAutoTune } from '../camera/autoTune';
-import { APP_LICENSE, APP_VERSION, ISSUES_URL, RELAY_URL, REPO_URL } from '../constants/app';
+import { APP_LICENSE, APP_VERSION, ISSUES_URL, REPO_URL } from '../constants/app';
+import { normalizeRelayUrl, relayHostOf } from '../surveillance/relayAddress';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 import { SettingRow, StaticValue, ValueButton } from '../components/SetupRows';
 import { Switch } from '../components/Switch';
 import { SegmentedControl } from '../components/SegmentedControl';
+import { askCloudConsent } from '../components/cloudConsent';
 import { PrimaryOutlineButton, SecondaryOutlineButton } from '../components/OutlineButton';
 import { getMcpCaCertificate } from '../surveillance/mcpServer';
 import { QrCode } from '../components/QrCode';
@@ -103,21 +105,15 @@ export function SetupScreen() {
 
   // Cloud access is the one thing here that dials out, so it asks first and
   // names the relay and what it can see; turning it off asks nothing.
-  const relayHost = RELAY_URL.replace(/^https:\/\//, '');
-  const cloudBlocker: StringKey | null = !RELAY_URL ? 'setup.mcpCloud.noRelay'
+  const relayAddress = normalizeRelayUrl(settings.mcpRelayUrl);
+  const relayHost = relayAddress ? relayHostOf(relayAddress) : '';
+  const cloudBlocker: StringKey | null = !relayAddress ? 'setup.mcpCloud.noRelay'
     : !settings.mcpEnabled ? 'setup.mcpCloud.needsServer'
     : !settings.mcpToken ? 'setup.mcpCloud.needsToken'
     : null;
   const onCloudToggle = () => {
     if (settings.mcpCloudEnabled) return s.toggleMcpCloud();
-    Alert.alert(
-      t('setup.mcpCloud.consent.title'),
-      t('setup.mcpCloud.consent.body', { host: relayHost }),
-      [
-        { text: t('setup.mcpCloud.consent.cancel'), style: 'cancel' },
-        { text: t('setup.mcpCloud.consent.accept'), onPress: s.toggleMcpCloud },
-      ],
-    );
+    askCloudConsent(relayHost, s.toggleMcpCloud);
   };
   const relayState = s.mcpStatus.relayState ?? 'off';
 
@@ -154,7 +150,8 @@ export function SetupScreen() {
           {settings.mcpEnabled ? (
             <Text style={styles.privacyText}>{t(`mcpService.control.${mcpAvailability}`)}</Text>
           ) : null}
-          <PrimaryOutlineButton label={t('setup.mcpServices')} onPress={() => s.openInfo('mcp')} style={styles.mcpCardButton} />
+          <PrimaryOutlineButton label={t('setup.mcpConnect')} onPress={() => s.openInfo('connect')} style={styles.mcpCardButton} />
+          <SecondaryOutlineButton label={t('setup.mcpServices')} onPress={() => s.openInfo('mcp')} style={styles.mcpCardButton} />
         </View>
 
         <CollapsibleSection title={t('setup.section.surv')} expanded={settings.exp.surv} onToggle={() => s.toggleSection('surv')}>

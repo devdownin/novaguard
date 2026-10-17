@@ -17,6 +17,7 @@ import { VideoDetailSheet } from './src/components/VideoDetailSheet';
 import { InfoSheet } from './src/components/InfoSheet';
 import { AutoTuneSheet } from './src/components/AutoTuneSheet';
 import { McpServicesSheet } from './src/components/McpServicesSheet';
+import { McpConnectSheet } from './src/components/McpConnectSheet';
 import { OnboardingModal } from './src/components/OnboardingModal';
 import { ConfirmDialog } from './src/components/ConfirmDialog';
 import { SplashOverlay, SplashScreen } from './src/components/SplashScreen';
@@ -73,6 +74,7 @@ function AppShell() {
         <InfoSheet />
         <AutoTuneSheet />
         <McpServicesSheet />
+        <McpConnectSheet />
         <OnboardingModal />
 
         <ConfirmDialog
