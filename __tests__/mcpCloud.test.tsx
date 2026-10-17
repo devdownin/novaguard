@@ -30,6 +30,7 @@ jest.mock('../src/constants/app', () => {
 });
 
 const TOKEN = 'mcp_' + 'r'.repeat(32);
+const { startForegroundService: startService } = jest.requireMock('../src/surveillance/foregroundService');
 let relayState: string;
 let pending: Array<Record<string, unknown>>;
 let grants: Array<Record<string, unknown>>;
@@ -327,5 +328,55 @@ describe('an assistant waiting for the owner', () => {
     expect(native.revokeGrant).toHaveBeenCalledWith('nvg_1');
     await poll();
     expect(texts()).toContain(t('setup.mcpGrants.none'));
+  });
+});
+
+describe('cutting cloud access from the notification', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+  const poll = async () => {
+    await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(2_100); });
+    await ReactTestRenderer.act(async () => {});
+  };
+  const cloudLabel = () => startService.mock.calls.at(-1)[2];
+  // The notification is the service's, which exists only while surveillance runs.
+  const watch = () => ReactTestRenderer.act(async () => { state.toggleMonitoring(); });
+
+  it('offers the action while the relay is connected, and not otherwise', async () => {
+    await mount();
+    await watch();
+    expect(cloudLabel()).toBe('');
+    await ReactTestRenderer.act(async () => { tree.unmount(); });
+
+    relayState = 'connected';
+    native.getServerStatus.mockImplementation(async () => status());
+    await mount({ mcpCloudEnabled: true });
+    await watch();
+    await poll();
+    expect(cloudLabel()).toBe(t('notif.cutCloud'));
+    native.getServerStatus.mockImplementation(async () => status());
+  });
+
+  it('turns the switch off, acknowledges the cut and does not start the relay again', async () => {
+    await mount({ mcpCloudEnabled: true });
+    expect(native.startRelay).toHaveBeenCalledTimes(1);
+    // The notification action ran natively: the relay is closed and the status says why.
+    relayState = 'off';
+    native.getServerStatus.mockImplementation(async () => status({ relayCut: true }));
+    await poll();
+    expect(state.settings.mcpCloudEnabled).toBe(false);
+    expect(native.stopRelay).toHaveBeenCalled();
+    expect(native.startRelay).toHaveBeenCalledTimes(1);
+    native.getServerStatus.mockImplementation(async () => status());
+  });
+
+  it('does not start a relay while the cut is not acknowledged, even if the switch is still on', async () => {
+    native.getServerStatus.mockImplementation(async () => status({ relayCut: true }));
+    native.startServer.mockImplementation(async () => status({ relayCut: true }));
+    await mount({ mcpCloudEnabled: true });
+    await poll();
+    expect(native.startRelay).not.toHaveBeenCalled();
+    native.getServerStatus.mockImplementation(async () => status());
+    native.startServer.mockImplementation(async () => { relayState = 'off'; return status(); });
   });
 });

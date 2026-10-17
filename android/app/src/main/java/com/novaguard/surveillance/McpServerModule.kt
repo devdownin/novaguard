@@ -91,6 +91,12 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   private val oauthServer: McpOAuthServer by lazy {
     McpOAuthServer(reactContext) { clientName -> McpAuthNotifier.post(reactContext, clientName) }
   }
+  /**
+   * Set when the owner cut cloud access from the notification. While it is, no relay is
+   * started — whoever asks — so the cut holds even if JavaScript is not there to hear it;
+   * JavaScript reads it in the status, switches the setting off and clears it with `stopRelay`.
+   */
+  @Volatile private var relayCut: Boolean = false
   /** Whether the live view may cross the relay: its own owner switch, on top of the live-view one. */
   @Volatile private var relayLiveAllowed: Boolean = false
   /** The DNS-SD registration while the socket is on the LAN, so a client finds a moved address. */
@@ -171,6 +177,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   @ReactMethod
   fun startRelay(address: String?, liveAllowed: Boolean, promise: Promise) {
     try {
+      if (relayCut) return promise.reject("MCP_RELAY_CUT", "Cloud access was cut from the notification")
       val base = McpRelayRules.relayBase(address)
         ?: return promise.reject("MCP_RELAY_ADDRESS", "The relay address must be https://host[:port]")
       if (!isServerRunning || tokenDigest == null) {
@@ -188,6 +195,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun stopRelay(promise: Promise) {
+    // Asked for by the owner's own switch, or by JavaScript acknowledging a cut: either way it is settled.
+    relayCut = false
     stopRelayInternal()
     promise.resolve(statusMap())
   }
@@ -246,6 +255,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   /** A request the relay forwarded, through the same checks and dispatch as a socket's. */
   private fun handleRelay(req: RelayRequest): RelayReply {
     val json = mapOf("content-type" to "application/json")
+    // Cut from the notification: whatever was already on its way is refused, not served.
+    if (relayCut) return RelayReply(503, json, jsonError("Cloud access was cut").toByteArray())
     val connection = relay
     val issuer = connection?.issuer
     if (issuer != null && McpRelayRules.oauthPath(req.path)) {
@@ -329,6 +340,16 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   override fun invalidate() {
     stopServerInternal()
     super.invalidate()
+  }
+
+  /**
+   * "Couper l'accès cloud" on the notification. The flag is set first and read by every relay request,
+   * so nothing more is served from this instant; the socket itself is closed off the main thread,
+   * where the service's intent arrives.
+   */
+  fun cutCloud() {
+    relayCut = true
+    Thread({ stopRelayInternal() }, "NovaGuardRelayCut").start()
   }
 
   /**
@@ -441,6 +462,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     putBoolean("loopbackOnly", boundToLoopbackOnly)
     putString("relayState", relay?.state ?: McpRelayClient.STATE_OFF)
     putString("relayUrl", relay?.publicUrl)
+    putBoolean("relayCut", relayCut)
     putArray("pendingAuthorizations", pendingAuthorizations())
     putArray("grants", grantList())
     putDouble("requestCount", requestCount.get().toDouble())
@@ -1266,6 +1288,10 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
 
     fun revokeControlFromNotification() {
       current?.get()?.revokeControl()
+    }
+
+    fun cutCloudFromNotification() {
+      current?.get()?.cutCloud()
     }
 
     internal val ISO: DateTimeFormatter = DateTimeFormatter.ISO_INSTANT

@@ -62,7 +62,7 @@ outgoing connection, and it exists only while that setting is on.
   tokens.
 - The phone identifies itself to the relay with a key that never leaves the Android
   Keystore; the public address is derived from it.
-- You cut access by turning the setting off: the connection closes at once.
+- You cut access by turning the setting off, or with one tap on “Cut cloud access” in the surveillance notification, screen off included: the connection closes at once.
 
 The assistant is itself a third-party service: what it reads goes to the model it
 uses, as with the local MCP server.

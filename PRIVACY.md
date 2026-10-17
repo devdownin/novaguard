@@ -66,7 +66,7 @@ l'application, et elle n'existe que tant que ce réglage est allumé.
   le téléphone n'en garde que des empreintes, jamais les jetons.
 - Le téléphone s'identifie auprès du relais par une clé qui ne quitte jamais
   l'Android Keystore ; l'adresse publique en est dérivée.
-- Vous coupez l'accès en éteignant le réglage : la connexion se ferme aussitôt.
+- Vous coupez l'accès en éteignant le réglage, ou d'un appui sur « Couper l'accès cloud » dans la notification de surveillance, écran éteint compris : la connexion se ferme aussitôt.
 
 L'assistant lui-même est un service tiers : ce qu'il lit part vers le modèle qu'il
 utilise, comme pour le serveur MCP local.

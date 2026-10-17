@@ -580,6 +580,7 @@ export const en: Record<StringKey, string> = {
   'notif.since': '{status} · since {time}',
   'notif.resumed': '{status} · resumed at {time}',
   'notif.revokeControl': 'Cut agent control',
+  'notif.cutCloud': 'Cut cloud access',
 
   // ── dates ────────────────────────────────────────────────────────────
   'lic.react-react-native': 'Application framework',

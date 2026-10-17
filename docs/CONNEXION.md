@@ -504,9 +504,9 @@ La phrase « NovaGuard n’ouvre aucune connexion sortante » devient fausse dè
 | --- | --- | --- |
 | R0 | Trancher l’hébergement (§14.2) et le modèle de confiance (§14.4) | **Fait** |
 | R1 | Service `relay/` : authentification par défi, transmission, quotas ; tests de protocole | **Fait** : `relay/`, 15 tests `node:test` dans le job `check` de la CI. Reste à le déployer |
-| R2 | Client du relais dans l’application (Kotlin) : connexion sortante, origine `relay` dans `McpRules`, tests JVM | **Fait**, sauf l’action « Couper l’accès cloud » de la notification (R4). Le Kotlin est validé par le build APK de la PR ; rien n’a été essayé sur un téléphone |
+| R2 | Client du relais dans l’application (Kotlin) : connexion sortante, origine `relay` dans `McpRules`, tests JVM | **Fait** ; l’action « Couper l’accès cloud » de la notification est venue avec R4. Le Kotlin est validé par le build APK de la PR ; rien n’a été essayé sur un téléphone |
 | R3 | Serveur d’autorisation OAuth sur le téléphone : métadonnées, DCR ou clients préenregistrés, consentement sur l’appareil, révocation | **Fait** : `McpOAuth.java` (flux, PKCE, expiration, rotation, plafonds ; testé sur la JVM), `McpOAuthServer.kt` (HTTP, page de confirmation, fichier d’état), `McpAuthNotifier.kt` (notification), liste et révocation dans Réglages. Le relais route les documents `.well-known` avec leur préfixe. Reste à qualifier avec les trois clients |
-| R4 | Interface (§14.5) et réécriture du contrat de confidentialité (§14.6) | Contrat **fait** avec R2 ; interface en partie (interrupteur, consentement, état, adresse). Restent : liste des autorisations, « Couper l’accès cloud » dans la notification, adresse du relais modifiable |
+| R4 | Interface (§14.5) et réécriture du contrat de confidentialité (§14.6) | Contrat **fait** avec R2 ; interface faite : interrupteur, consentement, état, adresse, liste des autorisations avec révocation, « Couper l’accès cloud » dans la notification (`SurveillanceService.cutCloud` → `McpServerModule.cutCloud` : drapeau puis fermeture, sans JavaScript). Reste : adresse du relais modifiable |
 | R5 | Qualification de bout en bout avec chacun des trois clients cloud ; AC-17 à AC-20 ci-dessous | R4 |
 
 Critères d’acceptation à ajouter à §10 :
@@ -515,7 +515,7 @@ Critères d’acceptation à ajouter à §10 :
 | --- | --- | --- |
 | AC-17 | Requête par le relais sans autorisation | `401` avec `WWW-Authenticate` et `resource_metadata` ; jamais traitée comme boucle locale (`McpRules.relayPrincipal`, test JVM ; `resource_metadata` : `McpRelayRules.challenge`) |
 | AC-18 | Autorisation OAuth depuis claude.ai | Consentement sur le téléphone ; un refus ou une absence de réponse sous 2 minutes échoue proprement |
-| AC-19 | « Couper l’accès cloud » pendant un appel | Connexion sortante fermée, appel en cours refusé, plus aucune requête transmise |
+| AC-19 | « Couper l’accès cloud » pendant un appel | Connexion sortante fermée, appel en cours refusé, plus aucune requête transmise (drapeau `relayCut` lu par chaque requête du relais ; vérifié par test côté JavaScript, à vérifier sur appareil côté natif) |
 | AC-20 | Interrupteur éteint | Aucune connexion sortante ouverte (vérifié sur appareil et par `playRelease.test.ts`) |
 
 ## 15. Sources

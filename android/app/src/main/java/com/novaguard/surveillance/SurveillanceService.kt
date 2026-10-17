@@ -41,9 +41,14 @@ class SurveillanceService : Service() {
       revokeControl()
       return START_NOT_STICKY
     }
+    if (intent?.action == ACTION_CUT_CLOUD) {
+      cutCloud()
+      return START_NOT_STICKY
+    }
     val title = intent?.getStringExtra(EXTRA_TITLE) ?: getString(R.string.app_name)
     val body = intent?.getStringExtra(EXTRA_BODY).orEmpty()
     val revokeLabel = intent?.getStringExtra(EXTRA_REVOKE_LABEL).orEmpty()
+    val cloudLabel = intent?.getStringExtra(EXTRA_CLOUD_LABEL).orEmpty()
 
     // A foreground service of type `camera` requires the camera permission to be
     // held at the moment it starts; without it startForeground throws
@@ -55,8 +60,8 @@ class SurveillanceService : Service() {
 
     try {
       createChannel()
-      startForeground(NOTIFICATION_ID, buildNotification(title, body, revokeLabel), foregroundTypes())
-      shown = Shown(title, body)
+      startForeground(NOTIFICATION_ID, buildNotification(title, body, revokeLabel, cloudLabel), foregroundTypes())
+      shown = Shown(title, body, revokeLabel, cloudLabel)
     } catch (e: Exception) {
       // SecurityException (a type whose permission is missing),
       // ForegroundServiceStartNotAllowedException (started from a state Android
@@ -86,14 +91,32 @@ class SurveillanceService : Service() {
    */
   private fun revokeControl() {
     McpServerModule.revokeControlFromNotification()
+    repost { Shown(it.title, it.body, "", it.cloudLabel) }
+  }
+
+  /**
+   * "Couper l'accès cloud": the connection to the relay closes at once, in the
+   * module and not through JavaScript, so nothing more is forwarded whatever
+   * state the bridge is in. The standing notice loses the action; the switch in
+   * Réglages follows on the next status read.
+   */
+  private fun cutCloud() {
+    McpServerModule.cutCloudFromNotification()
+    repost { Shown(it.title, it.body, it.revokeLabel, "") }
+  }
+
+  /** Rewrites the standing notification without an action just used, so a second tap has nothing to press. */
+  private fun repost(next: (Shown) -> Shown) {
     val current = shown
     if (!isRunning || current == null) {
       if (!isRunning) stopSelf()
       return
     }
+    val updated = next(current)
     try {
       getSystemService(NotificationManager::class.java)
-        .notify(NOTIFICATION_ID, buildNotification(current.title, current.body, ""))
+        .notify(NOTIFICATION_ID, buildNotification(updated.title, updated.body, updated.revokeLabel, updated.cloudLabel))
+      shown = updated
     } catch (e: Exception) {
       Log.w(TAG, "Could not refresh the notification: ${e.message}")
     }
@@ -143,7 +166,7 @@ class SurveillanceService : Service() {
     getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
   }
 
-  private fun buildNotification(title: String, body: String, revokeLabel: String): Notification {
+  private fun buildNotification(title: String, body: String, revokeLabel: String, cloudLabel: String): Notification {
     val open = Intent(this, MainActivity::class.java).apply {
       flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
     }
@@ -172,16 +195,26 @@ class SurveillanceService : Service() {
       )
       builder.addAction(R.drawable.ic_notification, revokeLabel, revoke)
     }
+    // Only while the relay is connected or trying to be: JS passes no label otherwise.
+    if (cloudLabel.isNotEmpty()) {
+      val cut = PendingIntent.getService(
+        this, 2, Intent(this, SurveillanceService::class.java).setAction(ACTION_CUT_CLOUD),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+      )
+      builder.addAction(R.drawable.ic_notification, cloudLabel, cut)
+    }
     return builder.build()
   }
 
-  internal class Shown(val title: String, val body: String)
+  internal class Shown(val title: String, val body: String, val revokeLabel: String, val cloudLabel: String)
 
   companion object {
     const val EXTRA_TITLE = "title"
     const val EXTRA_BODY = "body"
     const val EXTRA_REVOKE_LABEL = "revokeLabel"
+    const val EXTRA_CLOUD_LABEL = "cloudLabel"
     private const val ACTION_REVOKE_CONTROL = "com.novaguard.surveillance.REVOKE_MCP_CONTROL"
+    private const val ACTION_CUT_CLOUD = "com.novaguard.surveillance.CUT_MCP_CLOUD"
 
     private const val TAG = "NovaGuardService"
     private const val CHANNEL_ID = "novaguard.surveillance"
@@ -204,11 +237,12 @@ class SurveillanceService : Service() {
     var lastError: String? = null
       private set
 
-    fun start(context: Context, title: String, body: String, revokeLabel: String) {
+    fun start(context: Context, title: String, body: String, revokeLabel: String, cloudLabel: String) {
       val intent = Intent(context, SurveillanceService::class.java).apply {
         putExtra(EXTRA_TITLE, title)
         putExtra(EXTRA_BODY, body)
         putExtra(EXTRA_REVOKE_LABEL, revokeLabel)
+        putExtra(EXTRA_CLOUD_LABEL, cloudLabel)
       }
       lastError = null
       try {

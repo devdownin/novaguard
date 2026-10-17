@@ -130,6 +130,11 @@ tool() {  # tool <jeton> <outil sans préfixe> [arguments JSON]
       elle disparaît au bout de 2 minutes et la page web le dit.
 - [ ] « Refuser » : le client reçoit `access_denied`. Une demande lancée puis
       abandonnée expire sans rien émettre.
+- [ ] Écran éteint, relais connecté : la notification de surveillance porte
+      « Couper l'accès cloud ». Un appui ferme la connexion aussitôt (le
+      client reçoit une erreur, plus aucune requête n'est servie), l'action
+      disparaît de la notification et, à l'ouverture de Réglages,
+      l'interrupteur est éteint. Le rallumer rouvre la connexion.
 - [ ] Réglages liste l'assistant ; « Révoquer » : la requête suivante du client
       est refusée (401) et il redemande une autorisation.
 - [ ] Redémarrer l'application : l'assistant reste autorisé, sans nouvelle

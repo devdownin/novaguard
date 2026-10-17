@@ -9,8 +9,9 @@ export interface Spec extends TurboModule {
    *
    * `revokeLabel`, when not empty, adds the notification action that cuts an
    * agent's control of the camera (see `McpServerModule.revokeControl`).
+   * `cloudLabel`, likewise, adds the one that closes the cloud relay (`McpServerModule.cutCloud`).
    */
-  start(title: string, body: string, revokeLabel: string): void;
+  start(title: string, body: string, revokeLabel: string, cloudLabel: string): void;
   stop(): void;
   isRunning(): boolean;
   /**
