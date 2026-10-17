@@ -48,6 +48,8 @@ export interface McpGrant {
   clientName: string;
   host: string;
   createdAt: number;
+  /** When the owner chose the access to end, or 0 when it lasts until revoked. */
+  validUntil?: number;
   lastUsedAt: number;
 }
 
@@ -282,10 +284,11 @@ export async function startMcpRelay(address: string, liveAllowed: boolean): Prom
 }
 
 /** The owner's answer to an assistant waiting at the relay. False when it had already expired. */
-export async function answerMcpAuthorization(id: string, allow: boolean): Promise<boolean> {
+export async function answerMcpAuthorization(id: string, allow: boolean, lifetimeMs = 0): Promise<boolean> {
   const module = nativeModule();
-  const method = allow ? module?.approveAuthorization : module?.denyAuthorization;
-  return method ? method.call(module, id) : false;
+  if (!allow) return module?.denyAuthorization ? module.denyAuthorization(id) : false;
+  // 0 leaves the access open-ended (until revoked); anything else is how long the owner grants it for.
+  return module?.approveAuthorization ? module.approveAuthorization(id, lifetimeMs) : false;
 }
 
 export async function revokeMcpGrant(id: string): Promise<boolean> {
@@ -332,4 +335,36 @@ export function pushMcpSnapshot(input: McpSnapshotInput): void {
   const module = nativeModule();
   if (!module || !module.updateSnapshot) return;
   module.updateSnapshot(buildMcpSnapshot(input));
+}
+
+export interface McpSelfTest {
+  ok: boolean;
+  /** How many tools the server listed when asked from the inside. */
+  tools: number;
+  ms: number;
+}
+
+/**
+ * Has the server answer what an assistant asks first, without a socket. It shows the server works;
+ * whether another machine can reach it is shown only by a request actually arriving.
+ */
+export async function selfTestMcpServer(): Promise<McpSelfTest> {
+  const module = nativeModule();
+  if (!module?.selfTest) return { ok: false, tools: 0, ms: 0 };
+  try {
+    return await module.selfTest();
+  } catch {
+    return { ok: false, tools: 0, ms: 0 };
+  }
+}
+
+/** Whether Termux is installed, where most agents on the phone itself run. False where the module is absent. */
+export async function isTermuxInstalled(): Promise<boolean> {
+  const module = nativeModule();
+  if (!module?.isTermuxInstalled) return false;
+  try {
+    return (await module.isTermuxInstalled()) === true;
+  } catch {
+    return false;
+  }
 }

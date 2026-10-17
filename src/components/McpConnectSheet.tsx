@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { color, font, MAX_FONT_SCALE } from '../theme';
 import { useAppState } from '../state/AppStateContext';
 import {
-  AgentId, agentName, agentsFor, baselineOf, Baseline, blocker, controlOffered, Fix, howKey, isCloudAgent, payloadFor, progress, Where, WHERE,
+  AgentId, agentName, agentsFor, baselineOf, Baseline, blocker, controlOffered, Fix, grantSubtitle, howKey, isCloudAgent, payloadFor, progress, Where, WHERE,
 } from '../surveillance/mcpConnect';
 import { normalizeRelayUrl, relayHostOf } from '../surveillance/relayAddress';
 import { PrimaryOutlineButton, SecondaryOutlineButton } from './OutlineButton';
@@ -13,6 +13,9 @@ import { askCloudConsent } from './cloudConsent';
 import { copyText } from '../utils/clipboard';
 import { formatWhen } from '../utils/date';
 import type { TokenChoice } from '../surveillance/mcpClients';
+import { LastChoice, loadLast, saveLast } from '../surveillance/connectMemory';
+import { isTermuxInstalled, McpSelfTest, selfTestMcpServer } from '../surveillance/mcpServer';
+import { QrCode } from './QrCode';
 import { StringKey, t } from '../i18n';
 
 /**
@@ -32,6 +35,8 @@ export function McpConnectSheet() {
   const [agent, setAgent] = React.useState<AgentId | null>(null);
   const [copied, setCopied] = React.useState(false);
   const [access, setAccess] = React.useState<TokenChoice>('read');
+  const [last, setLast] = React.useState<LastChoice | null>(null);
+  const [termux, setTermux] = React.useState(false);
   const [editingRelay, setEditingRelay] = React.useState(false);
   const [relayText, setRelayText] = React.useState('');
   const [relayInvalid, setRelayInvalid] = React.useState(false);
@@ -41,7 +46,16 @@ export function McpConnectSheet() {
   React.useEffect(() => {
     if (!open) return;
     setWhere(null); setAgent(null); setCopied(false); setAccess('read'); setEditingRelay(false); setRelayInvalid(false);
+    let current = true;
+    loadLast().then(found => { if (current) setLast(found); });
+    isTermuxInstalled().then(found => { if (current) setTermux(found); });
+    return () => { current = false; };
   }, [open]);
+
+  // What was connected is what to offer next time, once an assistant's own screen has been reached.
+  React.useEffect(() => {
+    if (open && where && agent) saveLast({ where, agent, access });
+  }, [open, where, agent, access]);
 
   // Proof is measured from the moment the assistant's own screen appears.
   React.useEffect(() => {
@@ -72,7 +86,12 @@ export function McpConnectSheet() {
     <Sheet visible={open} onClose={s.closeInfo} maxHeightPercent={88}>
       <Text style={styles.title} accessibilityRole="header">{t('connect.title')}</Text>
       {where === null ? (
-        <WhereStep onPick={setWhere} />
+        <WhereStep
+          onPick={setWhere}
+          termux={termux}
+          last={last}
+          onResume={choice => { setWhere(choice.where); setAgent(choice.agent); setAccess(choice.access); }}
+        />
       ) : agent === null ? (
         <AgentStep where={where} onPick={setAgent} onBack={back} />
       ) : (
@@ -100,17 +119,31 @@ export function McpConnectSheet() {
 
 // ------------------------------------------------------------------ 1. where
 
-function WhereStep({ onPick }: { onPick: (where: Where) => void }) {
+function WhereStep({ onPick, termux, last, onResume }: {
+  onPick: (where: Where) => void;
+  termux: boolean;
+  last: LastChoice | null;
+  onResume: (choice: LastChoice) => void;
+}) {
   const { mcpStatus, revokeMcpGrant } = useAppState();
   const grants = mcpStatus.grants ?? [];
   return (
     <View>
+      {last ? (
+        <Choice
+          title={t('connect.resume', {
+            agent: agentName(last.agent) ?? t('connect.agent.json'),
+            where: t(`connect.where.${last.where}`),
+          })}
+          onPress={() => onResume(last)}
+        />
+      ) : null}
       <Text style={styles.question}>{t('connect.where.title')}</Text>
       {WHERE.map(where => (
         <Choice
           key={where}
           title={t(`connect.where.${where}`)}
-          sub={t(`connect.where.${where}.sub` as StringKey)}
+          sub={where === 'phone' && termux ? t('connect.where.phone.termux') : t(`connect.where.${where}.sub` as StringKey)}
           onPress={() => onPick(where)}
         />
       ))}
@@ -121,9 +154,7 @@ function WhereStep({ onPick }: { onPick: (where: Where) => void }) {
             <View key={grant.id} style={styles.grant}>
               <View style={styles.grantText}>
                 <Text style={styles.body}>{grant.clientName}</Text>
-                <Text style={styles.hint}>
-                  {t('setup.mcpGrants.lastUsed', { host: grant.host, time: formatWhen(grant.lastUsedAt) })}
-                </Text>
+                <Text style={styles.hint}>{grantSubtitle(grant)}</Text>
               </View>
               <ValueButton
                 label={t('setup.mcpGrants.revoke')}
@@ -180,10 +211,15 @@ function ConnectStep(p: ConnectProps) {
   const access: TokenChoice = canControl ? p.access : 'read';
   const payload = stop ? null : payloadFor(p.agent, p.where, settings, mcpStatus, access);
   const seen = progress(p.baseline, mcpStatus);
+  const [test, setTest] = React.useState<McpSelfTest | null>(null);
+  const [showQr, setShowQr] = React.useState(false);
+  const relayHost = relayHostOf(normalizeRelayUrl(settings.mcpRelayUrl) ?? '');
 
   return (
     <View>
       <Text style={styles.question}>{agentName(p.agent) ?? t('connect.agent.json')}</Text>
+
+      {cloud && !stop && relayHost ? <RelayDiagram host={relayHost} /> : null}
 
       {stop ? (
         <View style={styles.card} testID="connect-blocker">
@@ -216,6 +252,7 @@ function ConnectStep(p: ConnectProps) {
         </View>
       ) : null}
 
+      {p.where === 'phone' ? <Text style={styles.hint}>{t('connect.phone.hint')}</Text> : null}
       {cloud ? (
         <Text style={styles.hint}>{t('connect.access.cloud')}</Text>
       ) : (
@@ -246,6 +283,31 @@ function ConnectStep(p: ConnectProps) {
             onPress={() => { copyText(payload.text); p.onCopied(); }}
             style={styles.action}
           />
+          {p.where !== 'phone' ? (
+            <>
+              <SecondaryOutlineButton
+                label={t(showQr ? 'setup.mcpQr.hide' : 'setup.mcpQr.show')}
+                onPress={() => setShowQr(v => !v)}
+                style={styles.action}
+              />
+              {showQr ? (
+                <View style={styles.qr}>
+                  <QrCode value={payload.text} size={200} accessibilityLabel={t('setup.mcpQr.label')} />
+                  {payload.isConfiguration ? <Text style={styles.hint}>{t('setup.mcpQr.hint')}</Text> : null}
+                </View>
+              ) : null}
+            </>
+          ) : null}
+          <SecondaryOutlineButton
+            label={t('connect.test.run')}
+            onPress={() => { selfTestMcpServer().then(setTest); }}
+            style={styles.action}
+          />
+          {test ? (
+            <Text style={[styles.hint, !test.ok && styles.warn]} accessibilityLiveRegion="polite" testID="connect-test">
+              {test.ok ? t('connect.test.ok', { tools: test.tools, ms: Math.max(1, Math.round(test.ms)) }) : t('connect.test.fail')}
+            </Text>
+          ) : null}
           <Text
             style={[styles.progress, seen === 'connected' && styles.connected]}
             accessibilityLiveRegion="polite"
@@ -269,6 +331,29 @@ function ConnectStep(p: ConnectProps) {
 function copyLabel(agent: AgentId, isConfiguration: boolean): StringKey {
   if (!isConfiguration) return 'connect.copy.address';
   return agent === 'claude-code' || agent === 'openclaw' ? 'connect.copy.command' : 'connect.copy.config';
+}
+
+// ------------------------------------------------------------------ what the cloud path is
+
+/** Who talks to whom, drawn plainly: the relay is the one part of this chain the owner does not run. */
+function RelayDiagram({ host }: { host: string }) {
+  const steps = [t('connect.diagram.assistant'), t('connect.diagram.relay'), t('connect.diagram.phone')];
+  return (
+    <View style={styles.card} accessible accessibilityLabel={`${t('connect.diagram.a11y', { host })} ${t('connect.diagram.note')}`}>
+      <View style={styles.diagram}>
+        {steps.map((step, index) => (
+          <React.Fragment key={step}>
+            {index > 0 ? <Text style={styles.arrow}>→</Text> : null}
+            <View style={[styles.node, index === 1 && styles.relayNode]}>
+              <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.nodeText}>{step}</Text>
+              {index === 1 ? <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.nodeHost}>{host}</Text> : null}
+            </View>
+          </React.Fragment>
+        ))}
+      </View>
+      <Text style={styles.hint}>{t('connect.diagram.note')}</Text>
+    </View>
+  );
 }
 
 // ------------------------------------------------------------------ a choice
@@ -329,6 +414,13 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.62 },
   selected: { borderColor: color.accent },
   disabled: { opacity: 0.5 },
+  qr: { alignItems: 'center', marginTop: 10 },
+  diagram: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  arrow: { fontFamily: font.regular, fontSize: 16, color: color.neutral500, paddingHorizontal: 4 },
+  node: { flex: 1, borderWidth: 1, borderColor: color.divider, borderRadius: 8, padding: 6, alignItems: 'center' },
+  relayNode: { borderColor: color.warning },
+  nodeText: { fontFamily: font.medium, fontSize: 11, color: color.text, textAlign: 'center' },
+  nodeHost: { fontFamily: font.regular, fontSize: 10, color: color.neutral500, textAlign: 'center' },
   grant: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   grantText: { flex: 1, paddingRight: 8 },
   choiceTitle: { fontFamily: font.medium, fontSize: 14, color: color.text },

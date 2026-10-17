@@ -233,7 +233,7 @@ class McpOAuthServer(
           grants.put(
             JSONObject()
               .put("id", g.id).put("clientId", g.clientId).put("clientName", g.clientName).put("redirectHost", g.redirectHost)
-              .put("createdAt", g.createdAt).put("lastUsedAt", g.lastUsedAt)
+              .put("createdAt", g.createdAt).put("validUntil", g.validUntil).put("lastUsedAt", g.lastUsedAt)
               .put("accessDigest", g.accessDigest ?: JSONObject.NULL).put("accessExpiresAt", g.accessExpiresAt)
               .put("refreshDigest", g.refreshDigest ?: JSONObject.NULL).put("refreshExpiresAt", g.refreshExpiresAt)
               .put("previousRefreshDigest", g.previousRefreshDigest ?: JSONObject.NULL),
@@ -274,6 +274,7 @@ class McpOAuthServer(
         grant.accessExpiresAt = g.optLong("accessExpiresAt")
         grant.refreshDigest = g.optString("refreshDigest").ifEmpty { null }
         grant.refreshExpiresAt = g.optLong("refreshExpiresAt")
+        grant.validUntil = g.optLong("validUntil")
         grant.previousRefreshDigest = g.optString("previousRefreshDigest").ifEmpty { null }
         grants.add(grant)
       }

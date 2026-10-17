@@ -640,6 +640,8 @@ vérifie que `build.gradle`, le `Dockerfile` et les assertions d'`android-image.
 nomment bien les mêmes versions pour chacune des quatre — l'échec, lui, ne se voit que dans un vrai run
 Gradle, que la CI ne fait pas sur une PR ordinaire.
 
+**« Connecter un assistant » ne dit « connecté » que sur un appel reçu.** `mcpConnect.ts` porte la décision (un seul obstacle à la fois, ce qui se copie, la preuve) ; la feuille ne fait que l'afficher. Trois choses ne doivent pas être reperdues : `selfTest` interroge le serveur de l'intérieur et n'est **pas** compté dans `requestCount` — un test qui passerait pour la première requête d'un assistant ferait mentir la preuve ; le pilotage n'est proposé que si `controlOffered` (le test du serveur) le dit, et un choix périmé retombe sur la lecture au lieu de copier une clé morte ; et la fin choisie à l'autorisation (`Grant.validUntil`) plafonne **tous** les jetons de l'assistant, y compris celui de renouvellement. L'interface dit « clé » là où le protocole dit *token*.
+
 ## Livrer une release
 
 Le détail — image Docker, scripts, signature, App Bundle, workflows CI — est

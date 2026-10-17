@@ -7,7 +7,7 @@
     <title>Connecter NovaGuard à un agent IA — Guide MCP</title>
     <meta
       name="description"
-      content="Connectez votre Android NovaGuard à un agent compatible MCP : Wi-Fi, jeton de lecture, HTTPS, configuration et première question. Vous choisissez les données accessibles."
+      content="Connectez votre Android NovaGuard à un agent compatible MCP : Wi-Fi, clé de lecture, HTTPS, configuration et première question. Vous choisissez les données accessibles."
     />
     <link rel="icon" href="./assets/mark.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css" />
@@ -112,6 +112,16 @@
               Le bouton <strong>Voir les services MCP</strong> permet de
               consulter les capacités sans activer le serveur.
             </p>
+            <p>
+              Le plus court : dans le bloc <strong>Assistant IA (MCP)</strong>,
+              touchez <strong>Connecter un assistant</strong>. L’application
+              demande où tourne l’assistant (ce téléphone, le Wi-Fi ou le
+              cloud), lequel, puis donne l’adresse ou la configuration à copier
+              et indique quand elle a reçu sa première requête. Un agent
+              installé sur le même téléphone, dans Termux par exemple, n’a
+              besoin d’aucune clé pour lire. Les étapes ci-dessous détaillent la
+              même chose à la main.
+            </p>
             <ol>
               <li>
                 Ouvrez <strong>Réglages → Avancé → Serveur MCP</strong>. Si le
@@ -119,8 +129,8 @@
                 directement dans les réglages.
               </li>
               <li>
-                Générez un <strong>jeton d’accès de lecture</strong>, puis
-                activez le serveur MCP. Sans jeton, le serveur reste limité au
+                Générez un <strong>clé d’accès de lecture</strong>, puis
+                activez le serveur MCP. Sans clé, le serveur reste limité au
                 téléphone (<code>127.0.0.1</code>) et n’est pas joignable depuis
                 l’ordinateur.
               </li>
@@ -176,7 +186,7 @@
               La méthode à privilégier : dans NovaGuard, utilisez
               <strong>Copier la config JSON</strong> ou le QR code, puis
               importez ces informations dans le client. Le QR code contient le
-              jeton : traitez-le comme un mot de passe et évitez de le partager
+              clé : traitez-la comme un mot de passe et évitez de le partager
               dans une capture.
             </p>
             <p>
@@ -188,7 +198,7 @@
             </p>
             <div class="code-card">
               <div class="code-heading">
-                <span>EXEMPLE À ADAPTER · AUCUN JETON RÉEL</span
+                <span>EXEMPLE À ADAPTER · AUCUNE CLÉ RÉELLE</span
                 ><button
                   type="button"
                   class="copy-button"
@@ -203,7 +213,7 @@
     "novaguard": {
       "url": "https://192.168.1.42:8081/mcp",
       "headers": {
-        "Authorization": "Bearer REMPLACER_PAR_LE_JETON_DE_LECTURE"
+        "Authorization": "Bearer REMPLACER_PAR_LA_CLE_DE_LECTURE"
       }
     }
   }
@@ -218,7 +228,7 @@
             <p class="code-caption">
               L’adresse ci-dessus est fictive : remplacez-la par celle copiée
               depuis votre téléphone, avec le bon protocole HTTP ou HTTPS.
-              Remplacez aussi le jeton. Cette configuration suppose un client
+              Remplacez aussi la clé. Cette configuration suppose un client
               qui prend en charge ce format ; les autres clients demandent les
               mêmes informations dans leur interface.
             </p>
@@ -309,7 +319,7 @@
                       Événements, statistiques, images des clips, diagnostics.
                     </td>
                     <td>
-                      Activer MCP et utiliser le jeton de lecture sur le réseau
+                      Activer MCP et utiliser la clé de lecture sur le réseau
                       local.
                     </td>
                   </tr>
@@ -331,7 +341,7 @@
                       déplacement.
                     </td>
                     <td>
-                      Autorisation distincte et jeton dédié avec durée choisie.
+                      Autorisation distincte et clé dédiée avec durée choisie.
                       Chaque action est journalisée.
                     </td>
                   </tr>
@@ -372,7 +382,7 @@
               <p>
                 Vérifiez le même Wi-Fi, l’adresse affichée, le port et le chemin
                 <code>/mcp</code>. Une adresse <code>127.0.0.1</code> n’est
-                accessible que sur le téléphone : générez un jeton pour ouvrir
+                accessible que sur le téléphone : générez une clé pour ouvrir
                 la lecture au réseau local. Certains réseaux invités isolent les
                 appareils entre eux.
               </p>
@@ -395,8 +405,8 @@
                 <span aria-hidden="true">+</span>
               </summary>
               <p>
-                Le jeton de lecture n’autorise pas le pilotage. Activez son
-                interrupteur, vérifiez que son jeton dédié n’a pas expiré et
+                La clé de lecture n’autorise pas le pilotage. Activez son
+                interrupteur, vérifiez que sa clé dédiée n’a pas expiré et
                 actualisez la configuration du client. Pour démarrer la caméra,
                 ouvrez NovaGuard à l’écran.
               </p>

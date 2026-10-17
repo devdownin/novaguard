@@ -1,5 +1,5 @@
 import {
-  agentsFor, baselineOf, blocker, CLOUD_AGENTS, controlOffered, isCloudAgent, payloadFor, progress, WHERE,
+  agentsFor, baselineOf, blocker, CLOUD_AGENTS, controlOffered, grantSubtitle, isCloudAgent, payloadFor, progress, WHERE,
 } from '../src/surveillance/mcpConnect';
 import { MCP_SERVER_STOPPED, McpServerStatus } from '../src/surveillance/mcpServer';
 import { defaultSettings } from '../src/state/defaults';
@@ -45,6 +45,15 @@ describe('payloadFor', () => {
   });
   it('has nothing to hand over before the relay has an address', () => {
     expect(payloadFor('chatgpt', 'cloud', settings(), status({ relayUrl: null }))).toBeNull();
+  });
+  it('gives every client of a phone-local agent its own configuration on the loopback address, with no credential', () => {
+    for (const agent of agentsFor('phone')) {
+      const payload = payloadFor(agent, 'phone', settings(), status({ port: 8081 }))!;
+      expect(payload.text).toContain('127.0.0.1:8081/mcp');
+      expect(payload.text).not.toContain(token);
+      expect(payload.text).not.toMatch(/Bearer/);
+    }
+    expect(payloadFor('claude-code', 'phone', settings(), status())!.text).toMatch(/^claude mcp add --transport http novaguard /);
   });
   it('gives a local application the loopback address without a token', () => {
     const payload = payloadFor('json', 'phone', settings(), status({ port: 8081 }))!;
@@ -96,10 +105,20 @@ describe('progress', () => {
   });
 });
 
+describe('grantSubtitle', () => {
+  const grant = { id: 'g', clientName: 'Claude', host: 'claude.ai', createdAt: 1, lastUsedAt: 1_760_000_000_000 };
+  it('names the end only when the owner chose one', () => {
+    expect(grantSubtitle(grant)).toContain('claude.ai');
+    expect(grantSubtitle(grant)).not.toMatch(/prend fin|ends/);
+    expect(grantSubtitle({ ...grant, validUntil: 1_760_086_400_000 })).toMatch(/prend fin|ends/);
+    expect(grantSubtitle({ ...grant, validUntil: 0 })).not.toMatch(/prend fin|ends/);
+  });
+});
+
 describe('agentsFor', () => {
   it('offers cloud products only for the cloud, and every client for the Wi-Fi', () => {
     expect(agentsFor('cloud')).toEqual([...CLOUD_AGENTS]);
-    expect(agentsFor('phone')).toEqual(['json']);
+    expect(agentsFor('phone')).toEqual(agentsFor('lan'));
     for (const agent of agentsFor('lan')) expect(isCloudAgent(agent)).toBe(false);
     expect(WHERE).toEqual(['phone', 'lan', 'cloud']);
   });

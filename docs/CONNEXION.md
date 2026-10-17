@@ -1,6 +1,6 @@
 # NovaGuard — Connexion des agents IA par MCP
 
-- Version : 2.2
+- Version : 2.3
 - Date : 16 octobre 2026
 - Statut : décisions prises (§12) ; lots 0 et 3 implémentés, relais et OAuth (R1 à R3) aussi ; parcours clients **non qualifiés sur appareil** (§10). **Accès depuis le cloud : décidé le 16 octobre 2026, par relais intégré à l’application (§14) ; le service `relay/`, le client de l’application et le serveur d’autorisation OAuth existent ; aucune instance du relais n’est déployée et rien n’a été essayé avec un vrai client cloud.**
 - Référence du serveur : [`mcp.md`](../mcp.md) (contrat des outils) et `android/app/src/main/java/com/novaguard/surveillance/McpServerModule.kt`
@@ -94,6 +94,8 @@ Contrôles qui décident si un client se connecte :
 ### 3.4 Clients sur le téléphone lui-même
 
 Un client qui tourne sur le même appareil (Termux, par exemple) atteint `http://127.0.0.1:8081/mcp` sans jeton en lecture. Le pilotage exige toujours le jeton de pilotage, y compris en boucle locale : une autre application du téléphone ne doit pas pouvoir éteindre la caméra.
+
+Dans « Connecter un assistant », « Sur ce téléphone » propose les mêmes clients que le Wi-Fi (Claude Code, OpenClaw, Hermes…, qui tournent dans Termux), avec leur configuration sur l’adresse de boucle locale et sans aucun identifiant : le serveur allumé suffit, ni Wi-Fi ni jeton. Le niveau « piloter » ajoute le jeton de pilotage comme ailleurs.
 
 ## 4. Authentification et droits
 
@@ -283,6 +285,7 @@ Elle existe : **Réglages → Serveur MCP** (en tête de l’écran Réglages, c
 
 ### 7.1 Ce qu’elle fournit
 
+0. « Connecter un assistant » (§7.2 bis) : le parcours guidé, qui reprend les points ci-dessous sans demander de les connaître.
 1. Activation, port, mode (« Lecture seule strict » / « Lecture et pilotage »), HTTPS, vue en direct.
 2. Jeton de lecture et jeton de pilotage, avec durée et date d’expiration.
 3. « Client de l’agent » et « Jeton de la configuration » (§7.2), puis « Copier l’URL », « Copier le jeton », « Copier la configuration », QR code de la config JSON (jeton compris, avec l’avertissement correspondant).
@@ -313,6 +316,16 @@ Deux questions (où tourne l’assistant : sur le téléphone, sur le Wi-Fi, dan
 - **Adresse du relais** : réglage `mcpRelayUrl` (défaut `RELAY_URL`), https seulement, sans chemin ni identifiants (`normalizeRelayUrl`) ; la changer redémarre le relais.
 
 Deux ajouts à ce parcours : un **niveau d’accès** (« Regarder » par défaut, « Regarder et piloter » seulement tant que le pilotage est allumé et son jeton valide — `controlOffered`, même test que le serveur ; un choix devenu périmé retombe sur la lecture au lieu de copier un jeton mort) et la liste des **assistants autorisés**, avec révocation, sur le premier écran. Un assistant du cloud ne reçoit jamais d’identifiant d’ici et ne pilote pas, quoi qu’il demande.
+
+**Raccourcis et preuves** (version suivante) :
+
+- *Reprendre* : le dernier assistant connecté (où, lequel, niveau) est mémorisé sous sa propre clé (`@novaguard:connect:last:v1`, `connectMemory.ts`), pas dans les réglages ; une valeur que l’écran ne saurait plus proposer est ignorée.
+- *Termux* : `McpServerModule.isTermuxInstalled` (un `<queries><package com.termux/>` au manifeste, sans permission) ; si Termux est là, « Sur ce téléphone » le dit.
+- *Tester le serveur* : `McpServerModule.selfTest` interroge le serveur de l’intérieur (`tools/list`, sans socket). Il prouve que le serveur répond, pas qu’une autre machine l’atteint, et n’est pas compté dans `requestCount` : seule une vraie requête d’assistant fait passer l’écran à « Connecté ».
+- *QR code* de ce qui est copié, pour une autre machine (Wi-Fi, cloud) ; avec la même mise en garde que Réglages quand il contient la clé.
+- *Schéma du relais* sur le chemin cloud : assistant → relais → téléphone, avec le relais nommé et ce qu’il voit.
+- *Durée de l’autorisation OAuth* : à la demande, « Autoriser 24 h » ou « Autoriser, sans limite ». La fin choisie (`Grant.validUntil`) plafonne les jetons d’accès et de renouvellement, retire l’assistant de la liste à l’échéance et survit à un redémarrage ; sans fin choisie, le comportement est inchangé (révocation, ou 30 jours sans usage).
+- *Vocabulaire* : « clé d’accès » et « clé de pilotage » dans l’interface (français et anglais) ; les documents techniques gardent « jeton » / *token*.
 
 ### 7.3 États affichables
 
@@ -428,6 +441,9 @@ Le lot « clients SaaS » de la v1.0 est retiré (§12).
 | Accès depuis un cloud tiers (claude.ai, ChatGPT, Copilot Studio) | **Oui, par un relais intégré à l’application** (décision du 16 octobre 2026, qui remplace le « non » de la v2.1). L’application ouvre une connexion sortante vers un relais ; option éteinte par défaut | Fin de « aucune connexion sortante » : `PRIVACY.md`, `PRIVACY.en.md`, `docs/PLAY_STORE.md` (*Data safety*), `CLAUDE.md`, `mcp.md` §5 et `playRelease.test.ts` sont à réécrire dans la même PR que le code (§14.6) |
 | Version de protocole de référence | **`2026-07-28`**, une seule pour le code (`McpRules.LATEST_PROTOCOL`), `mcp.md` et l’interface | Les versions antérieures restent négociables |
 | Clients multi-utilisateurs | **Un jeton de lecture par téléphone**, partagé par l’instance ; jamais le jeton de pilotage | Révoquer un client, c’est régénérer le jeton et reconfigurer les autres ; des jetons multiples seraient une évolution du serveur |
+| Durée d’une autorisation OAuth | **Au choix du propriétaire à la demande** : 24 h ou sans limite (`Grant.validUntil`) | La fin choisie plafonne tous les jetons de l’assistant ; sans fin, le comportement antérieur (révocation, ou 30 jours sans usage) |
+| « Tester le serveur » | **De l’intérieur, sans socket, non compté** comme requête (`selfTest`) | Il prouve que le serveur répond ; « Connecté » reste réservé à un vrai appel |
+| Vocabulaire de l’interface | **« clé d’accès », « clé de pilotage »** | Les documents techniques et le protocole gardent « jeton » / *token* |
 | IPv6 sur le LAN | **IPv4 exigée**, documentée | Un client en IPv6 seul n’est pas pris en charge |
 
 Ces décisions se rouvrent par une révision de ce document, pas au fil d’une intégration.
@@ -528,6 +544,10 @@ Critères d’acceptation à ajouter à §10 :
 | AC-18 | Autorisation OAuth depuis claude.ai | Consentement sur le téléphone ; un refus ou une absence de réponse sous 2 minutes échoue proprement |
 | AC-19 | « Couper l’accès cloud » pendant un appel | Connexion sortante fermée, appel en cours refusé, plus aucune requête transmise (drapeau `relayCut` lu par chaque requête du relais ; vérifié par test côté JavaScript, à vérifier sur appareil côté natif) |
 | AC-20 | Interrupteur éteint | Aucune connexion sortante ouverte (vérifié sur appareil et par `playRelease.test.ts`) |
+| AC-21 | « Connecter un assistant » avec un obstacle (serveur éteint, jeton absent, pas de Wi-Fi, relais non renseigné…) | Un seul obstacle nommé, avec le bouton qui le lève quand il existe (`mcpConnect.test.ts`) |
+| AC-22 | Agent sur le même téléphone | Configuration du client sur `127.0.0.1`, aucun identifiant ; le jeton de pilotage seulement si « piloter » est choisi et valide |
+| AC-23 | Niveau d’accès | Le pilotage n’est sélectionnable que s’il est offert ; un choix périmé retombe sur la lecture ; un produit cloud ne reçoit jamais d’identifiant par ce parcours |
+| AC-24 | Autorisation « 24 h » | Le droit prend fin à l’échéance : jeton d’accès refusé, renouvellement refusé, assistant retiré de la liste (`McpOAuthTest`) |
 
 ## 15. Sources
 

@@ -15,10 +15,13 @@ import { t } from '../i18n';
  * first one made: the screens' own are then still the last, which is what
  * `backgroundSaving.test.tsx` drives.
  */
+/** The shorter of the two durations offered; the other is open-ended, until the owner revokes it. */
+export const GRANT_DAY_MS = 24 * 3_600_000;
+
 export function McpAuthPrompt({ enabled, pending, onAnswer }: {
   enabled: boolean;
   pending: McpPendingAuthorization[] | undefined;
-  onAnswer: (id: string, allow: boolean) => void;
+  onAnswer: (id: string, allow: boolean, lifetimeMs?: number) => void;
 }) {
   const prompted = useRef<string | null>(null);
   const open = useRef(false);
@@ -37,15 +40,16 @@ export function McpAuthPrompt({ enabled, pending, onAnswer }: {
     if (!next) return;
     open.current = true;
     prompted.current = next.id;
-    const answer = (allow: boolean) => {
+    const answer = (allow: boolean, lifetimeMs = 0) => {
       open.current = false;
-      onAnswer(next.id, allow);
+      onAnswer(next.id, allow, lifetimeMs);
     };
     Alert.alert(
       t('mcpAuth.title', { client: next.clientName }),
       t('mcpAuth.body', { client: next.clientName, host: next.host, code: next.code }),
       [
         { text: t('mcpAuth.deny'), style: 'cancel', onPress: () => answer(false) },
+        { text: t('mcpAuth.allowDay'), onPress: () => answer(true, GRANT_DAY_MS) },
         { text: t('mcpAuth.allow'), onPress: () => answer(true) },
       ],
       { cancelable: false },

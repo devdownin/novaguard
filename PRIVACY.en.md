@@ -56,7 +56,7 @@ outgoing connection, and it exists only while that setting is on.
 - It keeps nothing: its logs hold only the time, the device identifier, the status
   and the size of a request, never its content.
 - Through this path the assistant can only **read**, with the access token or with
-  an authorization that **you confirm on the phone** (OAuth); the control token is
+  an authorization that **you confirm on the phone** (OAuth, which you can limit to 24 hours when you grant it); the control token is
   not accepted there. Live view has its own switch. Every authorization is listed
   in the settings and revoked in one tap; the phone keeps only digests, never the
   tokens.

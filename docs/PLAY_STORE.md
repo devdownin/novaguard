@@ -44,6 +44,7 @@ d'installations, si.
 | `versionCode` pilotable par la CI | ✅ `-PnovaguardVersionCode=` (numéro de run) |
 | Politique de confidentialité, fr + en | ✅ [`PRIVACY.md`](../PRIVACY.md), [`PRIVACY.en.md`](../PRIVACY.en.md) — restent à publier à une URL |
 | Icône 512×512 | ✅ `assets/store/icon-512.png` |
+| `<queries>` pour un seul paquet (`com.termux`) | ✅ aucune permission, pas de `QUERY_ALL_PACKAGES` : l'application sait seulement si Termux est installé, localement, pour proposer un raccourci |
 | Permissions justifiables une par une | ✅ vérifié par `__tests__/playRelease.test.ts` |
 | Aucune connexion sortante, sauf le relais d'accès cloud (optionnel, éteint par défaut) ; `INTERNET` pour les deux serveurs locaux et ce relais | ✅ vérifiée par le même test : un seul fichier (`McpRelayClient.kt`) peut ouvrir une connexion |
 | Fiche Store, fr-FR et en-US | ✅ § 5, à coller dans la Console |

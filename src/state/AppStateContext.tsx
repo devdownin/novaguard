@@ -1903,8 +1903,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     stopMcpRelay().then(setMcpStatus).catch(() => {});
   }, [mcpStatus.relayCut, patchSettings]);
 
-  const answerAuthorization = useCallback((id: string, allow: boolean) => {
-    answerMcpAuthorization(id, allow)
+  const answerAuthorization = useCallback((id: string, allow: boolean, lifetimeMs = 0) => {
+    answerMcpAuthorization(id, allow, lifetimeMs)
       .then(() => getMcpServerStatus().then(setMcpStatus))
       .catch(() => {});
   }, []);

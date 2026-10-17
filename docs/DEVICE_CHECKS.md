@@ -128,6 +128,11 @@ tool() {  # tool <jeton> <outil sans préfixe> [arguments JSON]
       pilotage est éteint ; une fois allumé, la configuration copiée porte le jeton de
       pilotage et l'assistant voit les outils de pilotage. Le premier écran liste les
       assistants autorisés ; « Révoquer » coupe le suivant.
+- [ ] Autorisation OAuth : « Autoriser 24 h » ; vingt-quatre heures plus tard (ou après avoir
+      avancé l'horloge), l'assistant n'apparaît plus dans Réglages et sa requête suivante est refusée.
+- [ ] « Connecter un assistant » avec Termux installé puis désinstallé : la mention « Termux est
+      installé ici » apparaît puis disparaît. « Tester le serveur » répond, serveur éteint il échoue ;
+      dans les deux cas l'écran ne passe pas à « Connecté ».
 - [ ] Changer de réseau (Wi-Fi → données mobiles) : le téléphone se reconnecte
       seul, l'adresse publique reste la même.
 - [ ] Avec un VPN actif, l'accès cloud et l'URL du réseau local restent justes.
