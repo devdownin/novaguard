@@ -98,6 +98,38 @@ public final class McpRelayRules {
     return "/mcp".equals(bare);
   }
 
+  /** The authorization server's own endpoints, as the phone sees them behind the relay. */
+  public static boolean oauthPath(String path) {
+    if (path == null) return false;
+    String bare = path.indexOf('?') >= 0 ? path.substring(0, path.indexOf('?')) : path;
+    switch (bare) {
+      case "/.well-known/oauth-protected-resource/mcp":
+      case "/.well-known/oauth-authorization-server":
+      case "/register":
+      case "/authorize":
+      case "/authorize/status":
+      case "/token":
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /** The authorization server's identifier: where its endpoints hang, public side. */
+  public static String issuer(String base, String deviceId) {
+    return base + "/d/" + deviceId;
+  }
+
+  /** RFC 9728 puts the well-known part before the resource's path, so the relay's `/d/<id>` comes after it. */
+  public static String resourceMetadataUrl(String base, String deviceId) {
+    return base + "/.well-known/oauth-protected-resource/d/" + deviceId + "/mcp";
+  }
+
+  /** What a 401 through the relay tells a client, so it can find out how to obtain a token. */
+  public static String challenge(String base, String deviceId) {
+    return "Bearer realm=\"NovaGuard MCP\", resource_metadata=\"" + resourceMetadataUrl(base, deviceId) + "\"";
+  }
+
   /** Seconds to wait after the `attempt`-th failure in a row (0-based): 1, 2, 4 … 60, then 60. */
   public static long backoffMs(int attempt) {
     int capped = Math.min(Math.max(attempt, 0), 6);

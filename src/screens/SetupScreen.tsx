@@ -727,6 +727,22 @@ export function SetupScreen() {
                 />
               ) : null}
               <Text style={styles.hint}>{t('setup.mcpCloud.readOnly')}</Text>
+              <SettingRow label={t('setup.mcpGrants')} subtitle={(s.mcpStatus.grants ?? []).length === 0 ? t('setup.mcpGrants.none') : undefined}>
+                <StaticValue label={String((s.mcpStatus.grants ?? []).length)} />
+              </SettingRow>
+              {(s.mcpStatus.grants ?? []).map(grant => (
+                <SettingRow
+                  key={grant.id}
+                  label={grant.clientName}
+                  subtitle={t('setup.mcpGrants.lastUsed', { host: grant.host, time: formatWhen(grant.lastUsedAt) })}
+                >
+                  <ValueButton
+                    label={t('setup.mcpGrants.revoke')}
+                    onPress={() => s.revokeMcpGrant(grant.id)}
+                    accessibilityLabel={t('setup.mcpGrants.revoke.a11y', { client: grant.clientName })}
+                  />
+                </SettingRow>
+              ))}
               {settings.mcpLiveFrameEnabled ? (
                 <SettingRow label={t('setup.mcpCloudLive')} subtitle={t('setup.mcpCloudLive.sub')}>
                   <Switch

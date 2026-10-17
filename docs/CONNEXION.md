@@ -2,7 +2,7 @@
 
 - Version : 2.2
 - Date : 16 octobre 2026
-- Statut : décisions prises (§12) ; lots 0 et 3 implémentés ; parcours clients **non qualifiés sur appareil** (§10). **Accès depuis le cloud : décidé le 16 octobre 2026, par relais intégré à l’application (§14) ; le service `relay/` et le client de l’application existent ; aucune instance n’est déployée, l’authentification OAuth (R3) manque, donc seule une clé d’API (Copilot Studio) peut s’y connecter.**
+- Statut : décisions prises (§12) ; lots 0 et 3 implémentés, relais et OAuth (R1 à R3) aussi ; parcours clients **non qualifiés sur appareil** (§10). **Accès depuis le cloud : décidé le 16 octobre 2026, par relais intégré à l’application (§14) ; le service `relay/`, le client de l’application et le serveur d’autorisation OAuth existent ; aucune instance du relais n’est déployée et rien n’a été essayé avec un vrai client cloud.**
 - Référence du serveur : [`mcp.md`](../mcp.md) (contrat des outils) et `android/app/src/main/java/com/novaguard/surveillance/McpServerModule.kt`
 - Clients étudiés : Claude (Claude Code, Claude Desktop, claude.ai), ChatGPT, Microsoft Copilot Studio, LibreChat, Open WebUI, AnythingLLM, OpenClaw, Hermes Agent (Nous Research)
 
@@ -108,7 +108,7 @@ Un client qui tourne sur le même appareil (Termux, par exemple) atteint `http:/
 - Comparaison par empreinte SHA-256 à temps constant ; un jeton de moins de 16 caractères est ignoré.
 - Un jeton de pilotage expiré n’ouvre plus rien, pas même la lecture : `401` `NOVAGUARD_AUTH_REQUIRED` hors boucle locale.
 - Un outil de pilotage appelé avec le jeton de lecture : erreur JSON-RPC `NOVAGUARD_AUTH_FORBIDDEN`, HTTP `403`.
-- Un `401` porte `WWW-Authenticate: Bearer realm="NovaGuard MCP"`, sans `resource_metadata`. Un client qui tente une découverte OAuth sur ce `401` échoue (`GET` → `405`) : **désactiver explicitement OAuth** dans tout client qui le propose.
+- Sur le réseau local, un `401` porte `WWW-Authenticate: Bearer realm="NovaGuard MCP"`, sans `resource_metadata`. Un client qui tente une découverte OAuth sur ce `401` échoue (`GET` → `405`) : **désactiver explicitement OAuth** dans tout client qui le propose. Par le relais, le `401` porte `resource_metadata` et le client suit la découverte (§14.3).
 
 ### 4.2 Choix du jeton par client
 
@@ -132,9 +132,9 @@ Les outils d’images rendent des blocs `image` dans le résultat d’outil : un
 | --- | --- | --- | --- | --- |
 | Claude Code | Oui, depuis le poste | `claude mcp add --transport http` + `--header` | B/C/D | À qualifier |
 | Claude Desktop | Oui, via un pont `stdio` local | `mcpServers` → pont HTTP | B/C/D | À qualifier ; dépend d’un pont tiers |
-| claude.ai (connecteurs distants) | Seulement via le relais (§14) : appel depuis l’infrastructure d’Anthropic | OAuth | A puis C | **Prévu, non implémenté** |
-| ChatGPT | Seulement via le relais (§14) : appel depuis l’infrastructure d’OpenAI | OAuth (ou sans authentification, exclu) | A puis C | **Prévu, non implémenté** |
-| Copilot Studio | Seulement via le relais (§14) : appel depuis l’infrastructure Microsoft | Clé d’API ou OAuth | A/B puis C | **Prévu, non implémenté** |
+| claude.ai (connecteurs distants) | Seulement via le relais (§14) : appel depuis l’infrastructure d’Anthropic | OAuth | A puis C | **Implémenté, non qualifié** |
+| ChatGPT | Seulement via le relais (§14) : appel depuis l’infrastructure d’OpenAI | OAuth (ou sans authentification, exclu) | A puis C | **Implémenté, non qualifié** |
+| Copilot Studio | Seulement via le relais (§14) : appel depuis l’infrastructure Microsoft | Clé d’API ou OAuth | A/B puis C | **Implémenté, non qualifié** |
 | LibreChat | Oui, auto-hébergé sur le LAN | `mcpServers` dans `librechat.yaml` | B/C/D | À qualifier |
 | Open WebUI | Oui, auto-hébergé sur le LAN | MCP natif Streamable HTTP, clé/en-tête | A/B/C | À qualifier |
 | AnythingLLM | Oui, Desktop ou Docker sur le LAN | `anythingllm_mcp_servers.json` | B, C à qualifier | À qualifier (transport HTTP et en-têtes) |
@@ -452,6 +452,14 @@ Le téléphone n’écoute rien de plus : il initie la connexion, aucune redirec
 1. **Une requête venue du relais n’est jamais une requête de boucle locale.** Aujourd’hui `McpRules.principal` donne la lecture sans jeton à la boucle locale ; une trame du relais arriverait de l’intérieur du processus. Elle porte une origine `relay` qui exige toujours un jeton ou une autorisation OAuth, et le test JVM le vérifie.
 2. **Contrôles `Host` et `Origin`** : le nom d’hôte public du relais devient une autorité attendue, uniquement tant que le relais est actif.
 3. **Authentification.** claude.ai et ChatGPT n’envoient pas de jeton statique choisi par l’utilisateur : ils attendent OAuth 2.1 (code d’autorisation + PKCE, métadonnées de ressource protégée, `WWW-Authenticate` avec `resource_metadata`). Copilot Studio accepte une clé d’API. Le serveur d’autorisation tourne **sur le téléphone**, derrière le relais : l’autorisation se termine par un geste du propriétaire sur l’écran de l’appareil (« Autoriser Claude ? »), et les jetons émis sont gardés par empreinte, révocables un par un dans Réglages.
+
+   Décisions de mise en œuvre (R3) :
+   - **Le consentement est sur le téléphone, pas sur la page web.** `GET /authorize` ouvre une demande et affiche un code à quatre chiffres ; le téléphone affiche le même, avec le nom du client et l'hôte de retour. La page web attend (elle interroge `authorize/status`) et ne reçoit le code d'autorisation qu'une fois la demande acceptée, une seule fois. Le code à comparer est ce qui permet au propriétaire de reconnaître la connexion qu'il vient de lancer.
+   - **Plafonds** : 3 demandes en attente, 120 s de validité, code d'autorisation 60 s à usage unique, 20 clients enregistrés, 10 autorisations ; au-delà, refus (`429` pour les demandes). Un client sans autorisation est évincé le premier.
+   - **Redirections** : liste d'hôtes (`claude.ai`, `claude.com`, `chatgpt.com`, `chat.openai.com`, sous-domaines de `azure-apim.net`) et boucle locale en `http` pour les clients natifs. Un hôte inconnu est refusé à l'enregistrement. Ajouter un client cloud, c'est ajouter son hôte dans `McpOAuth.java` et son test.
+   - **Jetons** : accès 1 h, rafraîchissement 30 jours avec rotation ; un jeton de rafraîchissement rejoué, ou un code d'autorisation rejoué, révoque l'autorisation qu'il avait ouverte.
+   - **Un jeton OAuth n'ouvre que le relais.** `principalFor` ne l'accepte pas sur la socket du réseau local.
+   - **Notification** : une demande qui attend fait sonner « Autoriser un assistant à lire ? » (sans le nom du client à l'écran verrouillé), et l'invite s'affiche dans l'application dès qu'elle passe au premier plan.
 4. **Périmètre cloud réduit par défaut** : lecture seule. Le pilotage et la vue en direct via le relais ont chacun leur interrupteur, éteints par défaut, en plus de ceux qui existent. Le jeton de pilotage actuel n’est jamais accepté par le relais.
 5. L’en-tête `Authorization` n’est plus la seule forme d’identité : `principalFor` sait distinguer jeton de lecture, jeton de pilotage, jeton OAuth et origine.
 
@@ -497,7 +505,7 @@ La phrase « NovaGuard n’ouvre aucune connexion sortante » devient fausse dè
 | R0 | Trancher l’hébergement (§14.2) et le modèle de confiance (§14.4) | **Fait** |
 | R1 | Service `relay/` : authentification par défi, transmission, quotas ; tests de protocole | **Fait** : `relay/`, 15 tests `node:test` dans le job `check` de la CI. Reste à le déployer |
 | R2 | Client du relais dans l’application (Kotlin) : connexion sortante, origine `relay` dans `McpRules`, tests JVM | **Fait**, sauf l’action « Couper l’accès cloud » de la notification (R4). Le Kotlin est validé par le build APK de la PR ; rien n’a été essayé sur un téléphone |
-| R3 | Serveur d’autorisation OAuth sur le téléphone : métadonnées, DCR ou clients préenregistrés, consentement sur l’appareil, révocation | R2 |
+| R3 | Serveur d’autorisation OAuth sur le téléphone : métadonnées, DCR ou clients préenregistrés, consentement sur l’appareil, révocation | **Fait** : `McpOAuth.java` (flux, PKCE, expiration, rotation, plafonds ; testé sur la JVM), `McpOAuthServer.kt` (HTTP, page de confirmation, fichier d’état), `McpAuthNotifier.kt` (notification), liste et révocation dans Réglages. Le relais route les documents `.well-known` avec leur préfixe. Reste à qualifier avec les trois clients |
 | R4 | Interface (§14.5) et réécriture du contrat de confidentialité (§14.6) | Contrat **fait** avec R2 ; interface en partie (interrupteur, consentement, état, adresse). Restent : liste des autorisations, « Couper l’accès cloud » dans la notification, adresse du relais modifiable |
 | R5 | Qualification de bout en bout avec chacun des trois clients cloud ; AC-17 à AC-20 ci-dessous | R4 |
 
@@ -505,7 +513,7 @@ Critères d’acceptation à ajouter à §10 :
 
 | ID | Scénario | Résultat attendu |
 | --- | --- | --- |
-| AC-17 | Requête par le relais sans autorisation | `401` avec `WWW-Authenticate` et `resource_metadata` ; jamais traitée comme boucle locale |
+| AC-17 | Requête par le relais sans autorisation | `401` avec `WWW-Authenticate` et `resource_metadata` ; jamais traitée comme boucle locale (`McpRules.relayPrincipal`, test JVM ; `resource_metadata` : `McpRelayRules.challenge`) |
 | AC-18 | Autorisation OAuth depuis claude.ai | Consentement sur le téléphone ; un refus ou une absence de réponse sous 2 minutes échoue proprement |
 | AC-19 | « Couper l’accès cloud » pendant un appel | Connexion sortante fermée, appel en cours refusé, plus aucune requête transmise |
 | AC-20 | Interrupteur éteint | Aucune connexion sortante ouverte (vérifié sur appareil et par `playRelease.test.ts`) |

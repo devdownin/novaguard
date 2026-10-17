@@ -53,6 +53,11 @@ describe('protocol', () => {
     assert.deepEqual(route(`/.well-known/oauth-protected-resource/d/${id}/mcp`), {
       id, path: '/.well-known/oauth-protected-resource/mcp',
     });
+    assert.deepEqual(route(`/.well-known/oauth-authorization-server/d/${id}`), {
+      id, path: '/.well-known/oauth-authorization-server',
+    }, 'issuer metadata has no trailing path');
+    assert.deepEqual(route(`/d/${id}/authorize?state=x`), { id, path: '/authorize?state=x' });
+    assert.deepEqual(route(`/d/${id}`), { id, path: '/' });
     assert.equal(route('/d/short/mcp'), null);
     assert.equal(route(`/x/d/${id}/mcp`), null);
     assert.equal(route(`/d/${id}/../../etc`)?.path, '/../../etc');
@@ -100,6 +105,23 @@ describe('relay', () => {
     assert.equal(p.seen[0].path, '/mcp');
     assert.equal(Buffer.from(p.seen[0].body, 'base64').toString(), '{"a":1}');
     assert.equal(p.seen[0].headers.authorization, 'Bearer t');
+    p.ws.close();
+  });
+
+  it('passes the consent page its security headers back, and drops the rest', async () => {
+    const p = await phone(base, () => ({
+      status: 200,
+      headers: { 'content-type': 'text/html', 'content-security-policy': "default-src 'none'", 'referrer-policy': 'no-referrer', 'set-cookie': 'a=b', location: 'https://evil.example' },
+      body: Buffer.from('<p>ok</p>').toString('base64'),
+    }));
+    await p.ready;
+    const res = await fetch(`${base}/d/${p.id}/authorize?x=1`);
+    assert.equal(res.headers.get('content-security-policy'), "default-src 'none'");
+    assert.equal(res.headers.get('referrer-policy'), 'no-referrer');
+    assert.equal(res.headers.get('set-cookie'), null);
+    assert.equal(res.headers.get('location'), null);
+    assert.equal(p.seen[0].method, 'GET');
+    assert.equal(p.seen[0].path, '/authorize?x=1');
     p.ws.close();
   });
 

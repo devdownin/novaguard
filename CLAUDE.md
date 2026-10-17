@@ -661,7 +661,14 @@ ne s'apprennent pas au moment où on en a besoin :
   requête de boucle locale (`McpRules.relayPrincipal` : lecture avec le jeton
   d'accès, jamais de pilotage), parce que ses trames sont livrées de l'intérieur
   du processus. Le relais termine TLS et voit le trafic en clair : c'est écrit
-  dans le consentement, et c'est accepté. Longtemps le formulaire et `PRIVACY.md`
+  dans le consentement, et c'est accepté. Les clients cloud s'authentifient par
+  OAuth, et **le serveur d'autorisation est sur le téléphone** (`McpOAuth.java`,
+  `McpOAuthServer.kt`) : `/authorize` n'émet rien, il ouvre une demande et affiche
+  un code à quatre chiffres que le propriétaire compare sur l'appareil avant de
+  répondre ; le relais ne voit ni décision ni jeton qu'il pourrait forger. Les
+  redirections acceptées sont une liste d'hôtes connus plus la boucle locale,
+  refusées dès l'enregistrement, et les jetons ne sont gardés que par empreinte.
+  Un jeton OAuth n'ouvre que le chemin du relais, jamais la socket du réseau local. Longtemps le formulaire et `PRIVACY.md`
   ont affirmé l'absence de la permission, qui était fausse. Chaque type de service
   de premier plan doit être couvert par sa permission ; le même test tient la
   liste.

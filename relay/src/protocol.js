@@ -72,7 +72,12 @@ export function authenticate(key, signature, nonce) {
 // Headers a caller may hand the phone. Everything else — cookies, forwarding
 // headers, anything the relay's own proxy added — stops here.
 const REQUEST_HEADERS = ['authorization', 'content-type', 'accept', 'mcp-protocol-version', 'origin'];
-const RESPONSE_HEADERS = ['content-type', 'www-authenticate', 'mcp-protocol-version', 'retry-after', 'cache-control'];
+// The consent page the phone serves is an HTML page in the owner's browser, so what keeps it
+// from being framed or from leaking its address has to survive the relay.
+const RESPONSE_HEADERS = [
+  'content-type', 'www-authenticate', 'mcp-protocol-version', 'retry-after', 'cache-control',
+  'content-security-policy', 'referrer-policy', 'x-frame-options',
+];
 
 function pick(source, names) {
   const out = {};
@@ -107,7 +112,9 @@ export function route(url) {
   const match = ROUTE.exec(url);
   if (!match) return null;
   const [, wellKnown = '', id, rest = '', query = ''] = match;
-  return { id, path: `${wellKnown}${rest || '/'}${query}` };
+  // A metadata document has no path of its own after the prefix: `/.well-known/x` and not `/.well-known/x/`.
+  const path = wellKnown ? `${wellKnown}${rest}` : (rest || '/');
+  return { id, path: `${path}${query}` };
 }
 
 export const decode = data => {

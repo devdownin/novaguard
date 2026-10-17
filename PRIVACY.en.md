@@ -55,8 +55,11 @@ outgoing connection, and it exists only while that setting is on.
   phone, not end to end.
 - It keeps nothing: its logs hold only the time, the device identifier, the status
   and the size of a request, never its content.
-- Through this path the assistant can only **read**, with the access token; the
-  control token is not accepted there. Live view has its own switch.
+- Through this path the assistant can only **read**, with the access token or with
+  an authorization that **you confirm on the phone** (OAuth); the control token is
+  not accepted there. Live view has its own switch. Every authorization is listed
+  in the settings and revoked in one tap; the phone keeps only digests, never the
+  tokens.
 - The phone identifies itself to the relay with a key that never leaves the Android
   Keystore; the public address is derived from it.
 - You cut access by turning the setting off: the connection closes at once.

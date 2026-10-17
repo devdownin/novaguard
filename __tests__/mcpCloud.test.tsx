@@ -8,7 +8,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert, NativeModules, Text } from 'react-native';
+import { Alert, AppState, NativeModules, Text } from 'react-native';
 import { useCameraPermission } from 'react-native-vision-camera';
 import { AppStateProvider, useAppState } from '../src/state/AppStateContext';
 import { SetupScreen } from '../src/screens/SetupScreen';
@@ -31,9 +31,13 @@ jest.mock('../src/constants/app', () => {
 
 const TOKEN = 'mcp_' + 'r'.repeat(32);
 let relayState: string;
+let pending: Array<Record<string, unknown>>;
+let grants: Array<Record<string, unknown>>;
 const status = (over: Record<string, unknown> = {}) => ({
   running: true, port: 8081, ipAddress: '192.168.1.42', url: 'http://192.168.1.42:8081/mcp', hasToken: true,
-  loopbackOnly: false, requestCount: 0, lastActivityAt: null, relayState, relayUrl: null, ...over,
+  loopbackOnly: false, requestCount: 0, lastActivityAt: null, relayState, relayUrl: null,
+  // A new array on every read, like the native side builds one: that is what re-runs the prompt effect.
+  pendingAuthorizations: [...pending], grants: [...grants], ...over,
 });
 const native = {
   startServer: jest.fn(async () => { relayState = 'off'; return status(); }),
@@ -41,6 +45,9 @@ const native = {
   getServerStatus: jest.fn(async () => status()),
   startRelay: jest.fn(async () => { relayState = 'connecting'; return status(); }),
   stopRelay: jest.fn(async () => { relayState = 'off'; return status(); }),
+  approveAuthorization: jest.fn(async (id: string) => { pending = pending.filter(p => p.id !== id); return true; }),
+  denyAuthorization: jest.fn(async (id: string) => { pending = pending.filter(p => p.id !== id); return true; }),
+  revokeGrant: jest.fn(async (id: string) => { grants = grants.filter(g => g.id !== id); return true; }),
   updateSnapshot: jest.fn(),
 };
 
@@ -69,6 +76,8 @@ beforeEach(async () => {
   jest.clearAllMocks();
   relayUrl('https://relay.test');
   relayState = 'off';
+  pending = [];
+  grants = [];
   await AsyncStorage.clear();
   (NativeModules as Record<string, unknown>).McpServer = native;
   (useCameraPermission as jest.Mock).mockReturnValue({ hasPermission: true, requestPermission: jest.fn() });
@@ -199,5 +208,124 @@ describe('the switch', () => {
       jest.useRealTimers();
       native.getServerStatus.mockImplementation(async () => status());
     }
+  });
+});
+
+describe('an assistant waiting for the owner', () => {
+  const waiting = { id: 'nvp_abc', clientName: 'Claude', host: 'claude.ai', code: '4821', expiresAt: Date.now() + 120_000 };
+  /** The status poll is what brings a pending request to the app. */
+  async function poll() {
+    await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(2_100); });
+    await ReactTestRenderer.act(async () => {});
+  }
+  const alertSpy = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const setAppState = (value: string) => Object.defineProperty(AppState, 'currentState', { value, configurable: true });
+
+  beforeEach(() => { jest.useFakeTimers(); setAppState('active'); });
+  afterEach(() => { jest.useRealTimers(); setAppState('active'); jest.restoreAllMocks(); });
+
+  it('is asked, with the client, its address and the code to compare, and cannot be dismissed by accident', async () => {
+    const alert = alertSpy();
+    await mount({ mcpCloudEnabled: true });
+    pending = [waiting];
+    await poll();
+    expect(alert).toHaveBeenCalledTimes(1);
+    const [title, body, , options] = alert.mock.calls[0];
+    expect(title).toBe(t('mcpAuth.title', { client: 'Claude' }));
+    expect(body).toBe(t('mcpAuth.body', { client: 'Claude', host: 'claude.ai', code: '4821' }));
+    expect(body).toContain('4821');
+    expect(options).toMatchObject({ cancelable: false });
+  });
+
+  it('is asked once, however often the status is read', async () => {
+    const alert = alertSpy();
+    await mount({ mcpCloudEnabled: true });
+    pending = [waiting];
+    await poll();
+    await poll();
+    await poll();
+    expect(alert).toHaveBeenCalledTimes(1);
+  });
+
+  it('is not asked again once answered, even while the phone still lists it', async () => {
+    const alert = alertSpy();
+    native.denyAuthorization.mockImplementationOnce(async () => true); // the list is not updated yet
+    await mount({ mcpCloudEnabled: true });
+    pending = [waiting];
+    await poll();
+    const buttons = alert.mock.calls[0][2]!;
+    await ReactTestRenderer.act(async () => { buttons.find(b => b.text === t('mcpAuth.deny'))!.onPress!(); });
+    await poll();
+    await poll();
+    expect(alert).toHaveBeenCalledTimes(1);
+  });
+
+  it('is allowed only by the owner pressing Autoriser', async () => {
+    const alert = alertSpy();
+    await mount({ mcpCloudEnabled: true });
+    pending = [waiting];
+    await poll();
+    expect(native.approveAuthorization).not.toHaveBeenCalled();
+    const buttons = alert.mock.calls[0][2]!;
+    await ReactTestRenderer.act(async () => { buttons.find(b => b.text === t('mcpAuth.allow'))!.onPress!(); });
+    expect(native.approveAuthorization).toHaveBeenCalledWith('nvp_abc');
+    expect(native.denyAuthorization).not.toHaveBeenCalled();
+  });
+
+  it('is refused by Refuser', async () => {
+    const alert = alertSpy();
+    await mount({ mcpCloudEnabled: true });
+    pending = [waiting];
+    await poll();
+    const buttons = alert.mock.calls[0][2]!;
+    await ReactTestRenderer.act(async () => { buttons.find(b => b.text === t('mcpAuth.deny'))!.onPress!(); });
+    expect(native.denyAuthorization).toHaveBeenCalledWith('nvp_abc');
+    expect(native.approveAuthorization).not.toHaveBeenCalled();
+  });
+
+  it('waits for the app to be on screen, and is then asked, not lost', async () => {
+    const alert = alertSpy();
+    setAppState('background');
+    const listen = jest.spyOn(AppState, 'addEventListener');
+    await mount({ mcpCloudEnabled: true });
+    pending = [waiting];
+    await poll();
+    expect(alert).not.toHaveBeenCalled();
+    // The app comes back to the front: the prompt appears at once, without waiting for the next poll.
+    // Several components listen to the app's state; the event reaches them all.
+    const handlers = listen.mock.calls.filter(call => call[0] === 'change').map(call => call[1] as (state: string) => void);
+    expect(handlers.length).toBeGreaterThan(0);
+    await ReactTestRenderer.act(async () => { handlers.forEach(handler => handler('active')); });
+    expect(alert).toHaveBeenCalledTimes(1);
+  });
+
+  it('is asked when the state is not known to be hidden', async () => {
+    const alert = alertSpy();
+    setAppState('unknown');
+    await mount({ mcpCloudEnabled: true });
+    pending = [waiting];
+    await poll();
+    expect(alert).toHaveBeenCalledTimes(1);
+  });
+
+  it('is never asked while cloud access is off', async () => {
+    const alert = alertSpy();
+    await mount();
+    pending = [waiting];
+    await poll();
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it('lists the assistants already authorized, and revokes one on request', async () => {
+    grants = [{ id: 'nvg_1', clientName: 'Claude', host: 'claude.ai', createdAt: 1, lastUsedAt: Date.now() }];
+    await mount({ mcpCloudEnabled: true });
+    await poll();
+    expect(texts()).toContain('Claude');
+    const revoke = tree.root.find(n => n.props.accessibilityLabel === t('setup.mcpGrants.revoke.a11y', { client: 'Claude' }) && typeof n.props.onPress === 'function');
+    await ReactTestRenderer.act(async () => { revoke.props.onPress(); });
+    await ReactTestRenderer.act(async () => {});
+    expect(native.revokeGrant).toHaveBeenCalledWith('nvg_1');
+    await poll();
+    expect(texts()).toContain(t('setup.mcpGrants.none'));
   });
 });

@@ -553,6 +553,20 @@ Two bearer tokens, generated on the device with a CSPRNG and compared by SHA-256
 
 Loopback reads need no token; loopback control does.
 
+### Cloud clients (through the relay)
+
+A request that arrives through the relay is authenticated by the read token **or** by an OAuth 2.1 access token the owner granted on the phone, never by the control token, and never as loopback (`McpRules.relayPrincipal`). The authorization server runs on the phone (`McpOAuth.java`, `McpOAuthServer.kt`) and is reachable only through the relay:
+
+| Endpoint (behind `/d/<id>`) | Role |
+|---|---|
+| `/.well-known/oauth-protected-resource/mcp` | RFC 9728 metadata; a `401` points here with `resource_metadata` |
+| `/.well-known/oauth-authorization-server` | RFC 8414 metadata: `S256` only, public clients, scope `novaguard:read` |
+| `POST /register` | RFC 7591 registration; redirect addresses limited to claude.ai, claude.com, chatgpt.com, `*.azure-apim.net` and loopback |
+| `GET /authorize` | Opens a request and shows a four-digit code; nothing is issued until the owner answers on the phone (prompt, and a notification when the app is hidden); expires after 2 minutes; at most 3 waiting |
+| `POST /token` | `authorization_code` (PKCE, single-use, 60 s) and `refresh_token` (rotated; a replayed one revokes its grant) |
+
+Access tokens last an hour, refresh tokens 30 days; only SHA-256 digests are kept, in the app's private directory. The owner lists and revokes grants in Réglages; the scope is reading only, and the live view needs its own cloud switch.
+
 Transport is plain HTTP unless the owner turns on HTTPS (§5): the tokens then travel encrypted, under a device authority the client trusts once.
 
 The control token has a lifetime chosen on the device — 1 h, 24 h (default) or none — counted from when it is issued or the lifetime changed. The server enforces it: past its end the token grants nothing, not even reading (a LAN caller gets `NOVAGUARD_AUTH_REQUIRED`, "expired"). While control is possible, the surveillance notification carries **Couper le pilotage**: one tap drops the control token in the server at once, answers a call in flight with `NOVAGUARD_AUTH_FORBIDDEN`, and turns the device switch off.
