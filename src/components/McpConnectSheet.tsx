@@ -3,14 +3,16 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { color, font, MAX_FONT_SCALE } from '../theme';
 import { useAppState } from '../state/AppStateContext';
 import {
-  AgentId, agentName, agentsFor, baselineOf, Baseline, blocker, Fix, howKey, isCloudAgent, payloadFor, progress, Where, WHERE,
+  AgentId, agentName, agentsFor, baselineOf, Baseline, blocker, controlOffered, Fix, howKey, isCloudAgent, payloadFor, progress, Where, WHERE,
 } from '../surveillance/mcpConnect';
 import { normalizeRelayUrl, relayHostOf } from '../surveillance/relayAddress';
 import { PrimaryOutlineButton, SecondaryOutlineButton } from './OutlineButton';
 import { Sheet } from './Sheet';
+import { ValueButton } from './SetupRows';
 import { askCloudConsent } from './cloudConsent';
 import { copyText } from '../utils/clipboard';
 import { formatWhen } from '../utils/date';
+import type { TokenChoice } from '../surveillance/mcpClients';
 import { StringKey, t } from '../i18n';
 
 /**
@@ -29,6 +31,7 @@ export function McpConnectSheet() {
   const [where, setWhere] = React.useState<Where | null>(null);
   const [agent, setAgent] = React.useState<AgentId | null>(null);
   const [copied, setCopied] = React.useState(false);
+  const [access, setAccess] = React.useState<TokenChoice>('read');
   const [editingRelay, setEditingRelay] = React.useState(false);
   const [relayText, setRelayText] = React.useState('');
   const [relayInvalid, setRelayInvalid] = React.useState(false);
@@ -37,7 +40,7 @@ export function McpConnectSheet() {
   // Every opening starts from the question, not from wherever the last one stopped.
   React.useEffect(() => {
     if (!open) return;
-    setWhere(null); setAgent(null); setCopied(false); setEditingRelay(false); setRelayInvalid(false);
+    setWhere(null); setAgent(null); setCopied(false); setAccess('read'); setEditingRelay(false); setRelayInvalid(false);
   }, [open]);
 
   // Proof is measured from the moment the assistant's own screen appears.
@@ -77,6 +80,8 @@ export function McpConnectSheet() {
           where={where}
           agent={agent}
           copied={copied}
+          access={access}
+          onAccess={setAccess}
           onCopied={() => setCopied(true)}
           baseline={baseline.current}
           onFix={fix}
@@ -96,6 +101,8 @@ export function McpConnectSheet() {
 // ------------------------------------------------------------------ 1. where
 
 function WhereStep({ onPick }: { onPick: (where: Where) => void }) {
+  const { mcpStatus, revokeMcpGrant } = useAppState();
+  const grants = mcpStatus.grants ?? [];
   return (
     <View>
       <Text style={styles.question}>{t('connect.where.title')}</Text>
@@ -107,6 +114,26 @@ function WhereStep({ onPick }: { onPick: (where: Where) => void }) {
           onPress={() => onPick(where)}
         />
       ))}
+      {grants.length > 0 ? (
+        <View style={styles.card} testID="connect-grants">
+          <Text style={styles.label}>{t('connect.grants.title')}</Text>
+          {grants.map(grant => (
+            <View key={grant.id} style={styles.grant}>
+              <View style={styles.grantText}>
+                <Text style={styles.body}>{grant.clientName}</Text>
+                <Text style={styles.hint}>
+                  {t('setup.mcpGrants.lastUsed', { host: grant.host, time: formatWhen(grant.lastUsedAt) })}
+                </Text>
+              </View>
+              <ValueButton
+                label={t('setup.mcpGrants.revoke')}
+                accessibilityLabel={t('setup.mcpGrants.revoke.a11y', { client: grant.clientName })}
+                onPress={() => revokeMcpGrant(grant.id)}
+              />
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -131,6 +158,8 @@ interface ConnectProps {
   where: Where;
   agent: AgentId;
   copied: boolean;
+  access: TokenChoice;
+  onAccess: (access: TokenChoice) => void;
   onCopied: () => void;
   baseline: Baseline;
   onFix: (fix: Fix) => void;
@@ -146,7 +175,10 @@ function ConnectStep(p: ConnectProps) {
   const { settings, mcpStatus } = useAppState();
   const cloud = isCloudAgent(p.agent);
   const stop = blocker(p.where, settings, mcpStatus);
-  const payload = stop ? null : payloadFor(p.agent, p.where, settings, mcpStatus);
+  const canControl = controlOffered(settings, Date.now());
+  // A choice made while control was on must not outlive it: fall back to reading rather than copy a dead token.
+  const access: TokenChoice = canControl ? p.access : 'read';
+  const payload = stop ? null : payloadFor(p.agent, p.where, settings, mcpStatus, access);
   const seen = progress(p.baseline, mcpStatus);
 
   return (
@@ -183,6 +215,27 @@ function ConnectStep(p: ConnectProps) {
           <PrimaryOutlineButton label={t('connect.fix.setRelay')} onPress={() => p.onFix('setRelay')} style={styles.action} />
         </View>
       ) : null}
+
+      {cloud ? (
+        <Text style={styles.hint}>{t('connect.access.cloud')}</Text>
+      ) : (
+        <View style={styles.card} testID="connect-access">
+          <Text style={styles.label}>{t('connect.access.title')}</Text>
+          <Radio
+            title={t('connect.access.read')}
+            sub={t('connect.access.read.sub')}
+            selected={access === 'read'}
+            onPress={() => p.onAccess('read')}
+          />
+          <Radio
+            title={t('connect.access.control')}
+            sub={canControl ? t('connect.access.control.sub') : t('connect.access.control.off')}
+            selected={access === 'control'}
+            disabled={!canControl}
+            onPress={() => p.onAccess('control')}
+          />
+        </View>
+      )}
 
       {payload ? (
         <View style={styles.card}>
@@ -229,9 +282,35 @@ function Choice({ title, sub, onPress }: { title: string; sub?: string; onPress:
       accessibilityLabel={sub ? `${title}. ${sub}` : title}
       style={({ pressed }) => [styles.choice, pressed && styles.pressed]}
     >
+      <ChoiceText title={title} sub={sub} />
+    </Pressable>
+  );
+}
+
+/** One of two exclusive options; a radio for a screen reader, which a button is not. */
+function Radio({ title, sub, selected, disabled, onPress }: {
+  title: string; sub: string; selected: boolean; disabled?: boolean; onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="radio"
+      accessibilityState={{ selected, disabled: !!disabled }}
+      accessibilityLabel={`${title}. ${sub}`}
+      style={({ pressed }) => [styles.choice, selected && styles.selected, disabled && styles.disabled, pressed && styles.pressed]}
+    >
+      <ChoiceText title={title} sub={sub} />
+    </Pressable>
+  );
+}
+
+function ChoiceText({ title, sub }: { title: string; sub?: string }) {
+  return (
+    <>
       <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.choiceTitle}>{title}</Text>
       {sub ? <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={styles.choiceSub}>{sub}</Text> : null}
-    </Pressable>
+    </>
   );
 }
 
@@ -248,6 +327,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   pressed: { opacity: 0.62 },
+  selected: { borderColor: color.accent },
+  disabled: { opacity: 0.5 },
+  grant: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  grantText: { flex: 1, paddingRight: 8 },
   choiceTitle: { fontFamily: font.medium, fontSize: 14, color: color.text },
   choiceSub: { fontFamily: font.regular, fontSize: 12, lineHeight: 17, color: color.neutral500, marginTop: 3 },
   card: {

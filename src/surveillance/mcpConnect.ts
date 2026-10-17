@@ -1,7 +1,8 @@
 import type { Settings } from '../state/types';
 import type { StringKey } from '../i18n/fr';
 import type { McpServerStatus } from './mcpServer';
-import { CLIENT_NAMES, clientFragment, fragmentToken, MCP_CLIENTS, McpClientId } from './mcpClients';
+import { CLIENT_NAMES, clientFragment, fragmentToken, MCP_CLIENTS, McpClientId, TokenChoice } from './mcpClients';
+import { agentControlLive } from './mcpControl';
 import { normalizeRelayUrl } from './relayAddress';
 
 /**
@@ -99,19 +100,25 @@ export interface Payload {
 /**
  * What the owner copies for `agent`, or null while there is nothing to hand over.
  *
- * Reading only: the control token is a separate decision, made in Réglages, and is
- * never what a guided setup puts on a clipboard.
+ * Reading unless the owner picked control on the access step, and only while control
+ * is on and its token alive: `fragmentToken` hands out nothing otherwise, so a stale
+ * choice cannot put a dead or forbidden credential on the clipboard. The cloud never
+ * gets a credential from here at all, and cannot control whatever is chosen.
  */
-export function payloadFor(agent: AgentId, where: Where, settings: Settings, status: McpServerStatus): Payload | null {
+export function payloadFor(
+  agent: AgentId, where: Where, settings: Settings, status: McpServerStatus,
+  access: TokenChoice = 'read', now: number = Date.now(),
+): Payload | null {
   if (isCloudAgent(agent)) {
     return status.relayUrl ? { url: status.relayUrl, text: status.relayUrl, isConfiguration: false } : null;
   }
   if (where === 'phone') {
     const url = `${status.tls ? 'https' : 'http'}://127.0.0.1:${status.port}/mcp`;
-    return { url, text: clientFragment(agent, url, ''), isConfiguration: true };
+    // Loopback reads without a token; only control needs one.
+    return { url, text: clientFragment(agent, url, access === 'control' ? fragmentToken(settings, 'control', now) : ''), isConfiguration: true };
   }
   if (!status.url) return null;
-  const token = fragmentToken(settings, 'read', Date.now());
+  const token = fragmentToken(settings, access, now);
   return { url: status.url, text: clientFragment(agent, status.url, token), isConfiguration: true };
 }
 
@@ -141,3 +148,6 @@ export function progress(baseline: Baseline, status: McpServerStatus): Progress 
   if ((status.pendingAuthorizations ?? []).length > 0) return 'authorizing';
   return 'waiting';
 }
+
+/** Whether the access step may offer control: the same test the server applies, not a second opinion. */
+export const controlOffered = (settings: Settings, now: number): boolean => agentControlLive(settings, now);

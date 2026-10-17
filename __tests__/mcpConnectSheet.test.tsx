@@ -20,11 +20,12 @@ jest.mock('../src/surveillance/foregroundService');
 const TOKEN = 'mcp_' + 'r'.repeat(32);
 let relayState: string;
 let requests: number;
+let grants: Array<Record<string, unknown>>;
 const status = () => ({
   running: true, port: 8081, ipAddress: '192.168.1.42', url: 'http://192.168.1.42:8081/mcp', hasToken: true,
   loopbackOnly: false, requestCount: requests, lastActivityAt: requests ? 1_760_000_000_000 : null,
   relayState, relayUrl: relayState === 'connected' ? 'https://relay.test/d/abc/mcp' : null,
-  pendingAuthorizations: [], grants: [],
+  pendingAuthorizations: [], grants: [...grants],
 });
 const native = {
   startServer: jest.fn(async () => status()),
@@ -32,6 +33,7 @@ const native = {
   getServerStatus: jest.fn(async () => status()),
   startRelay: jest.fn(async () => { relayState = 'connected'; return status(); }),
   stopRelay: jest.fn(async () => { relayState = 'off'; return status(); }),
+  revokeGrant: jest.fn(async (id: string) => { grants = grants.filter(g => g.id !== id); return true; }),
   updateSnapshot: jest.fn(),
 };
 
@@ -62,6 +64,7 @@ beforeEach(async () => {
   jest.clearAllMocks();
   relayState = 'off';
   requests = 0;
+  grants = [];
   await AsyncStorage.clear();
   (NativeModules as Record<string, unknown>).McpServer = native;
   (useCameraPermission as jest.Mock).mockReturnValue({ hasPermission: true, requestPermission: jest.fn() });
@@ -148,4 +151,65 @@ it('begins again at the question every time it is opened', async () => {
   await ReactTestRenderer.act(async () => { state.openInfo('connect'); });
   await ReactTestRenderer.act(async () => {});
   expect(texts()).toContain(t('connect.where.title'));
+});
+
+describe('access', () => {
+  const CONTROL = 'mcp_' + 'k'.repeat(32);
+  const radio = (label: string) => tree.root.find(n => n.props.accessibilityRole === 'radio' && n.props.accessibilityLabel?.startsWith(label));
+
+  it('copies the read token by default and the control one only once chosen', async () => {
+    await mount({ mcpControlEnabled: true, mcpControlToken: CONTROL, mcpControlExpiresAt: 0 });
+    await press(t('connect.where.lan'));
+    await press('Claude Code');
+    expect(payload()).toContain(TOKEN);
+    await press(t('connect.access.control'));
+    expect(radio(t('connect.access.control')).props.accessibilityState.selected).toBe(true);
+    expect(payload()).toContain(CONTROL);
+    expect(payload()).not.toContain(TOKEN);
+  });
+
+  it('falls back to the read token if control is switched off after it was chosen', async () => {
+    await mount({ mcpControlEnabled: true, mcpControlToken: CONTROL, mcpControlExpiresAt: 0 });
+    await press(t('connect.where.lan'));
+    await press('Claude Code');
+    await press(t('connect.access.control'));
+    expect(payload()).toContain(CONTROL);
+    await ReactTestRenderer.act(async () => { state.toggleMcpControl(); });
+    expect(payload()).toContain(TOKEN);
+    expect(payload()).not.toContain(CONTROL);
+  });
+
+  it('cannot select control while it is off', async () => {
+    await mount();
+    await press(t('connect.where.lan'));
+    await press('Claude Code');
+    expect(radio(t('connect.access.control')).props.disabled).toBe(true);
+    expect(texts()).toContain(t('connect.access.control.off'));
+    expect(payload()).not.toContain(CONTROL);
+  });
+
+  it('says a cloud assistant only looks, and offers no choice', async () => {
+    await mount({ mcpRelayUrl: 'https://relay.test', mcpCloudEnabled: true });
+    await press(t('connect.where.cloud'));
+    await press('claude.ai');
+    expect(texts()).toContain(t('connect.access.cloud'));
+    expect(tree.root.findAll(n => n.props.accessibilityRole === 'radio')).toHaveLength(0);
+  });
+});
+
+describe('authorized assistants', () => {
+  it('lists them on the first screen and revokes one', async () => {
+    grants = [{ id: 'g1', clientName: 'Claude', host: 'claude.ai', createdAt: 1, lastUsedAt: 1_760_000_000_000 }];
+    await mount();
+    expect(texts()).toContain('Claude');
+    await ReactTestRenderer.act(async () => {
+      tree.root.find(n => n.props.accessibilityLabel === t('setup.mcpGrants.revoke.a11y', { client: 'Claude' }) && n.props.onPress).props.onPress();
+    });
+    expect(native.revokeGrant).toHaveBeenCalledWith('g1');
+  });
+
+  it('shows nothing when no assistant has been authorized', async () => {
+    await mount();
+    expect(tree.root.findAllByProps({ testID: 'connect-grants' })).toHaveLength(0);
+  });
 });

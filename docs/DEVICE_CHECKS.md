@@ -124,6 +124,10 @@ tool() {  # tool <jeton> <outil sans préfixe> [arguments JSON]
       connecteur : « Autorisation en attente » puis, après « Autoriser », « Connecté ».
 - [ ] « Connecter un assistant » → Wi-Fi → Claude Code : la commande copiée, collée sur
       un ordinateur du même réseau, fait passer l'écran à « Connecté ».
+- [ ] « Connecter un assistant » → Wi-Fi : « Regarder et piloter » est grisé tant que le
+      pilotage est éteint ; une fois allumé, la configuration copiée porte le jeton de
+      pilotage et l'assistant voit les outils de pilotage. Le premier écran liste les
+      assistants autorisés ; « Révoquer » coupe le suivant.
 - [ ] Changer de réseau (Wi-Fi → données mobiles) : le téléphone se reconnecte
       seul, l'adresse publique reste la même.
 - [ ] Avec un VPN actif, l'accès cloud et l'URL du réseau local restent justes.

@@ -1,5 +1,5 @@
 import {
-  agentsFor, baselineOf, blocker, CLOUD_AGENTS, isCloudAgent, payloadFor, progress, WHERE,
+  agentsFor, baselineOf, blocker, CLOUD_AGENTS, controlOffered, isCloudAgent, payloadFor, progress, WHERE,
 } from '../src/surveillance/mcpConnect';
 import { MCP_SERVER_STOPPED, McpServerStatus } from '../src/surveillance/mcpServer';
 import { defaultSettings } from '../src/state/defaults';
@@ -56,10 +56,28 @@ describe('payloadFor', () => {
     expect(payload.text).toContain('http://192.168.1.42:8081/mcp');
     expect(payload.text).toContain(token);
   });
-  it('never puts the control token on a clipboard', () => {
+  describe('access', () => {
     const control = 'mcp_' + 'k'.repeat(32);
-    const text = payloadFor('json', 'lan', settings({ mcpControlToken: control, mcpControlEnabled: true }), status())!.text;
-    expect(text).not.toContain(control);
+    const now = 1_760_000_000_000;
+    const live = settings({ mcpControlToken: control, mcpControlEnabled: true, mcpControlExpiresAt: now + 60_000 });
+    it('puts the control token on the clipboard only when control was chosen', () => {
+      expect(payloadFor('json', 'lan', live, status(), 'read', now)!.text).not.toContain(control);
+      expect(payloadFor('json', 'lan', live, status(), 'control', now)!.text).toContain(control);
+    });
+    it('hands out nothing for control once it has expired or been switched off', () => {
+      const expired = settings({ ...live, mcpControlExpiresAt: now - 1 });
+      const text = payloadFor('json', 'lan', expired, status(), 'control', now)!.text;
+      expect(text).not.toContain(control);
+      expect(controlOffered(expired, now)).toBe(false);
+      expect(controlOffered(live, now)).toBe(true);
+    });
+    it('gives a local application a token only for control', () => {
+      expect(payloadFor('json', 'phone', live, status(), 'read', now)!.text).not.toMatch(/Bearer/);
+      expect(payloadFor('json', 'phone', live, status(), 'control', now)!.text).toContain(control);
+    });
+    it('never gives a cloud product a credential, whatever was chosen', () => {
+      expect(payloadFor('claude-ai', 'cloud', live, status(), 'control', now)!.text).not.toContain(control);
+    });
   });
 });
 

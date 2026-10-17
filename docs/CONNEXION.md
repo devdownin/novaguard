@@ -312,6 +312,8 @@ Deux questions (où tourne l’assistant : sur le téléphone, sur le Wi-Fi, dan
 - **Preuve** (`progress`) : « connecté » signifie qu’une requête est arrivée depuis l’ouverture de l’écran du client (`requestCount`), « autorisation en attente » qu’une demande OAuth attend la réponse du propriétaire.
 - **Adresse du relais** : réglage `mcpRelayUrl` (défaut `RELAY_URL`), https seulement, sans chemin ni identifiants (`normalizeRelayUrl`) ; la changer redémarre le relais.
 
+Deux ajouts à ce parcours : un **niveau d’accès** (« Regarder » par défaut, « Regarder et piloter » seulement tant que le pilotage est allumé et son jeton valide — `controlOffered`, même test que le serveur ; un choix devenu périmé retombe sur la lecture au lieu de copier un jeton mort) et la liste des **assistants autorisés**, avec révocation, sur le premier écran. Un assistant du cloud ne reçoit jamais d’identifiant d’ici et ne pilote pas, quoi qu’il demande.
+
 ### 7.3 États affichables
 
 NovaGuard ne voit que ce qui arrive sur son socket. Ces états se déduisent de ses propres compteurs, jamais de l’état interne d’un client :
