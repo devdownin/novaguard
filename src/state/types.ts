@@ -241,6 +241,14 @@ export interface Settings {
   mcpTls: boolean;
   /** Epoch ms the control token stops working; 0 for never. Set when it is issued. */
   mcpControlExpiresAt: number;
+  /**
+   * Cloud clients (claude.ai, ChatGPT, Copilot Studio) reach the server through
+   * the relay. Off by default: it is the only thing in this app that dials out,
+   * and `docs/CONNEXION.md` §14 says what the relay can see.
+   */
+  mcpCloudEnabled: boolean;
+  /** Lets the live view cross the relay too, on top of `mcpLiveFrameEnabled`. Off by default. */
+  mcpCloudLiveFrame: boolean;
   exp: ExpandedSections;
 }
 

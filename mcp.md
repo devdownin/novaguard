@@ -83,13 +83,13 @@ The server answers reads from a snapshot the app pushes when the history, the st
 - **LAN** (a read or control token is set): the socket binds all interfaces; every non-loopback request needs a token. The LAN address the server answers to (`Host`, certificate, URL shown) is the Wi-Fi, hotspot or Ethernet one; VPN and cellular interfaces are never taken for it (`McpRules.lanAddress`). Only IPv4 is served on the LAN. In plain HTTP the token is readable on a shared Wi-Fi.
 - **HTTPS** (switch "Chiffrer les connexions", off by default): the phone creates its own authority once — EC P-256, private key in the Android Keystore, never exported — and issues under it a server certificate for its current addresses (loopback and the Wi-Fi IP), reissued at the next handshake when the address changes. The owner installs the authority's PEM on the client once (system store, or `NODE_EXTRA_CA_CERTS` for Node clients) and compares the SHA-256 fingerprint Réglages shows. Every connection, loopback included, is then TLS. Certificates are built by `McpCertificates.java`, which `scripts/test-presence-native.sh` parses back, verifies and uses in a real TLS handshake.
 - **Discovery.** On the LAN the server is advertised over DNS-SD as `NovaGuard`, type `_novaguard-mcp._tcp`, TXT `path=/mcp`, `auth=bearer`: the phone's address is a DHCP lease, and a client that browses (`dns-sd -B _novaguard-mcp._tcp`, `avahi-browse -r _novaguard-mcp._tcp`) finds it again after it moves. Réglages also shows the client configuration as a QR code.
-- Public Internet exposure and port forwarding are not supported.
+- Public Internet exposure and port forwarding are not supported. Access from cloud clients (claude.ai, ChatGPT, Copilot Studio) goes through an optional in-app relay (switch "Accès depuis le cloud", off by default): the phone dials out to a relay and requests arrive from it. Such requests are never treated as loopback, are served with the read token only, and never reach the control tools; `docs/CONNEXION.md` §14.
 - Client-by-client connection guides, and what each client can and cannot reach: [`docs/CONNEXION.md`](docs/CONNEXION.md).
 - The server lives in the app's process. Android only lets a camera foreground service start while the app is on screen, so `start_surveillance` from the background is refused with a clear message; stopping works at any time.
 
 ## 6. Android networking/privacy impact
 
-The app declares Android `INTERNET` only so that the two optional local servers (MCP and Wi-Fi live view) can listen; both are off by default and NovaGuard opens no outgoing connection (`__tests__/playRelease.test.ts` checks the sources).
+The app declares Android `INTERNET` so that the two optional local servers (MCP and Wi-Fi live view) can listen, and for one optional outgoing connection: the cloud relay (`McpRelayClient.kt`), off by default. `__tests__/playRelease.test.ts` checks the sources and allows that file alone to open a connection.
 
 Default state:
 
@@ -101,6 +101,7 @@ Enabled state:
 
 ```text
 MCP enabled → reads authenticated beyond loopback → control only with the device switch and the control token
+Cloud access enabled → one outgoing connection to the relay → reads with the read token only
 ```
 
 Documentation MUST explain why networking is required, where the server listens, how authentication works, whether traffic can leave the device, and how the feature is disabled.
@@ -574,6 +575,8 @@ The default design MUST NOT:
 - expose raw filesystem paths.
 
 The user-facing documentation MUST explicitly state that if the MCP client uses a remote LLM, selected surveillance metadata/media can leave the phone even though NovaGuard's own processing remains local.
+
+With cloud access on, the relay terminates TLS and sees requests and answers in clear, images included. It keeps nothing (its logs hold time, device, status and size), and the consent that turns the switch on says so.
 
 # 15. Performance
 

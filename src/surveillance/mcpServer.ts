@@ -23,7 +23,13 @@ export interface McpServerStatus {
   loopbackOnly: boolean;
   requestCount: number;
   lastActivityAt: number | null;
+  /** The connection to the cloud relay; `off` when the owner has not asked for it. */
+  relayState?: RelayState;
+  /** Where cloud clients reach this phone, once the relay has accepted it. */
+  relayUrl?: string | null;
 }
+
+export type RelayState = 'off' | 'connecting' | 'connected' | 'offline' | 'refused';
 
 export const MCP_SERVER_STOPPED: McpServerStatus = {
   running: false,
@@ -241,6 +247,22 @@ export function onMcpCommand(handler: (request: McpCommandRequest) => void): () 
 
 export function resolveMcpCommand(id: string, outcomeJson: string): void {
   nativeModule()?.resolveCommand?.(id, outcomeJson);
+}
+
+/**
+ * Dials the relay so cloud clients can reach the server. The native side needs
+ * the server running with a read token, and answers reads only.
+ */
+export async function startMcpRelay(address: string, liveAllowed: boolean): Promise<McpServerStatus> {
+  const module = nativeModule();
+  if (!module?.startRelay) return MCP_SERVER_STOPPED;
+  return module.startRelay(address, liveAllowed);
+}
+
+export async function stopMcpRelay(): Promise<McpServerStatus> {
+  const module = nativeModule();
+  if (!module?.stopRelay) return MCP_SERVER_STOPPED;
+  return module.stopRelay();
 }
 
 export async function stopMcpServer(): Promise<boolean> {

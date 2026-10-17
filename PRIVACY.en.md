@@ -31,16 +31,38 @@ the device. **None of this processing goes over a network.**
 
 ## Nothing is transmitted
 
-The app declares the `INTERNET` permission for one reason only: two optional
-local servers, **off by default** — Wi-Fi live view and the MCP server. They
-only listen on the local network and answer only devices you connect to them
-yourself. NovaGuard itself never opens an outgoing connection, to any server.
-There is therefore:
+The app declares the `INTERNET` permission for three reasons, all optional and
+**off by default**: Wi-Fi live view and the MCP server, which only listen on the
+local network and answer only devices you connect to them yourself; and cloud
+access, described below. While that one is off, NovaGuard opens no outgoing
+connection, to any server. There is therefore:
 
 - no account, no sign-up, no identifier;
 - no telemetry, no usage statistics, no remote crash reporting;
 - no advertising, no tracker, no analytics SDK;
 - no sharing with third parties, since there is nothing to share.
+
+### Cloud access (Optional)
+
+If you turn on “Cloud access” in the settings — after a confirmation that names the
+relay — the phone opens an **outgoing** connection to NovaGuard's relay, so that
+claude.ai, ChatGPT or Copilot Studio can reach your MCP server. It is the app's only
+outgoing connection, and it exists only while that setting is on.
+
+- The relay passes the assistant's requests to the phone and its answers back. It
+  **sees everything that passes**, including the images the assistant asks for:
+  encryption runs from the assistant to the relay, then from the relay to the
+  phone, not end to end.
+- It keeps nothing: its logs hold only the time, the device identifier, the status
+  and the size of a request, never its content.
+- Through this path the assistant can only **read**, with the access token; the
+  control token is not accepted there. Live view has its own switch.
+- The phone identifies itself to the relay with a key that never leaves the Android
+  Keystore; the public address is derived from it.
+- You cut access by turning the setting off: the connection closes at once.
+
+The assistant is itself a third-party service: what it reads goes to the model it
+uses, as with the local MCP server.
 
 ### MCP Server (Optional)
 

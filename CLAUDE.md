@@ -649,13 +649,22 @@ ne s'apprennent pas au moment où on en a besoin :
 - **R8 reste désactivé.** Toutes les dépendances lourdes atteignent du natif par
   leur nom : l'activer sans règles vérifiées sur matériel échange des mégaoctets
   contre un crash qu'aucun test unitaire ne voit.
-- **`INTERNET` est déclarée, et seulement pour écouter.** Le direct Wi-Fi et le
-  serveur MCP sont deux serveurs locaux éteints par défaut ; rien n'ouvre de
-  connexion sortante, et `playRelease.test.ts` le vérifie dans les sources JS et
-  Kotlin. Le formulaire *Data safety* et `PRIVACY.md` reposent sur cette
-  affirmation-là — longtemps ils ont affirmé l'absence de la permission, qui
-  était fausse. Chaque type de service de premier plan doit être couvert par sa
-  permission ; le même test tient la liste.
+- **`INTERNET` est déclarée ; une seule connexion sortante existe, et elle est
+  optionnelle.** Le direct Wi-Fi et le serveur MCP sont deux serveurs locaux
+  éteints par défaut qui ne font qu'écouter. L'« accès depuis le cloud »
+  (`McpRelayClient.kt`, `relay/`, `docs/CONNEXION.md` §14) ouvre une connexion
+  sortante vers le relais du projet, éteinte par défaut, derrière un consentement
+  qui nomme le relais. `playRelease.test.ts` vérifie dans les sources JS et Kotlin
+  que **ce fichier est le seul** à pouvoir ouvrir une connexion : en ajouter un
+  autre, c'est changer `PRIVACY.md`, `PRIVACY.en.md` et le formulaire *Data
+  safety*, pas seulement le test. Une requête venue du relais n'est **jamais** une
+  requête de boucle locale (`McpRules.relayPrincipal` : lecture avec le jeton
+  d'accès, jamais de pilotage), parce que ses trames sont livrées de l'intérieur
+  du processus. Le relais termine TLS et voit le trafic en clair : c'est écrit
+  dans le consentement, et c'est accepté. Longtemps le formulaire et `PRIVACY.md`
+  ont affirmé l'absence de la permission, qui était fausse. Chaque type de service
+  de premier plan doit être couvert par sa permission ; le même test tient la
+  liste.
 - **`bundleRelease` échoue sans la clé d'upload, et c'est voulu.** Un bundle
   mal signé coûte un `versionCode` définitivement brûlé dans la Play Console.
 

@@ -32,17 +32,42 @@ traitements ne passe par un réseau.**
 
 ## Aucune transmission
 
-L'application déclare la permission `INTERNET` pour une seule raison : deux
-serveurs locaux optionnels, **éteints par défaut** — le direct Wi-Fi et le
-serveur MCP. Ils ne font qu'écouter sur le réseau local et ne répondent qu'aux
-appareils que vous y connectez vous-même. NovaGuard n'ouvre elle-même aucune
-connexion sortante, vers aucun serveur. Il n'y a donc :
+L'application déclare la permission `INTERNET` pour trois raisons, toutes
+optionnelles et **éteintes par défaut** : le direct Wi-Fi et le serveur MCP, qui
+ne font qu'écouter sur le réseau local et ne répondent qu'aux appareils que vous
+y connectez vous-même ; et l'accès depuis le cloud, décrit plus bas. Tant que ce
+dernier est éteint, NovaGuard n'ouvre aucune connexion sortante, vers aucun
+serveur. Il n'y a donc :
 
 - aucun compte, aucune inscription, aucun identifiant ;
 - aucune télémétrie, aucune statistique d'usage, aucun rapport de plantage
   distant ;
 - aucune publicité, aucun traceur, aucun SDK d'analyse ;
 - aucun partage avec des tiers, puisqu'il n'y a rien à partager.
+
+### Accès depuis le cloud (Optionnel)
+
+Si vous activez « Accès depuis le cloud » dans les réglages — après une
+confirmation qui nomme le relais —, le téléphone ouvre une connexion **sortante**
+vers le relais de NovaGuard, pour que claude.ai, ChatGPT ou Copilot Studio
+puissent joindre votre serveur MCP. C'est la seule connexion sortante de
+l'application, et elle n'existe que tant que ce réglage est allumé.
+
+- Le relais transmet les requêtes de l'assistant jusqu'au téléphone et ses
+  réponses en retour. Il **voit tout ce qui passe**, y compris les images que
+  l'assistant demande : le chiffrement va de l'assistant au relais, puis du relais
+  au téléphone, pas de bout en bout.
+- Il ne conserve rien : ses journaux ne contiennent que l'heure, l'identifiant de
+  l'appareil, le statut et la taille d'une requête, jamais son contenu.
+- Par ce chemin, l'assistant ne peut que **lire**, avec le jeton d'accès ; le
+  jeton de pilotage n'y est pas accepté. La vue en direct y a son propre
+  interrupteur.
+- Le téléphone s'identifie auprès du relais par une clé qui ne quitte jamais
+  l'Android Keystore ; l'adresse publique en est dérivée.
+- Vous coupez l'accès en éteignant le réglage : la connexion se ferme aussitôt.
+
+L'assistant lui-même est un service tiers : ce qu'il lit part vers le modèle qu'il
+utilise, comme pour le serveur MCP local.
 
 ### Serveur MCP (Optionnel)
 

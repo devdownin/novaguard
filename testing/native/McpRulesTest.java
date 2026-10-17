@@ -120,6 +120,9 @@ public final class McpRulesTest {
       "an unknown interface is kept when nothing better exists");
     check(McpRules.lanAddress(Collections.emptyList()) == null, "nothing, nothing");
 
+    check(McpRules.relayPrincipal(true) == McpRules.PRINCIPAL_READ, "the read token reads through the relay");
+    check(McpRules.relayPrincipal(false) == McpRules.PRINCIPAL_NONE, "and nothing else does, loopback or not");
+
     System.out.println("McpRulesTest passed");
   }
 }

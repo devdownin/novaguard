@@ -46,9 +46,10 @@ import {
 } from '../surveillance/localStreamServer';
 import {
   McpServerStatus, MCP_SERVER_STOPPED, generateMcpToken as mintMcpToken,
-  buildMcpDiagnostics, getMcpServerStatus, onMcpCommand, onMcpControlRevoked, pushMcpSnapshot, resolveMcpCommand, startMcpServer, stopMcpServer,
+  buildMcpDiagnostics, getMcpServerStatus, onMcpCommand, onMcpControlRevoked, pushMcpSnapshot, resolveMcpCommand, startMcpRelay, startMcpServer, stopMcpRelay, stopMcpServer,
 } from '../surveillance/mcpServer';
 import { executeMcpCommand } from '../surveillance/mcpCommands';
+import { RELAY_URL } from '../constants/app';
 import { AGENT_LOG_KEY, AgentAction, appendAgentAction, parseAgentLog } from '../surveillance/agentLog';
 import { agentControlLive, controlExpiry, nextLifetime } from '../surveillance/mcpControl';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -247,6 +248,8 @@ interface AppStateValue {
   cycleMcpControlTtl: () => void;
   toggleMcpLiveFrame: () => void;
   toggleMcpTls: () => void;
+  toggleMcpCloud: () => void;
+  toggleMcpCloudLiveFrame: () => void;
   /** Control calls made by agents, newest first (`agentLog.ts`). */
   agentLog: AgentAction[];
   /** Live state of the native MCP server, or MCP_SERVER_STOPPED when it is off. */
@@ -1856,6 +1859,42 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     patchSettings({ mcpTls: !settings.mcpTls });
   }, [patchSettings, settings.mcpTls]);
 
+  const toggleMcpCloud = useCallback(() => {
+    patchSettings({ mcpCloudEnabled: !settings.mcpCloudEnabled });
+  }, [patchSettings, settings.mcpCloudEnabled]);
+
+  const toggleMcpCloudLiveFrame = useCallback(() => {
+    patchSettings({ mcpCloudLiveFrame: !settings.mcpCloudLiveFrame });
+  }, [patchSettings, settings.mcpCloudLiveFrame]);
+
+  /**
+   * Opens and closes the relay with the setting — the whole of what `mcpCloudEnabled`
+   * means. It runs only while the server does and a read token exists (the relay is
+   * the open internet, and the token is what keeps it shut), and starts again by
+   * itself when the server restarts and takes the connection down with it: the
+   * status poll reports `off` and this effect sees it.
+   */
+  const cloudWanted = hydrated && settings.mcpEnabled && settings.mcpCloudEnabled
+    && settings.mcpToken.length > 0 && RELAY_URL.length > 0;
+  const cloudLiveAllowed = settings.mcpCloudLiveFrame && settings.mcpLiveFrameEnabled;
+  const relayDown = mcpStatus.running && (mcpStatus.relayState ?? 'off') === 'off';
+  const relayUp = mcpStatus.running && (mcpStatus.relayState ?? 'off') !== 'off';
+  useEffect(() => {
+    if (cloudWanted && relayDown) {
+      startMcpRelay(RELAY_URL, cloudLiveAllowed).then(setMcpStatus).catch(() => {});
+    } else if (!cloudWanted && relayUp) {
+      stopMcpRelay().then(setMcpStatus).catch(() => {});
+    }
+  }, [cloudWanted, cloudLiveAllowed, relayDown, relayUp]);
+
+  // The live-view switch changes what the relay may carry; the connection is re-made to say so.
+  const lastLiveAllowed = useRef(cloudLiveAllowed);
+  useEffect(() => {
+    if (lastLiveAllowed.current === cloudLiveAllowed) return;
+    lastLiveAllowed.current = cloudLiveAllowed;
+    if (cloudWanted && relayUp) startMcpRelay(RELAY_URL, cloudLiveAllowed).then(setMcpStatus).catch(() => {});
+  }, [cloudLiveAllowed, cloudWanted, relayUp]);
+
   const toggleMcpLiveFrame = useCallback(() => {
     patchSettings({ mcpLiveFrameEnabled: !settings.mcpLiveFrameEnabled });
   }, [patchSettings, settings.mcpLiveFrameEnabled]);
@@ -2145,7 +2184,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone, zoneEditKind, beginExclusionEdit, saveExclusion, clearExclusions,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleNotifPicture, toggleQuietHours, setQuietStart, setQuietEnd, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleNotifPicture, toggleQuietHours, setQuietStart, setQuietEnd, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, toggleMcpCloud, toggleMcpCloudLiveFrame, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo,
     onb, perms, onbNext, onbFinish, grantPermission,
   }), [
@@ -2157,7 +2196,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     settings, toggleSection, cycleCamera, toggleResumeOnLaunch, toggleLockHistory, toggleNight, togglePerson, toggleAnimal, toggleAutoZoom, toggleAutoTune, toggleForceCpu, toggleCalibration,
     togglePreciseDetection, zoneEditing, beginZoneEdit, cancelZoneEdit, saveZone, zoneEditKind, beginExclusionEdit, saveExclusion, clearExclusions,
     setSensitivity, setThreshold, setAnimalThreshold, cyclePost, setPresenceMode, cycleTolerance, cycleMax, cycleQuality, setRetention,
-    toggleAutoDel, toggleNotif, toggleNotifDet, toggleNotifPicture, toggleQuietHours, setQuietStart, setQuietEnd, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
+    toggleAutoDel, toggleNotif, toggleNotifDet, toggleNotifPicture, toggleQuietHours, setQuietStart, setQuietEnd, toggleLocalStream, localStreamStatus, toggleMcpServer, generateMcpToken, clearMcpToken, toggleMcpControl, generateMcpControlToken, clearMcpControlToken, cycleMcpControlTtl, toggleMcpLiveFrame, toggleMcpTls, toggleMcpCloud, toggleMcpCloudLiveFrame, agentLog, mcpStatus, openAlertSoundSettings, wipeAllVideos,
     info, storedSize, openInfo, closeInfo, onb, perms, onbNext, onbFinish, grantPermission,
   ]);
 
