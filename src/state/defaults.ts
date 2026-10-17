@@ -1,3 +1,4 @@
+import { RELAY_URL } from '../constants/app';
 import { DetectionEvent, Settings } from './types';
 
 export const defaultSettings: Settings = {
@@ -66,6 +67,7 @@ export const defaultSettings: Settings = {
   // switched on after a consent that names the relay.
   mcpCloudEnabled: false,
   mcpCloudLiveFrame: false,
+  mcpRelayUrl: RELAY_URL,
   exp: { surv: true, det: false, rec: false, sto: false, not: false, stream: false, mcp: false, adv: false, about: false },
 };
 

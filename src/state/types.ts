@@ -249,6 +249,12 @@ export interface Settings {
   mcpCloudEnabled: boolean;
   /** Lets the live view cross the relay too, on top of `mcpLiveFrameEnabled`. Off by default. */
   mcpCloudLiveFrame: boolean;
+  /**
+   * The relay cloud clients reach this phone through, `https://host[:port]` or empty. Starts as the
+   * project's own (`RELAY_URL`, empty until one is deployed); the owner may point it at their own.
+   * Whatever it names sees what passes, which the consent says by naming it.
+   */
+  mcpRelayUrl: string;
   exp: ExpandedSections;
 }
 
@@ -258,7 +264,7 @@ export interface Settings {
  * others, and two competing "which panel is up" states would be a way for both
  * to be up at once.
  */
-export type InfoPanel = 'perms' | 'data' | 'licenses' | 'autotune' | 'mcp' | null;
+export type InfoPanel = 'perms' | 'data' | 'licenses' | 'autotune' | 'mcp' | 'connect' | null;
 export type OnboardingStep = 'intro' | 'perms' | null;
 
 /** Daily detection counter — the day is stored so it can reset at midnight. */

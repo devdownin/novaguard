@@ -118,6 +118,12 @@ tool() {  # tool <jeton> <outil sans préfixe> [arguments JSON]
 
 - [ ] Accès cloud allumé : l'état passe à « Connecté au relais » et l'adresse
       publique se copie ; éteint, la connexion se ferme aussitôt.
+- [ ] « Connecter un assistant » → cloud → claude.ai : sans adresse de relais, le champ
+      s'affiche ; une adresse en http est refusée ; une adresse valide puis l'accès
+      cloud (avec consentement) amènent l'adresse publique à l'écran. Ajouter le
+      connecteur : « Autorisation en attente » puis, après « Autoriser », « Connecté ».
+- [ ] « Connecter un assistant » → Wi-Fi → Claude Code : la commande copiée, collée sur
+      un ordinateur du même réseau, fait passer l'écran à « Connecté ».
 - [ ] Changer de réseau (Wi-Fi → données mobiles) : le téléphone se reconnecte
       seul, l'adresse publique reste la même.
 - [ ] Avec un VPN actif, l'accès cloud et l'URL du réseau local restent justes.

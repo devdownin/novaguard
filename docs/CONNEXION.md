@@ -303,6 +303,15 @@ Reste à faire : activité par IP de pair (nombre de requêtes, dernière activi
 
 Les fragments embarquent le jeton en clair pour être collés tels quels (niveau A) ; le provisionnement scripté (niveau B, §9.1) remplace la valeur par une variable d’environnement quand le client la substitue. Le choix du client et du jeton n’est pas un réglage : il n’est ni persisté ni lu ailleurs que sur cet écran.
 
+### 7.2 bis Assistant guidé : « Connecter un assistant »
+
+Deux questions (où tourne l’assistant : sur le téléphone, sur le Wi-Fi, dans le cloud ; lequel), puis un seul élément à copier et une preuve. La logique est pure (`src/surveillance/mcpConnect.ts`), la feuille ne fait que l’afficher (`McpConnectSheet`).
+
+- **Un seul obstacle à la fois** (`blocker`) : serveur éteint, jeton absent, pas de Wi-Fi, relais non renseigné, accès cloud éteint, relais en connexion/refusé/hors ligne. Chacun a, quand c’est possible, le bouton qui le lève ; l’accès cloud repasse par le même consentement que Réglages (`askCloudConsent`).
+- **Ce qui est copié** (`payloadFor`) : cloud = l’adresse publique du relais, jamais un secret ; téléphone = l’adresse de boucle locale sans jeton ; Wi-Fi = le fragment du client avec le jeton de lecture. Le jeton de pilotage n’est jamais mis dans le presse-papiers par ce parcours.
+- **Preuve** (`progress`) : « connecté » signifie qu’une requête est arrivée depuis l’ouverture de l’écran du client (`requestCount`), « autorisation en attente » qu’une demande OAuth attend la réponse du propriétaire.
+- **Adresse du relais** : réglage `mcpRelayUrl` (défaut `RELAY_URL`), https seulement, sans chemin ni identifiants (`normalizeRelayUrl`) ; la changer redémarre le relais.
+
 ### 7.3 États affichables
 
 NovaGuard ne voit que ce qui arrive sur son socket. Ces états se déduisent de ses propres compteurs, jamais de l’état interne d’un client :

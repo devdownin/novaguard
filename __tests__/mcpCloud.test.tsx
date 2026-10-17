@@ -18,17 +18,6 @@ import { t } from '../src/i18n';
 
 jest.mock('../src/surveillance/foregroundService');
 
-// Read on every access, so each test can decide whether this build has a relay. Babel
-// flattens a getter written in an object literal into its first value, hence defineProperty.
-const relayUrl = (value: string) => { (globalThis as Record<string, unknown>).mockRelayUrl = value; };
-jest.mock('../src/constants/app', () => {
-  const mocked = { ...jest.requireActual('../src/constants/app') };
-  Object.defineProperty(mocked, 'RELAY_URL', {
-    enumerable: true, get: () => (globalThis as Record<string, unknown>).mockRelayUrl,
-  });
-  return mocked;
-});
-
 const TOKEN = 'mcp_' + 'r'.repeat(32);
 const { startForegroundService: startService } = jest.requireMock('../src/surveillance/foregroundService');
 let relayState: string;
@@ -64,7 +53,8 @@ const toggleCloud = (value: boolean) => tree.root
 
 async function mount(over: Partial<Settings> = {}) {
   await AsyncStorage.setItem('@novaguard:settings', JSON.stringify({
-    ...defaultSettings, mcpEnabled: true, mcpToken: TOKEN, exp: { ...defaultSettings.exp, mcp: true }, ...over,
+    ...defaultSettings, mcpEnabled: true, mcpToken: TOKEN, mcpRelayUrl: 'https://relay.test',
+    exp: { ...defaultSettings.exp, mcp: true }, ...over,
   }));
   await ReactTestRenderer.act(async () => {
     tree = ReactTestRenderer.create(<AppStateProvider><Probe /><SetupScreen /></AppStateProvider>);
@@ -75,7 +65,6 @@ async function mount(over: Partial<Settings> = {}) {
 
 beforeEach(async () => {
   jest.clearAllMocks();
-  relayUrl('https://relay.test');
   relayState = 'off';
   pending = [];
   grants = [];
@@ -103,9 +92,8 @@ describe('the connection', () => {
     expect(native.startRelay).not.toHaveBeenCalled();
   });
 
-  it('is never opened when this build has no relay', async () => {
-    relayUrl('');
-    await mount({ mcpCloudEnabled: true });
+  it('is never opened when no relay is configured', async () => {
+    await mount({ mcpCloudEnabled: true, mcpRelayUrl: '' });
     expect(native.startRelay).not.toHaveBeenCalled();
   });
 
@@ -136,6 +124,27 @@ describe('the connection', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it('is re-made towards the new relay when the address changes, and only for a valid one', async () => {
+    await mount({ mcpCloudEnabled: true });
+    expect(native.startRelay).toHaveBeenLastCalledWith('https://relay.test', false);
+    await ReactTestRenderer.act(async () => { expect(state.setMcpRelayUrl('http://plain.example.org')).toBe(false); });
+    expect(state.settings.mcpRelayUrl).toBe('https://relay.test');
+    expect(native.startRelay).toHaveBeenCalledTimes(1);
+    await ReactTestRenderer.act(async () => { expect(state.setMcpRelayUrl(' https://Other.test/ ')).toBe(true); });
+    await ReactTestRenderer.act(async () => {});
+    expect(state.settings.mcpRelayUrl).toBe('https://other.test');
+    expect(native.startRelay).toHaveBeenLastCalledWith('https://other.test', false);
+  });
+
+  it('is closed when the address is cleared', async () => {
+    await mount({ mcpCloudEnabled: true });
+    relayState = 'connected';
+    await ReactTestRenderer.act(async () => { await native.getServerStatus(); });
+    await ReactTestRenderer.act(async () => { state.setMcpRelayUrl(''); });
+    await ReactTestRenderer.act(async () => {});
+    expect(native.stopRelay).toHaveBeenCalled();
   });
 
   it('carries the live view only when both owner switches allow it', async () => {
@@ -185,11 +194,10 @@ describe('the switch', () => {
   });
 
   it.each([
-    ['no relay in the build', { mockRelay: '', over: {} as Partial<Settings>, hint: 'setup.mcpCloud.noRelay' }],
-    ['no access token', { mockRelay: 'https://relay.test', over: { mcpToken: '' } as Partial<Settings>, hint: 'setup.mcpCloud.needsToken' }],
-    ['the server off', { mockRelay: 'https://relay.test', over: { mcpEnabled: false, exp: { ...defaultSettings.exp, mcp: true, adv: true } } as Partial<Settings>, hint: 'setup.mcpCloud.needsServer' }],
+    ['no relay configured', { over: { mcpRelayUrl: '' } as Partial<Settings>, hint: 'setup.mcpCloud.noRelay' }],
+    ['no access token', { over: { mcpToken: '' } as Partial<Settings>, hint: 'setup.mcpCloud.needsToken' }],
+    ['the server off', { over: { mcpEnabled: false, exp: { ...defaultSettings.exp, mcp: true, adv: true } } as Partial<Settings>, hint: 'setup.mcpCloud.needsServer' }],
   ] as const)('cannot be turned on with %s, and says why', async (_name, c) => {
-    relayUrl(c.mockRelay);
     await mount(c.over);
     expect(cloudSwitch().props.accessibilityState).toMatchObject({ disabled: true });
     expect(texts()).toContain(t(c.hint));
