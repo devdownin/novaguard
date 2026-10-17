@@ -1882,12 +1882,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const relayDown = mcpStatus.running && (mcpStatus.relayState ?? 'off') === 'off';
   const relayUp = mcpStatus.running && (mcpStatus.relayState ?? 'off') !== 'off';
   useEffect(() => {
-    if (cloudWanted && relayDown) {
+    if (cloudWanted && relayDown && !mcpStatus.relayCut) {
       startMcpRelay(RELAY_URL, cloudLiveAllowed).then(setMcpStatus).catch(() => {});
     } else if (!cloudWanted && relayUp) {
       stopMcpRelay().then(setMcpStatus).catch(() => {});
     }
-  }, [cloudWanted, cloudLiveAllowed, relayDown, relayUp]);
+  }, [cloudWanted, cloudLiveAllowed, relayDown, relayUp, mcpStatus.relayCut]);
+
+  /**
+   * "Couper l'accès cloud" was tapped on the notification. The native side has already closed the
+   * connection and refuses to open another; this makes the switch say so, and tells it the cut is
+   * understood so the owner can turn access back on.
+   */
+  useEffect(() => {
+    if (!mcpStatus.relayCut) return;
+    patchSettings({ mcpCloudEnabled: false });
+    stopMcpRelay().then(setMcpStatus).catch(() => {});
+  }, [mcpStatus.relayCut, patchSettings]);
 
   const answerAuthorization = useCallback((id: string, allow: boolean) => {
     answerMcpAuthorization(id, allow)
@@ -2164,6 +2175,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     });
   }, [hydrated, settings, monitoring, store, events, detToday, surveillanceStatus, clipGap, autoTune, recovery.health, crashedStage]);
   const agentControl = agentControlLive(settings, Date.now());
+  // The relay is connected, or trying to be: there is something for the owner to cut.
+  const cloudOpen = settings.mcpCloudEnabled && relayUp;
   const visibleError = cameraProblem ?? (analysisStalled ? t('error.analysisStalled') : null) ?? recordingProblem ?? recError;
   const faultRef = useRef<{ status: SurveillanceStatus; since: number } | null>(null);
   const resumedAtRef = useRef<number | null>(null);
@@ -2182,8 +2195,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     startForegroundService(
       serviceNotice(surveillanceStatus, faultRef.current?.since ?? null, resumedAtRef.current),
       agentControl ? t('notif.revokeControl') : '',
+      cloudOpen ? t('notif.cutCloud') : '',
     );
-  }, [monitoring, surveillanceStatus, agentControl]);
+  }, [monitoring, surveillanceStatus, agentControl, cloudOpen]);
 
   const value = useMemo<AppStateValue>(() => ({
     hydrated,

@@ -71,7 +71,7 @@ it('says detection is unavailable on both camera surfaces and the background not
   expect(statusOnScreen()).toBe(t('surv.status.analysis'));
   expect(tree.root.findByProps({ testID: 'viewfinder-status' }).props.accessibilityLabel).toBe(t('surv.status.analysis'));
   expect(startForegroundService).toHaveBeenLastCalledWith(
-    t('notif.since', { status: t('surv.status.analysis'), time: formatTimeOfDay(faultAt) }), '');
+    t('notif.since', { status: t('surv.status.analysis'), time: formatTimeOfDay(faultAt) }), '', '');
   expect(labels()).not.toContain(t('view.overlay.none'));
   await ReactTestRenderer.act(async () => { state.reportCameraProblem(null); state.reportDetections([], 9 / 16); });
   expect(statusOnScreen()).toBe(t('surv.status.on'));
@@ -83,7 +83,7 @@ it('shows insufficient storage even before a subject triggers a recording', asyn
   await ReactTestRenderer.act(async () => { state.toggleMonitoring(); });
   expect(statusOnScreen()).toBe(t('surv.status.storage'));
   expect(startForegroundService).toHaveBeenLastCalledWith(
-    t('notif.since', { status: t('surv.status.storage'), time: formatTimeOfDay(faultAt) }), '');
+    t('notif.since', { status: t('surv.status.storage'), time: formatTimeOfDay(faultAt) }), '', '');
 });
 
 it('offers a real capture restart while keeping surveillance enabled', async () => {

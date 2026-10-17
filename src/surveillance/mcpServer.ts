@@ -27,6 +27,8 @@ export interface McpServerStatus {
   relayState?: RelayState;
   /** Where cloud clients reach this phone, once the relay has accepted it. */
   relayUrl?: string | null;
+  /** The owner cut cloud access from the notification: no relay starts until JavaScript acknowledges it. */
+  relayCut?: boolean;
   /** Assistants waiting for the owner's answer; each carries the code to compare with the web page. */
   pendingAuthorizations?: McpPendingAuthorization[];
   /** The assistants the owner has authorized, most recent use last known. Never a token. */

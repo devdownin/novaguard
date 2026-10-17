@@ -590,6 +590,7 @@ export const fr = {
   'notif.since': '{status} · depuis {time}',
   'notif.resumed': '{status} · reprise à {time}',
   'notif.revokeControl': 'Couper le pilotage',
+  'notif.cutCloud': 'Couper l’accès cloud',
 
   // ── third-party licence notes, shown in Setup → À propos ─────────────
   'lic.react-react-native': 'Framework applicatif',
