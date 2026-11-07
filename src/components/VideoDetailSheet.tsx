@@ -23,9 +23,12 @@ export function VideoDetailSheet() {
   const { selected, selectedEvent, events, selectEvent, askDelete, toggleKeep, setAgentNote } = useAppState();
   const [playback, setPlayback] = useState<{ root: number; clip: number; all: boolean; running: boolean } | null>(null);
   const active = useRef<typeof playback>(null);
+  const videoRef = useRef<any>(null);
+  const currentTimeRef = useRef<number>(0);
   const [playFailed, setPlayFailed] = useState(false);
   const [shareFailed, setShareFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
   const [exportFailed, setExportFailed] = useState(false);
   const passage = useMemo(() => groupPassages(events).find(group => group.events.some(clip => clip.id === selected)), [events, selected]);
   const clips = useMemo(() => passage?.events ?? [], [passage]);
@@ -62,6 +65,12 @@ export function VideoDetailSheet() {
     if (!failed && playback.all && next) updatePlayback({ ...playback, clip: next.id });
     else { updatePlayback({ ...playback, running: false }); if (failed) setPlayFailed(true); }
   };
+  const seekRelative = (deltaSeconds: number) => {
+    if (!videoRef.current) return;
+    const target = Math.max(0, currentTimeRef.current + deltaSeconds);
+    videoRef.current.seek(target);
+    currentTimeRef.current = target;
+  };
   const path = event?.path ?? null;
   /**
    * The one door out of the device, and it takes a tap.
@@ -93,14 +102,20 @@ export function VideoDetailSheet() {
     const travelling = evidenceClips(passage);
     if (travelling.length === 0) { setExportFailed(true); return; }
     setExporting(true);
+    setExportProgress({ current: 0, total: travelling.length });
     setExportFailed(false);
     try {
       const hashed = [];
-      for (const clip of travelling) hashed.push({ event: clip, sha256: await hashRecording(clip.path!) });
+      for (let i = 0; i < travelling.length; i++) {
+        setExportProgress({ current: i + 1, total: travelling.length });
+        const clip = travelling[i];
+        hashed.push({ event: clip, sha256: await hashRecording(clip.path!) });
+      }
       const report = evidenceReport(passage, hashed, Date.now(), kept);
       setExportFailed(!shareEvidence(travelling.map(clip => clip.path!), report, evidenceReportName(passage)));
     } finally {
       setExporting(false);
+      setExportProgress(null);
     }
   }, [passage, exporting, kept]);
 
@@ -121,16 +136,38 @@ export function VideoDetailSheet() {
             )}
 
             {hasClip && playing ? (
-              <Video
-                key={event.id}
-                source={{ uri: `file://${event.path}` }}
-                style={StyleSheet.absoluteFill}
-                resizeMode="contain"
-                controls
-                paused={false}
-                onEnd={() => finish(false)}
-                onError={() => finish(true)}
-              />
+              <View style={StyleSheet.absoluteFill}>
+                <Video
+                  ref={videoRef}
+                  key={event.id}
+                  source={{ uri: `file://${event.path}` }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="contain"
+                  controls
+                  paused={false}
+                  onProgress={(data: { currentTime: number }) => { currentTimeRef.current = data.currentTime; }}
+                  onEnd={() => finish(false)}
+                  onError={() => finish(true)}
+                />
+                <View style={styles.seekControls} pointerEvents="box-none">
+                  <Pressable
+                    style={({ pressed }) => [styles.seekButton, pressed && { opacity: 0.62 }]}
+                    onPress={() => seekRelative(-5)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('detail.seek.backward')}
+                  >
+                    <Text style={styles.seekText}>-5s</Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [styles.seekButton, pressed && { opacity: 0.62 }]}
+                    onPress={() => seekRelative(5)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('detail.seek.forward')}
+                  >
+                    <Text style={styles.seekText}>+5s</Text>
+                  </Pressable>
+                </View>
+              </View>
             ) : hasClip ? (
               <Pressable
                 style={({ pressed }) => [styles.playButton, pressed && { opacity: 0.62 }]}
@@ -185,7 +222,7 @@ export function VideoDetailSheet() {
           {playable.length > 0 && (
             <View style={styles.export}>
               <SecondaryOutlineButton
-                label={t(exporting ? 'detail.export.busy' : 'detail.export')}
+                label={exportProgress ? t('detail.export.progress', { current: exportProgress.current, total: exportProgress.total }) : t(exporting ? 'detail.export.busy' : 'detail.export')}
                 icon={ShareIcon}
                 onPress={exportPassage}
                 disabled={exporting}
@@ -254,6 +291,27 @@ const styles = StyleSheet.create({
     aspectRatio: 16 / 10,
     borderRadius: radius.lg - 2,
     overflow: 'hidden',
+  },
+  seekControls: {
+    position: 'absolute',
+    left: 8,
+    right: 8,
+    top: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  seekButton: {
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: 'rgba(22,24,38,0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(233,233,237,0.18)',
+  },
+  seekText: {
+    fontFamily: font.medium,
+    fontSize: 10.5,
+    color: color.accent300,
   },
   playButton: {
     position: 'absolute',
