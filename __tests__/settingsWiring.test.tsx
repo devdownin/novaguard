@@ -117,6 +117,10 @@ it('writes each control back to disk', async () => {
     state.setQuietEnd(6);
     state.saveExclusion({ x: 0.1, y: 0.1, width: 0.2, height: 0.2 });
     state.toggleMcpServer();
+    state.toggleMcpCloud();
+    state.toggleMcpCloudLiveFrame();
+    expect(state.setMcpRelayUrl('https://relay.example.org')).toBe(true);
+    expect(state.setMcpRelayUrl('http://not-secure.example.org')).toBe(false);
     state.toggleResumeOnLaunch();
     state.togglePreciseDetection();
     state.saveZone({ x: 0.5, y: 0.3, width: 0.5, height: 0.7 });
@@ -160,6 +164,9 @@ it('writes each control back to disk', async () => {
     mcpControlTtl: 'Toujours',
     mcpLiveFrameEnabled: !defaultSettings.mcpLiveFrameEnabled,
     mcpTls: !defaultSettings.mcpTls,
+    mcpCloudEnabled: !defaultSettings.mcpCloudEnabled,
+    mcpCloudLiveFrame: !defaultSettings.mcpCloudLiveFrame,
+    mcpRelayUrl: 'https://relay.example.org',
   });
 });
 

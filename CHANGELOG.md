@@ -10,12 +10,16 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ### Ajouté
 - L’alerte de détection montre ce que voit la caméra, écran éteint compris (Réglages → Notifications → « Image dans l’alerte », activé par défaut). Le texte part aussitôt et l’image suit dès que la caméra la livre, sans faire sonner une seconde fois. Elle n’est visible qu’après déverrouillage et n’est jamais transmise à une montre.
+- « Connecter un assistant → Sur ce téléphone » précise que le programme doit tourner sur le téléphone : un assistant exécuté chez son éditeur (claude.ai, Claude Code sur le web) passe par « Dans le cloud ».
+- « Connecter un assistant » : reprise du dernier assistant en un appui, détection de Termux, « Tester le serveur » (réponse du serveur, sans compter comme connexion), QR code de la configuration, schéma du relais sur le chemin cloud.
+- Autorisation d’un assistant du cloud : « Autoriser 24 h » met fin à l’accès tout seul ; « Autoriser, sans limite » garde le comportement précédent.
 - Heures calmes (Réglages → Notifications) : pas d’alerte sur une plage horaire, par exemple de 22 h à 7 h ; les passages sont enregistrés et rangés dans l’Historique comme d’habitude.
 - Un passage qui revient dans la minute ne fait plus sonner l'alerte, mais la met à jour : « passage n° 3 en 10 min » remplace « enregistrement en cours » sur la notification encore affichée, avec son image. Une notification balayée ne revient pas.
 - Zones ignorées (Réglages → Détection) : jusqu’à trois rectangles — une télé, une fenêtre, un rideau — où rien ne déclenche. Le critère est celui de la zone de détection, les pieds : quelqu’un qui passe devant reste détecté.
 - `get_configuration` (MCP) indique le nombre de zones ignorées, l’image dans l’alerte et les heures calmes.
 
 ### Modifié
+- L’interface parle de « clé d’accès » et de « clé de pilotage » là où elle disait « jeton ».
 - L’écran d’accueil reste affiché environ 2 s au lancement au lieu de disparaître aussitôt. La caméra démarre dessous pendant ce temps : la surveillance reprend aussi vite qu’avant.
 - Fiche d’une vidéo : « Conserver » devient « Garder » (« Ne plus garder »), « Supprimer » devient « Effacer » (« Effacer cette séquence »).
 
@@ -30,6 +34,14 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 - « Ce qu’un assistant IA peut voir et faire » (Réglages, bloc confidentialité) ouvre la page « Services MCP » même serveur éteint.
 
 ### Serveur MCP
+- **« Couper l'accès cloud » sur la notification de surveillance**, tant que le relais est connecté ou tente de l'être : la connexion se ferme aussitôt, côté natif, sans passer par JavaScript, et plus aucune requête n'est servie. Réglages éteint ensuite l'interrupteur à la lecture suivante de l'état ; tant que ce n'est pas acquitté, aucun relais ne redémarre, même si l'interrupteur est encore allumé.
+- **Autorisation OAuth pour l'accès cloud** : claude.ai, ChatGPT et Copilot Studio peuvent maintenant se connecter sans jeton collé. Le serveur d'autorisation (OAuth 2.1, PKCE S256, enregistrement dynamique, métadonnées RFC 9728 et 8414) tourne sur le téléphone, derrière le relais. Chaque demande affiche un code sur la page web et sur le téléphone, qui demande confirmation (notification si l'application est cachée) ; elle expire au bout de 2 minutes. Lecture seule ; les assistants autorisés sont listés dans Réglages et se révoquent un par un. Les jetons ne sont gardés que par empreinte.
+- **Accès depuis le cloud** (Réglages → Serveur MCP, éteint par défaut) : le téléphone ouvre une connexion sortante vers un relais pour que claude.ai, ChatGPT ou Copilot Studio puissent le joindre. Un consentement nomme le relais et dit qu'il voit tout ce qui passe. Par ce chemin, lecture seule avec le jeton d'accès — jamais de pilotage, et la vue en direct a son propre interrupteur. Aucun relais n'est encore configuré dans cette version : l'interrupteur reste grisé. `relay/` contient le service ; `PRIVACY.md`, `PRIVACY.en.md`, `docs/PLAY_STORE.md` et `CLAUDE.md` décrivent désormais cette connexion, la seule que l'application puisse ouvrir.
+- Réglages → Serveur MCP propose la configuration de sept clients (config JSON, Claude Code, LibreChat, Open WebUI, AnythingLLM, OpenClaw, Hermes Agent), chacune dans la forme que ce client attend ; la config JSON déclare enfin son transport (`type: http`). Guide complet : `docs/CONNEXION.md`.
+- La configuration copiée et le QR code portent le jeton de lecture, même pilotage actif. Le jeton de pilotage ne s’y trouve que si on le choisit (« Jeton de la configuration »).
+- Réglages dit que claude.ai, ChatGPT et Copilot Studio ne peuvent pas joindre le téléphone, et qu’un client doit l’adresser par son IP.
+- L’adresse Wi-Fi est choisie parmi les interfaces du téléphone : avec un VPN ou les données mobiles actives, l’URL affichée, le contrôle `Host` et le certificat HTTPS retenaient l’adresse de cette autre interface, et le Wi-Fi était refusé.
+- `MCP-Protocol-Version` renvoie la version négociée (puis celle du client) au lieu de `2025-06-18` en dur ; une version inconnue est refusée en `400`, et `initialize` propose `2026-07-28` à un client qui n’en connaît aucune.
 - Réglages s’ouvre sur une carte « Assistant IA (MCP) » : état du serveur, ce qui empêche le pilotage le cas échéant, et « Voir les services MCP ». La page était deux sections plus bas, où personne ne la trouvait.
 - HTTPS (Réglages → Serveur MCP → « Chiffrer les connexions », éteint par défaut) : une autorité propre au téléphone, dont la clé reste dans l’Android Keystore, émet le certificat du serveur pour son adresse du moment ; on installe une fois son certificat sur l’ordinateur de l’agent et on compare l’empreinte affichée. Un changement d’adresse IP ne casse plus la connexion.
 - Vue en direct pour l’agent (Réglages → Serveur MCP, éteinte par défaut) : nouvel outil `get_live_frame`, une image de ce que voit la caméra pendant la surveillance, sans rien enregistrer.

@@ -33,6 +33,8 @@ module.exports = {
    * build on a green tree, which is far more expensive.
    */
   testTimeout: 30_000,
+  // relay/ is its own package, tested by node:test (see .github/workflows/ci.yml).
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/relay/'],
   transformIgnorePatterns: [
     'node_modules/(?!(@react-native|react-native|@react-native-async-storage|react-native-svg|react-native-linear-gradient|@react-native-community)/)',
   ],

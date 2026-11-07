@@ -114,6 +114,50 @@ tool() {  # tool <jeton> <outil sans préfixe> [arguments JSON]
 - [ ] Claude Desktop lancé avec `NODE_EXTRA_CA_CERTS=novaguard-ca.pem` et l'URL `https://…` : les outils se chargent.
 - [ ] Désinstaller et réinstaller l'application : nouvelle autorité, nouvelle empreinte ; l'ancien PEM est refusé.
 
+## Serveur MCP : accès cloud (relais et OAuth)
+
+À dérouler avec une instance du relais déployée.
+
+- [ ] Accès cloud allumé : l'état passe à « Connecté au relais » et l'adresse
+      publique se copie ; éteint, la connexion se ferme aussitôt.
+- [ ] « Connecter un assistant » → cloud → claude.ai : sans adresse de relais, le champ
+      s'affiche ; une adresse en http est refusée ; une adresse valide puis l'accès
+      cloud (avec consentement) amènent l'adresse publique à l'écran. Ajouter le
+      connecteur : « Autorisation en attente » puis, après « Autoriser », « Connecté ».
+- [ ] « Connecter un assistant » → Wi-Fi → Claude Code : la commande copiée, collée sur
+      un ordinateur du même réseau, fait passer l'écran à « Connecté ».
+- [ ] « Connecter un assistant » → Wi-Fi : « Regarder et piloter » est grisé tant que le
+      pilotage est éteint ; une fois allumé, la configuration copiée porte le jeton de
+      pilotage et l'assistant voit les outils de pilotage. Le premier écran liste les
+      assistants autorisés ; « Révoquer » coupe le suivant.
+- [ ] Autorisation OAuth : « Autoriser 24 h » ; vingt-quatre heures plus tard (ou après avoir
+      avancé l'horloge), l'assistant n'apparaît plus dans Réglages et sa requête suivante est refusée.
+- [ ] « Connecter un assistant » avec Termux installé puis désinstallé : la mention « Termux est
+      installé ici » apparaît puis disparaît. « Tester le serveur » répond, serveur éteint il échoue ;
+      dans les deux cas l'écran ne passe pas à « Connecté ».
+- [ ] Changer de réseau (Wi-Fi → données mobiles) : le téléphone se reconnecte
+      seul, l'adresse publique reste la même.
+- [ ] Avec un VPN actif, l'accès cloud et l'URL du réseau local restent justes.
+- [ ] Ajouter le connecteur dans claude.ai avec l'adresse publique : la page de
+      confirmation s'ouvre, affiche un code, et le téléphone demande la même
+      chose avec le même code. Après « Autoriser », le connecteur se charge et
+      les outils de lecture répondent ; les outils de pilotage sont absents.
+- [ ] Écran éteint, application cachée : la demande d'autorisation fait sonner
+      une notification, qui ouvre l'application sur la demande ; sans réponse,
+      elle disparaît au bout de 2 minutes et la page web le dit.
+- [ ] « Refuser » : le client reçoit `access_denied`. Une demande lancée puis
+      abandonnée expire sans rien émettre.
+- [ ] Écran éteint, relais connecté : la notification de surveillance porte
+      « Couper l'accès cloud ». Un appui ferme la connexion aussitôt (le
+      client reçoit une erreur, plus aucune requête n'est servie), l'action
+      disparaît de la notification et, à l'ouverture de Réglages,
+      l'interrupteur est éteint. Le rallumer rouvre la connexion.
+- [ ] Réglages liste l'assistant ; « Révoquer » : la requête suivante du client
+      est refusée (401) et il redemande une autorisation.
+- [ ] Redémarrer l'application : l'assistant reste autorisé, sans nouvelle
+      confirmation. Effacer les données de l'application : il ne l'est plus.
+- [ ] Même chose avec ChatGPT et Copilot Studio.
+
 ## Serveur MCP : découverte et clients
 
 - [ ] `dns-sd -B _novaguard-mcp._tcp` (macOS) ou `avahi-browse -r _novaguard-mcp._tcp`

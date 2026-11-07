@@ -23,7 +23,7 @@ export function InfoSheet() {
    * allowed to fall through to the data rows, which is what it would otherwise
    * draw under the wrong title.
    */
-  const panel = info === 'autotune' || info === 'mcp' ? null : info;
+  const panel = info === 'autotune' || info === 'mcp' || info === 'connect' ? null : info;
 
   const clipCount = events.filter(e => e.path != null).length;
 

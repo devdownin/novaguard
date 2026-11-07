@@ -25,12 +25,15 @@ export const NOTIFICATION_BODY =
  * while the screen is off. That is what a camera interrupted mid-watch has to
  * reach: the viewfinder's error chip is drawn where nobody is looking.
  *
- * `revokeLabel` adds the "cut agent control" action; empty, there is none.
+ * `revokeLabel` adds the "cut agent control" action; empty, there is none. `cloudLabel` does the
+ * same for "cut cloud access".
  */
-export function startForegroundService(body: string = NOTIFICATION_BODY, revokeLabel = ''): boolean {
+export function startForegroundService(
+  body: string = NOTIFICATION_BODY, revokeLabel = '', cloudLabel = '',
+): boolean {
   if (!NativeSurveillanceService) return false;
   try {
-    NativeSurveillanceService.start(NOTIFICATION_TITLE, body, revokeLabel);
+    NativeSurveillanceService.start(NOTIFICATION_TITLE, body, revokeLabel, cloudLabel);
     return true;
   } catch {
     return false;

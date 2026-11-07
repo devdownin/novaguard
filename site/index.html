@@ -7,7 +7,7 @@
     <title>NovaGuard — Votre Android veille sur l’essentiel</title>
     <meta
       name="description"
-      content="Transformez votre Android en caméra de surveillance locale et open source. Détectez personnes et animaux, enregistrez les passages et connectez votre agent IA via MCP, si vous le souhaitez."
+      content="Découvrez NovaGuard 1.1 : caméra Android locale, alertes avec image, heures calmes, zones ignorées et agent IA optionnel via MCP."
     />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="fr_FR" />
@@ -96,6 +96,9 @@
             <span>Android 16 requis</span><span>Licence GPL v3</span
             ><span>Sans compte</span>
           </div>
+          <a class="hero-gallery-link version-link" href="#version-1-1"
+            >Nouveautés de la 1.1 <span aria-hidden="true">↓</span></a
+          >
           <a class="hero-gallery-link" href="#apercu"
             >Voir les écrans de l’application
             <span aria-hidden="true">↓</span></a
@@ -130,6 +133,83 @@
           ><span><b>03</b> Comprendre avec l’IA, en option</span>
         </div>
       </div>
+
+      <section
+        id="version-1-1"
+        class="features section wrap version-section"
+        aria-labelledby="version-title"
+      >
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">NOVAGUARD 1.1.0</p>
+            <h2 id="version-title">
+              Plus de contexte.<br />Moins d’interruptions.
+            </h2>
+          </div>
+          <p>
+            Des alertes plus utiles, des heures calmes et une scène mieux ciblée
+            : découvrez les nouveautés de la version 1.1.
+          </p>
+        </div>
+        <p class="version-status">
+          <strong>Préparation de la 1.1.0.</strong> Au 16 octobre 2026, la
+          version est préparée dans la
+          <a href="https://github.com/devdownin/novaguard/pull/113">PR #113</a>
+          ; aucun APK 1.1 n’est encore publié. Le numéro du fichier disponible
+          est indiqué dans <a href="#installer">Installation</a>.
+        </p>
+        <div class="feature-grid version-cards">
+          <article class="feature-card">
+            <span class="card-index">01 / COMPRENDRE D’UN COUP D’ŒIL</span>
+            <h3>Des alertes<br />avec une image.</h3>
+            <p>
+              Le texte vous alerte, puis une image complète la même notification
+              sans sonner à nouveau. Les retours rapprochés mettent à jour
+              silencieusement le compteur de passages sur dix minutes.
+            </p>
+          </article>
+          <article class="feature-card">
+            <span class="card-index">02 / CHOISIR VOS HORAIRES</span>
+            <h3>Du calme.<br />Les passages restent.</h3>
+            <p>
+              Programmez vos heures calmes, par exemple de 22 h à 7 h. Les
+              alertes s’interrompent pendant cette plage ; la détection et
+              l’enregistrement continuent sur le téléphone.
+            </p>
+          </article>
+          <article class="feature-card">
+            <span class="card-index">03 / CIBLER VOTRE SCÈNE</span>
+            <h3>Jusqu’à trois<br />zones ignorées.</h3>
+            <p>
+              Délimitez une télévision, une fenêtre ou une partie de la scène à
+              écarter. Le point bas du sujet, au niveau de ses pieds, détermine
+              si une détection est dans une zone ignorée.
+            </p>
+          </article>
+        </div>
+        <p class="version-detail">
+          L’image reste masquée sur l’écran verrouillé et l’alerte n’est pas
+          relayée à une montre. Lors des retours rapprochés, l’image conservée
+          est celle du premier passage. Une notification déjà balayée ne
+          réapparaît pas.
+        </p>
+        <a
+          class="text-link"
+          href="https://github.com/devdownin/novaguard/blob/main/docs/VERSION_1_1.md"
+          >Consulter les réglages et les notes de la 1.1
+          <svg
+            class="inline-icon"
+            aria-hidden="true"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          >
+            <path d="M6 18 18 6M6 6h12v12" /></svg
+        ></a>
+      </section>
 
       <section
         id="fonctionnalites"
@@ -626,9 +706,10 @@
               </div>
               <!-- release-info:end -->
               <p class="version-scope">
-                Le site présente les fonctions de la branche <code>main</code>.
-                Une version publiée plus ancienne peut ne pas toutes les inclure
-                ; consultez ses notes ou utilisez un APK CI récent.
+                La présentation inclut les nouveautés de la 1.1.0 en
+                préparation. Vérifiez le numéro de l’APK ci-dessus : une version
+                publiée plus ancienne peut ne pas inclure ces fonctions. Pour
+                les essais, choisissez le build CI de la branche concernée.
               </p>
             </div>
           </div>
@@ -785,6 +866,36 @@
               images et le PIN ne sont pas chiffrés pendant le transport.
               Réservez cet usage à un réseau local de confiance, sans exposition
               publique.
+            </p>
+          </details>
+          <details>
+            <summary>
+              Les heures calmes arrêtent-elles la surveillance ?<span
+                aria-hidden="true"
+                >+</span
+              >
+            </summary>
+            <p>
+              Non. Dans Réglages → Notifications, les heures calmes désactivent
+              les alertes pendant la plage choisie. La détection et les vidéos
+              continuent, et les passages restent dans l’historique. Les retours
+              rapprochés ne rafraîchissent pas non plus l’alerte pendant cette
+              plage.
+            </p>
+          </details>
+          <details>
+            <summary>
+              Les zones ignorées masquent-elles la vidéo ?<span
+                aria-hidden="true"
+                >+</span
+              >
+            </summary>
+            <p>
+              Elles filtrent les détections d’après la position des pieds du
+              sujet ; elles ne floutent ni ne masquent la vidéo. Vous pouvez
+              définir jusqu’à trois rectangles dans Réglages → Détection.
+              Vérifiez votre cadrage sur place pour conserver les passages qui
+              vous intéressent.
             </p>
           </details>
           <details>

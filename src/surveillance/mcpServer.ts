@@ -23,7 +23,37 @@ export interface McpServerStatus {
   loopbackOnly: boolean;
   requestCount: number;
   lastActivityAt: number | null;
+  /** The connection to the cloud relay; `off` when the owner has not asked for it. */
+  relayState?: RelayState;
+  /** Where cloud clients reach this phone, once the relay has accepted it. */
+  relayUrl?: string | null;
+  /** The owner cut cloud access from the notification: no relay starts until JavaScript acknowledges it. */
+  relayCut?: boolean;
+  /** Assistants waiting for the owner's answer; each carries the code to compare with the web page. */
+  pendingAuthorizations?: McpPendingAuthorization[];
+  /** The assistants the owner has authorized, most recent use last known. Never a token. */
+  grants?: McpGrant[];
 }
+
+export interface McpPendingAuthorization {
+  id: string;
+  clientName: string;
+  host: string;
+  code: string;
+  expiresAt: number;
+}
+
+export interface McpGrant {
+  id: string;
+  clientName: string;
+  host: string;
+  createdAt: number;
+  /** When the owner chose the access to end, or 0 when it lasts until revoked. */
+  validUntil?: number;
+  lastUsedAt: number;
+}
+
+export type RelayState = 'off' | 'connecting' | 'connected' | 'offline' | 'refused';
 
 export const MCP_SERVER_STOPPED: McpServerStatus = {
   running: false,
@@ -243,6 +273,35 @@ export function resolveMcpCommand(id: string, outcomeJson: string): void {
   nativeModule()?.resolveCommand?.(id, outcomeJson);
 }
 
+/**
+ * Dials the relay so cloud clients can reach the server. The native side needs
+ * the server running with a read token, and answers reads only.
+ */
+export async function startMcpRelay(address: string, liveAllowed: boolean): Promise<McpServerStatus> {
+  const module = nativeModule();
+  if (!module?.startRelay) return MCP_SERVER_STOPPED;
+  return module.startRelay(address, liveAllowed);
+}
+
+/** The owner's answer to an assistant waiting at the relay. False when it had already expired. */
+export async function answerMcpAuthorization(id: string, allow: boolean, lifetimeMs = 0): Promise<boolean> {
+  const module = nativeModule();
+  if (!allow) return module?.denyAuthorization ? module.denyAuthorization(id) : false;
+  // 0 leaves the access open-ended (until revoked); anything else is how long the owner grants it for.
+  return module?.approveAuthorization ? module.approveAuthorization(id, lifetimeMs) : false;
+}
+
+export async function revokeMcpGrant(id: string): Promise<boolean> {
+  const module = nativeModule();
+  return module?.revokeGrant ? module.revokeGrant(id) : false;
+}
+
+export async function stopMcpRelay(): Promise<McpServerStatus> {
+  const module = nativeModule();
+  if (!module?.stopRelay) return MCP_SERVER_STOPPED;
+  return module.stopRelay();
+}
+
 export async function stopMcpServer(): Promise<boolean> {
   const module = nativeModule();
   if (!module) return true;
@@ -276,4 +335,36 @@ export function pushMcpSnapshot(input: McpSnapshotInput): void {
   const module = nativeModule();
   if (!module || !module.updateSnapshot) return;
   module.updateSnapshot(buildMcpSnapshot(input));
+}
+
+export interface McpSelfTest {
+  ok: boolean;
+  /** How many tools the server listed when asked from the inside. */
+  tools: number;
+  ms: number;
+}
+
+/**
+ * Has the server answer what an assistant asks first, without a socket. It shows the server works;
+ * whether another machine can reach it is shown only by a request actually arriving.
+ */
+export async function selfTestMcpServer(): Promise<McpSelfTest> {
+  const module = nativeModule();
+  if (!module?.selfTest) return { ok: false, tools: 0, ms: 0 };
+  try {
+    return await module.selfTest();
+  } catch {
+    return { ok: false, tools: 0, ms: 0 };
+  }
+}
+
+/** Whether Termux is installed, where most agents on the phone itself run. False where the module is absent. */
+export async function isTermuxInstalled(): Promise<boolean> {
+  const module = nativeModule();
+  if (!module?.isTermuxInstalled) return false;
+  try {
+    return (await module.isTermuxInstalled()) === true;
+  } catch {
+    return false;
+  }
 }

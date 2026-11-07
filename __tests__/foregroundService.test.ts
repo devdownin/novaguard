@@ -39,7 +39,13 @@ describe('with the native module present', () => {
   it('starts the service with the notification copy', () => {
     const api = load();
     expect(api.startForegroundService()).toBe(true);
-    expect(mockNative.start).toHaveBeenCalledWith(api.NOTIFICATION_TITLE, api.NOTIFICATION_BODY, '');
+    expect(mockNative.start).toHaveBeenCalledWith(api.NOTIFICATION_TITLE, api.NOTIFICATION_BODY, '', '');
+  });
+
+  it('adds the cloud action only when it is asked for', () => {
+    const api = load();
+    api.startForegroundService('body', '', 'Couper l’accès cloud');
+    expect(mockNative.start).toHaveBeenLastCalledWith(api.NOTIFICATION_TITLE, 'body', '', 'Couper l’accès cloud');
   });
 
   it('stops the service', () => {

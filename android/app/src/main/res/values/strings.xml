@@ -10,5 +10,9 @@
     <string name="surveillance_channel_description">Ongoing notification shown while the camera is monitoring.</string>
     <string name="detection_channel_name">Detections</string>
     <string name="detection_channel_description">Alert when a person or an animal is detected.</string>
+    <string name="cloud_auth_channel_name">Cloud access requests</string>
+    <string name="cloud_auth_channel_description">Asks you before an assistant in the cloud can read your recordings.</string>
+    <string name="cloud_auth_title">Allow an assistant to read?</string>
+    <string name="cloud_auth_text">%1$s is waiting for your answer. Open NovaGuard.</string>
     <string name="camera_permission_required">Camera permission is required for monitoring in the background</string>
 </resources>

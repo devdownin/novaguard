@@ -640,6 +640,8 @@ vérifie que `build.gradle`, le `Dockerfile` et les assertions d'`android-image.
 nomment bien les mêmes versions pour chacune des quatre — l'échec, lui, ne se voit que dans un vrai run
 Gradle, que la CI ne fait pas sur une PR ordinaire.
 
+**« Connecter un assistant » ne dit « connecté » que sur un appel reçu.** `mcpConnect.ts` porte la décision (un seul obstacle à la fois, ce qui se copie, la preuve) ; la feuille ne fait que l'afficher. Trois choses ne doivent pas être reperdues : `selfTest` interroge le serveur de l'intérieur et n'est **pas** compté dans `requestCount` — un test qui passerait pour la première requête d'un assistant ferait mentir la preuve ; le pilotage n'est proposé que si `controlOffered` (le test du serveur) le dit, et un choix périmé retombe sur la lecture au lieu de copier une clé morte ; et la fin choisie à l'autorisation (`Grant.validUntil`) plafonne **tous** les jetons de l'assistant, y compris celui de renouvellement. L'interface dit « clé » là où le protocole dit *token*.
+
 ## Livrer une release
 
 La version vit à quatre endroits (`package.json`, son lockfile, `src/constants/app.ts`, le CHANGELOG), et `__tests__/release.test.ts` les tient d'accord. On ne pose le tag qu'après `docs/DEVICE_CHECKS.md` sur un téléphone.
@@ -651,13 +653,29 @@ ne s'apprennent pas au moment où on en a besoin :
 - **R8 reste désactivé.** Toutes les dépendances lourdes atteignent du natif par
   leur nom : l'activer sans règles vérifiées sur matériel échange des mégaoctets
   contre un crash qu'aucun test unitaire ne voit.
-- **`INTERNET` est déclarée, et seulement pour écouter.** Le direct Wi-Fi et le
-  serveur MCP sont deux serveurs locaux éteints par défaut ; rien n'ouvre de
-  connexion sortante, et `playRelease.test.ts` le vérifie dans les sources JS et
-  Kotlin. Le formulaire *Data safety* et `PRIVACY.md` reposent sur cette
-  affirmation-là — longtemps ils ont affirmé l'absence de la permission, qui
-  était fausse. Chaque type de service de premier plan doit être couvert par sa
-  permission ; le même test tient la liste.
+- **`INTERNET` est déclarée ; une seule connexion sortante existe, et elle est
+  optionnelle.** Le direct Wi-Fi et le serveur MCP sont deux serveurs locaux
+  éteints par défaut qui ne font qu'écouter. L'« accès depuis le cloud »
+  (`McpRelayClient.kt`, `relay/`, `docs/CONNEXION.md` §14) ouvre une connexion
+  sortante vers le relais du projet, éteinte par défaut, derrière un consentement
+  qui nomme le relais. `playRelease.test.ts` vérifie dans les sources JS et Kotlin
+  que **ce fichier est le seul** à pouvoir ouvrir une connexion : en ajouter un
+  autre, c'est changer `PRIVACY.md`, `PRIVACY.en.md` et le formulaire *Data
+  safety*, pas seulement le test. Une requête venue du relais n'est **jamais** une
+  requête de boucle locale (`McpRules.relayPrincipal` : lecture avec le jeton
+  d'accès, jamais de pilotage), parce que ses trames sont livrées de l'intérieur
+  du processus. Le relais termine TLS et voit le trafic en clair : c'est écrit
+  dans le consentement, et c'est accepté. Les clients cloud s'authentifient par
+  OAuth, et **le serveur d'autorisation est sur le téléphone** (`McpOAuth.java`,
+  `McpOAuthServer.kt`) : `/authorize` n'émet rien, il ouvre une demande et affiche
+  un code à quatre chiffres que le propriétaire compare sur l'appareil avant de
+  répondre ; le relais ne voit ni décision ni jeton qu'il pourrait forger. Les
+  redirections acceptées sont une liste d'hôtes connus plus la boucle locale,
+  refusées dès l'enregistrement, et les jetons ne sont gardés que par empreinte.
+  Un jeton OAuth n'ouvre que le chemin du relais, jamais la socket du réseau local. Longtemps le formulaire et `PRIVACY.md`
+  ont affirmé l'absence de la permission, qui était fausse. Chaque type de service
+  de premier plan doit être couvert par sa permission ; le même test tient la
+  liste.
 - **`bundleRelease` échoue sans la clé d'upload, et c'est voulu.** Un bundle
   mal signé coûte un `versionCode` définitivement brûlé dans la Play Console.
 

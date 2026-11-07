@@ -12,15 +12,21 @@ import { formatBytes } from '../recording/library';
 import { describeClipGap, formatClipGap } from '../recording/clipGap';
 import { describeAutoTune, formatAutoTune } from '../camera/autoTune';
 import { APP_LICENSE, APP_VERSION, ISSUES_URL, REPO_URL } from '../constants/app';
+import { normalizeRelayUrl, relayHostOf } from '../surveillance/relayAddress';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 import { SettingRow, StaticValue, ValueButton } from '../components/SetupRows';
 import { Switch } from '../components/Switch';
 import { SegmentedControl } from '../components/SegmentedControl';
+import { grantSubtitle } from '../surveillance/mcpConnect';
+import { askCloudConsent } from '../components/cloudConsent';
 import { PrimaryOutlineButton, SecondaryOutlineButton } from '../components/OutlineButton';
 import { getMcpCaCertificate } from '../surveillance/mcpServer';
 import { QrCode } from '../components/QrCode';
 import { controlLive } from '../surveillance/mcpControl';
 import { controlAvailability } from '../surveillance/mcpServices';
+import {
+  CLIENT_NAMES, clientFragment, fragmentToken, genericConfig, McpClientId, nextClient, TokenChoice,
+} from '../surveillance/mcpClients';
 import { ShieldCheckIcon } from '../components/icons';
 import { StringKey, t, tn, tValue } from '../i18n';
 import { useLandscape } from '../utils/useLandscape';
@@ -61,6 +67,8 @@ export function SetupScreen() {
 
   const [showToken, setShowToken] = React.useState(false);
   const [showQr, setShowQr] = React.useState(false);
+  const [mcpClient, setMcpClient] = React.useState<McpClientId>('json');
+  const [tokenChoice, setTokenChoice] = React.useState<TokenChoice>('read');
   const [copiedLabel, setCopiedLabel] = React.useState<string | null>(null);
 
   // The server's own address, not the streaming server's. Without a token it
@@ -88,21 +96,27 @@ export function SetupScreen() {
 
   const controlActive = settings.mcpControlEnabled && settings.mcpControlToken.length > 0
     && controlLive(settings.mcpControlExpiresAt, Date.now());
-  const clientToken = controlActive ? settings.mcpControlToken : settings.mcpToken;
-
-  const mcpClientConfig = {
-    mcpServers: {
-      novaguard: {
-        url: mcpServerUrl,
-        // The control token grants reading too, so a client set up for
-        // control needs only that one.
-        headers: clientToken ? { Authorization: `Bearer ${clientToken}` } : {},
-      },
-    },
-  };
-  const getMcpJsonConfig = () => JSON.stringify(mcpClientConfig, null, 2);
+  // Reading unless the owner picks control: the control token reads too, so a
+  // client set up for control needs only that one — and only that client should.
+  const clientToken = fragmentToken(settings, controlActive ? tokenChoice : 'read', Date.now());
+  const clientLabel = mcpClient === 'json' ? t('setup.mcpClient.json') : CLIENT_NAMES[mcpClient];
+  const tokenChoiceLabel = t(tokenChoice === 'control' ? 'setup.mcpFragmentToken.control' : 'setup.mcpFragmentToken.read');
 
   const mcpAvailability = controlAvailability(settings, Date.now());
+
+  // Cloud access is the one thing here that dials out, so it asks first and
+  // names the relay and what it can see; turning it off asks nothing.
+  const relayAddress = normalizeRelayUrl(settings.mcpRelayUrl);
+  const relayHost = relayAddress ? relayHostOf(relayAddress) : '';
+  const cloudBlocker: StringKey | null = !relayAddress ? 'setup.mcpCloud.noRelay'
+    : !settings.mcpEnabled ? 'setup.mcpCloud.needsServer'
+    : !settings.mcpToken ? 'setup.mcpCloud.needsToken'
+    : null;
+  const onCloudToggle = () => {
+    if (settings.mcpCloudEnabled) return s.toggleMcpCloud();
+    askCloudConsent(relayHost, s.toggleMcpCloud);
+  };
+  const relayState = s.mcpStatus.relayState ?? 'off';
 
   const controlExpiry = !settings.mcpControlToken ? null
     : settings.mcpControlExpiresAt <= 0 ? t('setup.mcpControlToken.forever')
@@ -137,7 +151,8 @@ export function SetupScreen() {
           {settings.mcpEnabled ? (
             <Text style={styles.privacyText}>{t(`mcpService.control.${mcpAvailability}`)}</Text>
           ) : null}
-          <PrimaryOutlineButton label={t('setup.mcpServices')} onPress={() => s.openInfo('mcp')} style={styles.mcpCardButton} />
+          <PrimaryOutlineButton label={t('setup.mcpConnect')} onPress={() => s.openInfo('connect')} style={styles.mcpCardButton} />
+          <SecondaryOutlineButton label={t('setup.mcpServices')} onPress={() => s.openInfo('mcp')} style={styles.mcpCardButton} />
         </View>
 
         <CollapsibleSection title={t('setup.section.surv')} expanded={settings.exp.surv} onToggle={() => s.toggleSection('surv')}>
@@ -634,6 +649,27 @@ export function SetupScreen() {
             ) : null}
           </View>
 
+          <SettingRow label={t('setup.mcpClient')} subtitle={t('setup.mcpClient.sub')}>
+            <ValueButton
+              label={clientLabel}
+              onPress={() => setMcpClient(nextClient)}
+              accessibilityLabel={t('a11y.setting', { name: t('setup.mcpClient'), value: clientLabel })}
+            />
+          </SettingRow>
+
+          {controlActive ? (
+            <SettingRow label={t('setup.mcpFragmentToken')} subtitle={t('setup.mcpFragmentToken.sub')}>
+              <ValueButton
+                label={tokenChoiceLabel}
+                onPress={() => setTokenChoice(c => (c === 'read' ? 'control' : 'read'))}
+                accessibilityLabel={t('a11y.setting', { name: t('setup.mcpFragmentToken'), value: tokenChoiceLabel })}
+              />
+            </SettingRow>
+          ) : null}
+
+          <Text style={styles.hint}>{t('setup.mcpHost.hint')}</Text>
+          <Text style={styles.hint}>{t('setup.mcpClient.unsupported')}</Text>
+
           <View style={[styles.subBlock, styles.aboutButtonsRow]}>
             <PrimaryOutlineButton
               label={copiedLabel === 'url' ? t('setup.mcpCopy.copied') : t('setup.mcpCopy.url')}
@@ -649,7 +685,7 @@ export function SetupScreen() {
             ) : null}
             <SecondaryOutlineButton
               label={copiedLabel === 'config' ? t('setup.mcpCopy.copied') : t('setup.mcpCopy.config')}
-              onPress={() => copyToClipboard(getMcpJsonConfig(), 'config')}
+              onPress={() => copyToClipboard(clientFragment(mcpClient, mcpServerUrl, clientToken), 'config')}
               style={styles.flex1}
             />
           </View>
@@ -662,13 +698,60 @@ export function SetupScreen() {
             {/* Compact JSON: every byte saved is a smaller symbol, easier to read off a screen. */}
             {showQr ? (
               <View style={styles.qr}>
-                <QrCode value={JSON.stringify(mcpClientConfig)} size={220} accessibilityLabel={t('setup.mcpQr.label')} />
+                <QrCode value={JSON.stringify(genericConfig(mcpServerUrl, clientToken))} size={220} accessibilityLabel={t('setup.mcpQr.label')} />
                 {clientToken ? <Text style={styles.hint}>{t('setup.mcpQr.hint')}</Text> : null}
               </View>
             ) : null}
           </View>
 
           {s.mcpStatus.advertised ? <Text style={styles.hint}>{t('setup.mcpAdvertised')}</Text> : null}
+
+          <SettingRow label={t('setup.mcpCloud')} subtitle={t('setup.mcpCloud.sub')}>
+            <Switch
+              value={settings.mcpCloudEnabled}
+              onValueChange={onCloudToggle}
+              disabled={cloudBlocker !== null && !settings.mcpCloudEnabled}
+              accessibilityLabel={t('setup.mcpCloud')}
+            />
+          </SettingRow>
+          {cloudBlocker ? <Text style={styles.hint}>{t(cloudBlocker)}</Text> : null}
+          {settings.mcpCloudEnabled ? (
+            <View style={styles.subBlock} testID="mcp-cloud">
+              <Text style={styles.hint}>{t(`setup.mcpCloud.state.${relayState}`)}</Text>
+              {s.mcpStatus.relayUrl ? (
+                <PrimaryOutlineButton
+                  label={copiedLabel === 'cloudUrl' ? t('setup.mcpCopy.copied') : t('setup.mcpCloud.copyUrl')}
+                  onPress={() => copyToClipboard(s.mcpStatus.relayUrl!, 'cloudUrl')}
+                />
+              ) : null}
+              <Text style={styles.hint}>{t('setup.mcpCloud.readOnly')}</Text>
+              <SettingRow label={t('setup.mcpGrants')} subtitle={(s.mcpStatus.grants ?? []).length === 0 ? t('setup.mcpGrants.none') : undefined}>
+                <StaticValue label={String((s.mcpStatus.grants ?? []).length)} />
+              </SettingRow>
+              {(s.mcpStatus.grants ?? []).map(grant => (
+                <SettingRow
+                  key={grant.id}
+                  label={grant.clientName}
+                  subtitle={grantSubtitle(grant)}
+                >
+                  <ValueButton
+                    label={t('setup.mcpGrants.revoke')}
+                    onPress={() => s.revokeMcpGrant(grant.id)}
+                    accessibilityLabel={t('setup.mcpGrants.revoke.a11y', { client: grant.clientName })}
+                  />
+                </SettingRow>
+              ))}
+              {settings.mcpLiveFrameEnabled ? (
+                <SettingRow label={t('setup.mcpCloudLive')} subtitle={t('setup.mcpCloudLive.sub')}>
+                  <Switch
+                    value={settings.mcpCloudLiveFrame}
+                    onValueChange={s.toggleMcpCloudLiveFrame}
+                    accessibilityLabel={t('setup.mcpCloudLive')}
+                  />
+                </SettingRow>
+              ) : null}
+            </View>
+          ) : null}
 
           <SettingRow label={t('setup.mcpLastActivity')}>
             <StaticValue

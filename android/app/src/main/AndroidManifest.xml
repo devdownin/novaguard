@@ -24,6 +24,12 @@
     <uses-feature android:name="android.hardware.camera.any" android:required="true" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
+    <!-- Package visibility, for one package: "Connecter un assistant" offers the shortcut for a Termux agent only
+         where Termux is installed. A named <package> needs no permission and does not widen what the app can list. -->
+    <queries>
+        <package android:name="com.termux" />
+    </queries>
+
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"

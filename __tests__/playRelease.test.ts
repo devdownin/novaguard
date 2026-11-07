@@ -110,17 +110,22 @@ describe('version', () => {
 describe('what the store listing promises', () => {
   /**
    * The Data safety form answers "no data collected" and PRIVACY.md says the
-   * app opens no outgoing connection. INTERNET is declared, for the two local
-   * servers (Wi-Fi live view, MCP) that only listen: the promise is that nothing
-   * dials out, so that is what is checked — in every source that could, JS and
-   * Kotlin. A `fetch` or an `HttpURLConnection` added anywhere makes the store
+   * app opens no outgoing connection except the cloud-access relay the owner
+   * switches on. INTERNET is declared for the two local servers (Wi-Fi live view,
+   * MCP) that listen, and for that one relay: so the promise is that nothing
+   * else dials out, and that is what is checked — in every source that could, JS
+   * and Kotlin. A `fetch` or an `HttpURLConnection` added anywhere makes the store
    * declaration false, and that is a declaration to Google, not a detail.
    */
-  it('declares INTERNET, for the two local servers that only listen', () => {
+  it('declares INTERNET, for the two local servers and the optional relay', () => {
     expect(manifest).toContain('android.permission.INTERNET');
   });
 
-  it('opens no outgoing connection from any source', () => {
+  // The only file allowed to dial out. Anything added to this list is a change to
+  // PRIVACY.md, PRIVACY.en.md and the Data safety form, not to this test.
+  const RELAY_CLIENT = 'android/app/src/main/java/com/novaguard/surveillance/McpRelayClient.kt';
+
+  it('opens no outgoing connection from any source but the relay client', () => {
     const files = (dir: string, ext: RegExp): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
       const full = join(dir, entry.name);
       if (entry.isDirectory()) return entry.name === '__mocks__' ? [] : files(full, ext);
@@ -131,7 +136,23 @@ describe('what the store listing promises', () => {
       ...files(join(root, 'src'), /\.tsx?$/),
       ...files(join(root, 'android/app/src/main/java'), /\.(kt|java)$/),
     ].filter(file => outbound.test(readFileSync(file, 'utf8')));
-    expect(offenders).toEqual([]);
+    expect(offenders.map(file => file.slice(root.length + 1))).toEqual([RELAY_CLIENT]);
+  });
+
+  it('dials only the address the owner-chosen relay resolves to, over TLS', () => {
+    const client = readFileSync(join(root, RELAY_CLIENT), 'utf8');
+    // The address comes from McpRelayRules.connectUrl, which only ever builds wss://.
+    expect(client).toContain('McpRelayRules.connectUrl(base)');
+    expect(client).not.toMatch(/https?:\/\/|ws:\/\//);
+    const rules = readFileSync(join(root, 'android/app/src/main/java/com/novaguard/surveillance/McpRelayRules.java'), 'utf8');
+    expect(rules).toContain('"wss://"');
+    expect(rules).not.toMatch(/"ws:\/\//);
+  });
+
+  it('ships no relay address until the project deploys one', () => {
+    // An address here makes the switch usable; it is a decision, made with PRIVACY.md.
+    const app = readFileSync(join(root, 'src/constants/app.ts'), 'utf8');
+    expect(app).toMatch(/export const RELAY_URL = '(https:\/\/[a-z0-9.-]+)?';/);
   });
 
   it('declares exactly the permissions the app can justify', () => {

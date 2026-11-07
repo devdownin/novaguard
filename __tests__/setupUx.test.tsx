@@ -68,13 +68,36 @@ describe('MCP client setup', () => {
     return JSON.parse(tree.root.findByProps({ testID: 'mcp-qr' }).parent!.props.value);
   };
 
-  it('puts the control token in the QR code while it lives', async () => {
+  const readToken = 'mcp_' + 'r'.repeat(32);
+  const press = async (label: string) => {
+    const button = tree.root.find(node => node.props.label === label && node.props.onPress);
+    await ReactTestRenderer.act(async () => { button.props.onPress(); });
+  };
+
+  it('hands out the read token while control lives, and the control token only when asked', async () => {
     const expiresAt = Date.now() + 3_600_000;
-    await mcp({ mcpControlExpiresAt: expiresAt });
+    await mcp({ mcpControlExpiresAt: expiresAt, mcpToken: readToken });
     expect(texts()).toContain(t('setup.mcpControlToken.expires', { time: formatWhen(expiresAt) }));
     const config = await qrValue();
-    expect(config.mcpServers.novaguard.headers.Authorization).toBe(`Bearer ${controlToken}`);
+    expect(config.mcpServers.novaguard.type).toBe('http');
+    expect(config.mcpServers.novaguard.headers.Authorization).toBe(`Bearer ${readToken}`);
     expect(texts()).toContain(t('setup.mcpQr.hint'));
+
+    await press(t('setup.mcpFragmentToken.read'));
+    const qr = tree.root.findByProps({ testID: 'mcp-qr' }).parent!.props.value;
+    expect(JSON.parse(qr).mcpServers.novaguard.headers.Authorization).toBe(`Bearer ${controlToken}`);
+  });
+
+  it('offers no control token once control cannot be used', async () => {
+    await mcp({ mcpControlEnabled: false, mcpToken: readToken });
+    expect(tree.root.findAll(node => node.props.label === t('setup.mcpFragmentToken.read'))).toHaveLength(0);
+  });
+
+  it('cycles through the clients and says which cannot reach the phone', async () => {
+    await mcp({ mcpToken: readToken });
+    expect(texts()).toContain(t('setup.mcpClient.unsupported'));
+    await press(t('setup.mcpClient.json'));
+    expect(tree.root.findAll(node => node.props.label === 'Claude Code' && node.props.onPress).length).toBeGreaterThan(0);
   });
 
   it('says an expired token is expired, and stops handing it out', async () => {

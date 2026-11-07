@@ -1,6 +1,7 @@
 package com.novaguard.surveillance
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.BatteryManager
@@ -85,6 +86,20 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   @Volatile private var controlExpiresAt: Long = 0
   /** HTTPS under the device authority (`McpTls`); off, plain HTTP as before. */
   @Volatile private var tls: Boolean = false
+  /** The cloud relay connection while the owner has it on; null otherwise. See `McpRelayClient`. */
+  @Volatile private var relay: McpRelayClient? = null
+  /** Authorization for cloud clients: registrations, pending requests, grants. Lives while the module does. */
+  private val oauthServer: McpOAuthServer by lazy {
+    McpOAuthServer(reactContext) { clientName -> McpAuthNotifier.post(reactContext, clientName) }
+  }
+  /**
+   * Set when the owner cut cloud access from the notification. While it is, no relay is
+   * started — whoever asks — so the cut holds even if JavaScript is not there to hear it;
+   * JavaScript reads it in the status, switches the setting off and clears it with `stopRelay`.
+   */
+  @Volatile private var relayCut: Boolean = false
+  /** Whether the live view may cross the relay: its own owner switch, on top of the live-view one. */
+  @Volatile private var relayLiveAllowed: Boolean = false
   /** The DNS-SD registration while the socket is on the LAN, so a client finds a moved address. */
   private var nsdListener: NsdManager.RegistrationListener? = null
   @Volatile private var snapshot: Snapshot = Snapshot.empty()
@@ -154,6 +169,159 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     }
   }
 
+  /**
+   * Opens the connection to the relay the owner chose, so cloud clients can reach
+   * this server. It needs the read token — the relay is the open internet, and the
+   * read token is what lets someone in — and answers only reads: see
+   * `McpRules.relayPrincipal`. Calling it again replaces the connection.
+   */
+  @ReactMethod
+  fun startRelay(address: String?, liveAllowed: Boolean, promise: Promise) {
+    try {
+      if (relayCut) return promise.reject("MCP_RELAY_CUT", "Cloud access was cut from the notification")
+      val base = McpRelayRules.relayBase(address)
+        ?: return promise.reject("MCP_RELAY_ADDRESS", "The relay address must be https://host[:port]")
+      if (!isServerRunning || tokenDigest == null) {
+        return promise.reject("MCP_RELAY_NEEDS_TOKEN", "Cloud access needs the server running with an access token")
+      }
+      stopRelayInternal()
+      relayLiveAllowed = liveAllowed
+      relay = McpRelayClient(base, ::handleRelay) {}.also { it.start() }
+      promise.resolve(statusMap())
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to start relay: ${e.javaClass.simpleName}")
+      promise.reject("MCP_RELAY_ERROR", "Failed to start relay")
+    }
+  }
+
+  @ReactMethod
+  fun stopRelay(promise: Promise) {
+    // Asked for by the owner's own switch, or by JavaScript acknowledging a cut: either way it is settled.
+    relayCut = false
+    stopRelayInternal()
+    promise.resolve(statusMap())
+  }
+
+  private fun stopRelayInternal() {
+    relay?.stop()
+    relay = null
+  }
+
+  /** The requests an assistant has made and the owner has yet to answer, with the code to compare. */
+  private fun pendingAuthorizations() = Arguments.createArray().apply {
+    if (relay == null) return@apply
+    for (p in oauthServer.oauth.waiting()) {
+      pushMap(Arguments.createMap().apply {
+        putString("id", p.id)
+        putString("clientName", p.client.name)
+        putString("host", McpOAuth.redirectHost(p.redirectUri))
+        putString("code", p.verification)
+        putDouble("expiresAt", p.expiresAt.toDouble())
+      })
+    }
+  }
+
+  private fun grantList() = Arguments.createArray().apply {
+    for (g in oauthServer.oauth.grants()) {
+      pushMap(Arguments.createMap().apply {
+        putString("id", g.id)
+        putString("clientName", g.clientName)
+        putString("host", g.redirectHost)
+        putDouble("createdAt", g.createdAt.toDouble())
+        putDouble("validUntil", g.validUntil.toDouble())
+        putDouble("lastUsedAt", g.lastUsedAt.toDouble())
+      })
+    }
+  }
+
+  @ReactMethod
+  fun approveAuthorization(id: String, lifetimeMs: Double, promise: Promise) {
+    val done = oauthServer.oauth.approve(id, lifetimeMs.toLong())
+    McpAuthNotifier.dismiss(reactContext)
+    promise.resolve(done)
+  }
+
+  @ReactMethod
+  fun denyAuthorization(id: String, promise: Promise) {
+    val done = oauthServer.oauth.deny(id)
+    McpAuthNotifier.dismiss(reactContext)
+    promise.resolve(done)
+  }
+
+  /**
+   * Asks the server, from the inside, for what an assistant asks first. This proves the server answers and
+   * how many tools it lists; it cannot prove another machine can reach the phone, and it is not counted as a
+   * request, so it never passes for an assistant's first call.
+   */
+  @ReactMethod
+  fun selfTest(promise: Promise) {
+    val result = Arguments.createMap()
+    val started = System.nanoTime()
+    val tools = if (!isServerRunning) 0 else try {
+      val request = JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", "tools/list")
+      dispatch(request, McpRules.PRINCIPAL_READ)?.optJSONObject("result")?.optJSONArray("tools")?.length() ?: 0
+    } catch (e: Exception) {
+      Log.w(TAG, "Self-test failed: ${e.message}")
+      0
+    }
+    result.putBoolean("ok", tools > 0)
+    result.putInt("tools", tools)
+    result.putDouble("ms", (System.nanoTime() - started) / 1_000_000.0)
+    promise.resolve(result)
+  }
+
+  /** Whether Termux, where most agents on the phone itself run, is installed (see `<queries>` in the manifest). */
+  @ReactMethod
+  fun isTermuxInstalled(promise: Promise) {
+    promise.resolve(
+      try {
+        reactContext.packageManager.getPackageInfo("com.termux", 0)
+        true
+      } catch (e: PackageManager.NameNotFoundException) {
+        false
+      },
+    )
+  }
+
+  /** Ends one assistant's access at once: its tokens stop working with the next request. */
+  @ReactMethod
+  fun revokeGrant(id: String, promise: Promise) {
+    promise.resolve(oauthServer.oauth.revoke(id))
+  }
+
+  /** A request the relay forwarded, through the same checks and dispatch as a socket's. */
+  private fun handleRelay(req: RelayRequest): RelayReply {
+    val json = mapOf("content-type" to "application/json")
+    // Cut from the notification: whatever was already on its way is refused, not served.
+    if (relayCut) return RelayReply(503, json, jsonError("Cloud access was cut").toByteArray())
+    val connection = relay
+    val issuer = connection?.issuer
+    if (issuer != null && McpRelayRules.oauthPath(req.path)) {
+      // The authorization server shares the relay's request budget, and answers without a token: it is
+      // what a client with none calls to get one.
+      if (!allowRequest(RELAY_PEER)) return RelayReply(429, json + mapOf("retry-after" to "60"), jsonError("Too Many Requests").toByteArray())
+      return oauthServer.handle(req, issuer) ?: RelayReply(404, json, jsonError("Not Found").toByteArray())
+    }
+    if (!McpRelayRules.pathAllowed(req.path)) return RelayReply(404, json, jsonError("Not Found").toByteArray())
+    if (req.body.size > McpRelayRules.MAX_REQUEST_BODY_BYTES) {
+      return RelayReply(413, json, jsonError("Request Entity Too Large").toByteArray())
+    }
+    val head = RequestHead(
+      req.method, req.path.substringBefore('?'), req.headers["authorization"], req.headers["origin"], null,
+      (req.headers["content-type"] ?: "").lowercase(), req.headers["mcp-protocol-version"],
+    )
+    val reply = preflight(head, RELAY_PEER, viaRelay = true)
+      ?: execute(head, String(req.body, Charsets.UTF_8), RELAY_PEER, viaRelay = true)
+    val headers = json + reply.headers.mapKeys { it.key.lowercase() }
+    // A client refused here learns where to obtain a token: the metadata document, not a guess.
+    val challenge = connection?.challenge
+    return if (reply.status == 401 && challenge != null) {
+      RelayReply(reply.status, headers + mapOf("www-authenticate" to challenge), reply.body.toByteArray(Charsets.UTF_8))
+    } else {
+      RelayReply(reply.status, headers, reply.body.toByteArray(Charsets.UTF_8))
+    }
+  }
+
   @ReactMethod
   fun stopServer(promise: Promise) {
     try {
@@ -209,6 +377,16 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   override fun invalidate() {
     stopServerInternal()
     super.invalidate()
+  }
+
+  /**
+   * "Couper l'accès cloud" on the notification. The flag is set first and read by every relay request,
+   * so nothing more is served from this instant; the socket itself is closed off the main thread,
+   * where the service's intent arrives.
+   */
+  fun cutCloud() {
+    relayCut = true
+    Thread({ stopRelayInternal() }, "NovaGuardRelayCut").start()
   }
 
   /**
@@ -289,6 +467,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
 
   private fun stopServerInternal() {
     isServerRunning = false
+    stopRelayInternal()
     try {
       serverSocket?.close()
     } catch (e: Exception) {
@@ -318,6 +497,11 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     putBoolean("controlEnabled", controlAvailable())
     putBoolean("advertised", nsdListener != null)
     putBoolean("loopbackOnly", boundToLoopbackOnly)
+    putString("relayState", relay?.state ?: McpRelayClient.STATE_OFF)
+    putString("relayUrl", relay?.publicUrl)
+    putBoolean("relayCut", relayCut)
+    putArray("pendingAuthorizations", pendingAuthorizations())
+    putArray("grants", grantList())
     putDouble("requestCount", requestCount.get().toDouble())
     val last = lastActivityAt.get()
     if (last > 0) putDouble("lastActivityAt", last.toDouble()) else putNull("lastActivityAt")
@@ -384,6 +568,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       var origin: String? = null
       var host: String? = null
       var contentType = ""
+      var protocolHeader: String? = null
       var headerCount = 0
       while (true) {
         val line = readLine(socket, input, MAX_LINE_BYTES, deadline) ?: break
@@ -397,57 +582,18 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
           "origin" -> origin = value
           "host" -> host = value
           "content-type" -> contentType = value.lowercase()
+          "mcp-protocol-version" -> protocolHeader = value
         }
       }
 
-      // Browser-originated requests are refused outright. A page on some other
-      // site must not be able to drive this server through the user's own
-      // browser just because it reaches the phone's address — the DNS
-      // rebinding case the MCP transport guidance calls out.
-      if (origin != null && !isAllowedOrigin(origin)) {
-        return respond(output, 403, jsonError("Forbidden origin"))
-      }
-      // The other half of the same defence. `Origin` is a browser header, so
-      // an ordinary client sends none and the check above passes it through;
-      // `Host` is sent by everything, and a page whose hostname was pointed at
-      // this device carries a Host this server does not answer to.
-      if (!isAllowedHost(host)) {
-        return respond(output, 421, jsonError("Misdirected Request"))
-      }
-      if (!allowRequest(remote)) {
-        return respond(output, 429, jsonError("Too Many Requests"), mapOf("Retry-After" to "60"))
-      }
-
-      if (method == "GET" && path == "/health") {
-        return respond(output, 200, JSONObject().put("status", "ok").toString())
-      }
-      if (method != "POST") {
-        return respond(output, 405, jsonError("Method Not Allowed"))
-      }
-      if (!contentType.contains("application/json")) {
-        return respond(output, 415, jsonError("Content-Type must be application/json"))
-      }
+      val head = RequestHead(method, path, authHeader, origin, host, contentType, protocolHeader)
+      preflight(head, remote, viaRelay = false)?.let { return respond(output, it) }
       if (contentLength <= 0 || contentLength > MAX_BODY_BYTES) {
         return respond(output, 413, jsonError("Request Entity Too Large"))
       }
 
       val body = readBody(socket, input, contentLength, deadline) ?: return respond(output, 400, jsonError("Truncated body"))
-
-      requestCount.incrementAndGet()
-      lastActivityAt.set(System.currentTimeMillis())
-
-      val request = try {
-        JSONObject(body)
-      } catch (_: Exception) {
-        return respond(output, 400, parseErrorResponse())
-      }
-
-      val (principal, expired) = principalFor(authHeader, remote)
-      val response = dispatch(request, principal, expired)
-        ?: return respond(output, 202, "") // a notification: accepted, no body
-
-      val status = httpStatusFor(response)
-      respond(output, status, response.toString(), mapOf("MCP-Protocol-Version" to LATEST_PROTOCOL))
+      respond(output, execute(head, body, remote, viaRelay = false))
     } catch (e: Exception) {
       Log.w(TAG, "MCP client error: ${e.message}")
     } finally {
@@ -455,6 +601,78 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
         if (!socket.isClosed) socket.close()
       } catch (_: Exception) {}
     }
+  }
+
+  /** What a request says before its body: the same for a socket and for a relay frame. */
+  private data class RequestHead(
+    val method: String, val path: String, val auth: String?, val origin: String?,
+    val host: String?, val contentType: String, val protocol: String?,
+  )
+
+  private data class Reply(val status: Int, val body: String, val headers: Map<String, String> = emptyMap())
+
+  /**
+   * Everything that can refuse a request before its body is read. A reply means
+   * "refused"; null means "go on". `viaRelay` is a request the relay forwarded:
+   * it carries no `Host` this server could check (the relay owns that name), and
+   * it has no `Origin` either, since no browser should be talking to this server
+   * through a relay — one that does is refused like on the LAN.
+   */
+  private fun preflight(head: RequestHead, remote: String, viaRelay: Boolean): Reply? {
+    // Browser-originated requests are refused outright. A page on some other
+    // site must not be able to drive this server through the user's own
+    // browser just because it reaches the phone's address — the DNS
+    // rebinding case the MCP transport guidance calls out.
+    if (head.origin != null && (viaRelay || !isAllowedOrigin(head.origin))) {
+      return Reply(403, jsonError("Forbidden origin"))
+    }
+    // The other half of the same defence. `Origin` is a browser header, so
+    // an ordinary client sends none and the check above passes it through;
+    // `Host` is sent by everything, and a page whose hostname was pointed at
+    // this device carries a Host this server does not answer to.
+    if (!viaRelay && !isAllowedHost(head.host)) {
+      return Reply(421, jsonError("Misdirected Request"))
+    }
+    if (!allowRequest(remote)) {
+      return Reply(429, jsonError("Too Many Requests"), mapOf("Retry-After" to "60"))
+    }
+    if (!viaRelay && head.method == "GET" && head.path == "/health") {
+      return Reply(200, JSONObject().put("status", "ok").toString())
+    }
+    if (head.method != "POST") {
+      return Reply(405, jsonError("Method Not Allowed"))
+    }
+    if (!head.contentType.contains("application/json")) {
+      return Reply(415, jsonError("Content-Type must be application/json"))
+    }
+    return null
+  }
+
+  private fun execute(head: RequestHead, body: String, remote: String, viaRelay: Boolean): Reply {
+    requestCount.incrementAndGet()
+    lastActivityAt.set(System.currentTimeMillis())
+
+    val request = try {
+      JSONObject(body)
+    } catch (_: Exception) {
+      return Reply(400, parseErrorResponse())
+    }
+
+    val negotiated = if (request.optString("method") == "initialize") {
+      McpRules.negotiate(request.optJSONObject("params")?.optString("protocolVersion"))
+    } else {
+      if (McpRules.rejectsProtocolHeader(head.protocol)) {
+        return Reply(400, jsonError("Unsupported MCP-Protocol-Version"))
+      }
+      null
+    }
+
+    val (principal, expired) = principalFor(head.auth, remote, viaRelay)
+    val response = dispatch(request, principal, expired, viaRelay)
+      ?: return Reply(202, "") // a notification: accepted, no body
+
+    val version = McpRules.responseProtocol(head.protocol, negotiated)
+    return Reply(httpStatusFor(response), response.toString(), if (version != null) mapOf("MCP-Protocol-Version" to version) else emptyMap())
   }
 
   private fun isAllowedOrigin(origin: String): Boolean =
@@ -497,7 +715,7 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   }
 
   /** The caller's principal, and whether it presented a control token that has expired. */
-  private fun principalFor(authHeader: String?, remote: String): Pair<Int, Boolean> {
+  private fun principalFor(authHeader: String?, remote: String, viaRelay: Boolean = false): Pair<Int, Boolean> {
     val presented = authHeader
       ?.let { if (it.startsWith("Bearer ", ignoreCase = true)) it.substring(7) else it }
       ?.trim()
@@ -506,6 +724,9 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     // recoverable one byte at a time from how long the comparison took.
     val digest = if (presented.isNotEmpty()) sha256(presented) else null
     fun matches(expected: ByteArray?) = expected != null && digest != null && MessageDigest.isEqual(expected, digest)
+    // The cloud never holds the control token, and is never "on the phone": the
+    // relay's frames are delivered inside this process, so loopback would be a lie.
+    if (viaRelay) return McpRules.relayPrincipal(matches(tokenDigest) || oauthServer.oauth.authenticate(presented)) to false
     val control = matches(controlDigest)
     val live = McpRules.controlLive(controlExpiresAt, System.currentTimeMillis())
     return McpRules.principal(control, live, matches(tokenDigest), isLoopback(remote)) to (control && !live)
@@ -516,8 +737,14 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
 
   // ----------------------------------------------------------------- protocol
 
+  /** Control tools are not offered across the relay: the cloud holds no control token (`McpRules.relayPrincipal`). */
+  private fun controlOffered(viaRelay: Boolean) = controlAvailable() && !viaRelay
+
+  /** The live view crosses the relay only when the owner allowed that on top of the live-view switch. */
+  private fun liveOffered(viaRelay: Boolean) = snapshot.liveFrameAllowed && (!viaRelay || relayLiveAllowed)
+
   /** Returns null for a notification, which JSON-RPC forbids answering. */
-  private fun dispatch(request: JSONObject, principal: Int, controlExpired: Boolean = false): JSONObject? {
+  private fun dispatch(request: JSONObject, principal: Int, controlExpired: Boolean = false, viaRelay: Boolean = false): JSONObject? {
     val id: Any? = if (request.has("id") && !request.isNull("id")) request.get("id") else null
     val method = request.optString("method")
     val isNotification = !request.has("id")
@@ -539,8 +766,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
       when (method) {
         "initialize" -> successResponse(id, initializeResult(params))
         "ping" -> successResponse(id, JSONObject())
-        "tools/list" -> successResponse(id, JSONObject().put("tools", McpCatalog.tools(controlAvailable(), snapshot.liveFrameAllowed)))
-        "tools/call" -> successResponse(id, callToolReportingFailures(params, principal))
+        "tools/list" -> successResponse(id, JSONObject().put("tools", McpCatalog.tools(controlOffered(viaRelay), liveOffered(viaRelay))))
+        "tools/call" -> successResponse(id, callToolReportingFailures(params, principal, viaRelay))
         "resources/list" -> successResponse(id, JSONObject().put("resources", McpCatalog.resources(snapshot)))
         "resources/templates/list" -> successResponse(id, JSONObject().put("resourceTemplates", McpCatalog.resourceTemplates()))
         "resources/read" -> successResponse(id, readResource(params.optString("uri")))
@@ -569,14 +796,14 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
    * so "event 9999 does not exist" would look like the server being broken
    * rather than like an id to correct.
    */
-  private fun callToolReportingFailures(params: JSONObject, principal: Int): JSONObject {
+  private fun callToolReportingFailures(params: JSONObject, principal: Int, viaRelay: Boolean): JSONObject {
     // Both checks sit outside the catch on purpose. A refused or unknown tool
     // is a protocol fault — nothing ran, and no argument a caller sends would
     // change that — so it stays a JSON-RPC error where the specification puts
     // it rather than becoming a result the model is invited to work around.
     val rawName = params.optString("name")
     assertNotForbidden(rawName)
-    if (!McpCatalog.isKnownTool(rawName, controlAvailable(), snapshot.liveFrameAllowed)) {
+    if (!McpCatalog.isKnownTool(rawName, controlOffered(viaRelay), liveOffered(viaRelay))) {
       throw McpException("NOVAGUARD_INVALID_ARGUMENT", "Unknown tool: '$rawName'", -32602)
     }
     // Refused before anything runs, like an unknown tool: no argument would
@@ -604,11 +831,10 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   }
 
   private fun initializeResult(params: JSONObject): JSONObject {
-    val requested = params.optString("protocolVersion")
     // Negotiate rather than refuse. Pinning one version and erroring on every
     // other means no client that does not already know this server's private
     // version string can complete a handshake.
-    val agreed = if (SUPPORTED_PROTOCOLS.contains(requested)) requested else LATEST_PROTOCOL
+    val agreed = McpRules.negotiate(params.optString("protocolVersion"))
     return JSONObject()
       .put("protocolVersion", agreed)
       .put(
@@ -949,6 +1175,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
 
   private fun jsonError(message: String) = JSONObject().put("error", message).toString()
 
+  private fun respond(out: OutputStream, reply: Reply) = respond(out, reply.status, reply.body, reply.headers)
+
   private fun respond(out: OutputStream, status: Int, body: String, extra: Map<String, String> = emptyMap()) {
     val bytes = body.toByteArray(Charsets.UTF_8)
     val reason = when (status) {
@@ -1007,7 +1235,9 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
   private fun sha256(value: String): ByteArray =
     MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
 
+  /** The Wi-Fi address, chosen by `McpRules.lanAddress` among every up interface's IPv4. */
   private fun localIpAddress(): String? {
+    val candidates = mutableListOf<Array<String>>()
     try {
       val interfaces = NetworkInterface.getNetworkInterfaces()
       while (interfaces.hasMoreElements()) {
@@ -1016,16 +1246,14 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
         val addresses = nic.inetAddresses
         while (addresses.hasMoreElements()) {
           val addr = addresses.nextElement()
-          if (!addr.isLoopbackAddress && addr is Inet4Address) {
-            val ip = addr.hostAddress
-            if (ip != null && !ip.startsWith("127.")) return ip
-          }
+          val ip = addr.hostAddress
+          if (!addr.isLoopbackAddress && addr is Inet4Address && ip != null) candidates.add(arrayOf(nic.name, ip))
         }
       }
     } catch (e: Exception) {
       Log.w(TAG, "Error resolving IP address: ${e.message}")
     }
-    return null
+    return McpRules.lanAddress(candidates)
   }
 
   private data class RateWindow(val count: Int, val resetAt: Long)
@@ -1035,8 +1263,6 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     private const val TAG = "NovaGuardMcp"
     private const val DEFAULT_PORT = 8081
     private const val SERVER_VERSION = "1.0.0"
-    private const val LATEST_PROTOCOL = "2025-06-18"
-    private val SUPPORTED_PROTOCOLS = setOf("2024-11-05", "2025-03-26", "2025-06-18", "2026-07-28")
     private const val MIN_TOKEN_LENGTH = 16
     private const val TOKEN_LENGTH = 32
     private const val TOKEN_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
@@ -1054,6 +1280,8 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
     private const val LIVE_FRAME_TIMEOUT_MS = 3_000L
     private const val REVOKED_EVENT = "McpControlRevoked"
     private const val REVOKED_OUTCOME = "{\"ok\":false,\"code\":\"NOVAGUARD_AUTH_FORBIDDEN\",\"message\":\"Control was revoked on the device\"}"
+    /** The peer name rate limiting and logs see for everything that arrives through the relay. */
+    private const val RELAY_PEER = "relay"
     private const val SERVICE_NAME = "NovaGuard"
     private const val SERVICE_TYPE = "_novaguard-mcp._tcp"
     private const val STOPPED_OUTCOME = "{\"ok\":false,\"code\":\"NOVAGUARD_DEVICE_UNAVAILABLE\",\"message\":\"Server stopped\"}"
@@ -1097,6 +1325,10 @@ class McpServerModule(private val reactContext: ReactApplicationContext) :
 
     fun revokeControlFromNotification() {
       current?.get()?.revokeControl()
+    }
+
+    fun cutCloudFromNotification() {
+      current?.get()?.cutCloud()
     }
 
     internal val ISO: DateTimeFormatter = DateTimeFormatter.ISO_INSTANT
