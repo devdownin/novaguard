@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
-import { WebSocketServer } from 'ws';
+import WebSocket from 'ws';
+const WebSocketServer = WebSocket.Server || WebSocket.WebSocketServer;
 import {
   authenticate, decode, DEVICE_ID_PATTERN, LIMITS, newNonce, requestHeaders, responseHeaders, route,
 } from './protocol.js';
