@@ -54,7 +54,7 @@ import { McpAuthPrompt } from '../components/McpAuthPrompt';
 import { AGENT_LOG_KEY, AgentAction, appendAgentAction, parseAgentLog } from '../surveillance/agentLog';
 import { agentControlLive, controlExpiry, nextLifetime } from '../surveillance/mcpControl';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { alertContent, passageIdFromUrl, shouldAlert } from '../surveillance/alerts';
+import { alertContent, passageIdFromUrl, recentPassages, shouldAlert, shouldRefreshAlert } from '../surveillance/alerts';
 import { installFrameErrorGuard } from '../camera/frameErrorGuard';
 import { FRAME_ERROR_PREFIX } from '../camera/frameErrors';
 import {
@@ -739,6 +739,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const postRollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** When the last detection alert went out, for the cooldown. */
   const lastAlertRef = useRef<number | null>(null);
+  /** When each recent passage opened, for "passage n° 3 en 10 min" (`recentPassages`). */
+  const passageTimesRef = useRef<number[]>([]);
   /** Rolling count behind the measured frame rate. */
   const frameWindowRef = useRef<FrameRateWindow>({ ...EMPTY_FRAME_RATE_WINDOW });
   /** The self-tuning state the frame path folds into; `autoTune` is its published half. */
@@ -1296,10 +1298,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         // Alert on the *opening* of a session, not on the event written when it
         // closes: the point of a surveillance alert is that someone is there
         // now, not that someone was there for the last thirty seconds.
+        passageTimesRef.current = recentPassages(passageTimesRef.current, now);
+        const { title, body } = alertContent(primary.kind, now, passageTimesRef.current.length);
         if (shouldAlert(settingsRef.current, lastAlertRef.current, now)) {
           lastAlertRef.current = now;
-          const { title, body } = alertContent(primary.kind, now);
           notifyDetection(title, body, passageIdRef.current ?? '', settingsRef.current.notifPicture);
+        } else if (shouldRefreshAlert(settingsRef.current, lastAlertRef.current, now)) {
+          // Back inside the minute: nothing rings, but the alert on screen
+          // stops standing for a single visit.
+          notifyDetection(title, body, passageIdRef.current ?? '', false, true);
         }
       } else {
         if (recordingIdRef.current() == null && attemptAt >= nextRecordingAttemptRef.current) {
@@ -1455,6 +1462,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // something that is no longer true.
     dismissDetectionAlert();
     lastAlertRef.current = null;
+    passageTimesRef.current = [];
   }, [monitoring, captureRevision]);
 
   /**
