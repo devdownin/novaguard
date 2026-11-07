@@ -82,10 +82,16 @@ describe('the sheet', () => {
     tree.root.findAll(node => node.props.label === t('detail.export') && typeof node.props.onPress === 'function')[0] ?? null;
   const texts = (tree: ReactTestRenderer.ReactTestRenderer) => tree.root.findAllByType(Text).map(n => String(n.props.children));
 
-  beforeEach(async () => { jest.clearAllMocks(); await AsyncStorage.clear(); });
+  beforeEach(async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(START + 3600_000);
+    jest.clearAllMocks();
+    await AsyncStorage.clear();
+  });
   afterEach(async () => {
     await flush(2);
     for (const tree of mounted.splice(0)) await ReactTestRenderer.act(async () => { tree.unmount(); });
+    jest.useRealTimers();
   });
 
   it('hands over every clip of the passage and the report, from any of its clips', async () => {
