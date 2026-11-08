@@ -25,6 +25,7 @@ export function VideoDetailSheet() {
   const active = useRef<typeof playback>(null);
   const videoRef = useRef<any>(null);
   const currentTimeRef = useRef<number>(0);
+  const [playbackRate, setPlaybackRate] = useState<number>(1.0);
   const [playFailed, setPlayFailed] = useState(false);
   const [shareFailed, setShareFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -70,6 +71,9 @@ export function VideoDetailSheet() {
     const target = Math.max(0, currentTimeRef.current + deltaSeconds);
     videoRef.current.seek(target);
     currentTimeRef.current = target;
+  };
+  const cyclePlaybackRate = () => {
+    setPlaybackRate(prev => (prev === 1.0 ? 1.5 : prev === 1.5 ? 2.0 : 1.0));
   };
   const path = event?.path ?? null;
   /**
@@ -145,26 +149,37 @@ export function VideoDetailSheet() {
                   resizeMode="contain"
                   controls
                   paused={false}
+                  rate={playbackRate}
                   onProgress={(data: { currentTime: number }) => { currentTimeRef.current = data.currentTime; }}
                   onEnd={() => finish(false)}
                   onError={() => finish(true)}
                 />
                 <View style={styles.seekControls} pointerEvents="box-none">
+                  <View style={styles.seekGroup}>
+                    <Pressable
+                      style={({ pressed }) => [styles.seekButton, pressed && { opacity: 0.62 }]}
+                      onPress={() => seekRelative(-5)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('detail.seek.backward')}
+                    >
+                      <Text style={styles.seekText}>-5s</Text>
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [styles.seekButton, pressed && { opacity: 0.62 }]}
+                      onPress={() => seekRelative(5)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('detail.seek.forward')}
+                    >
+                      <Text style={styles.seekText}>+5s</Text>
+                    </Pressable>
+                  </View>
                   <Pressable
                     style={({ pressed }) => [styles.seekButton, pressed && { opacity: 0.62 }]}
-                    onPress={() => seekRelative(-5)}
+                    onPress={cyclePlaybackRate}
                     accessibilityRole="button"
-                    accessibilityLabel={t('detail.seek.backward')}
+                    accessibilityLabel={t('detail.rate', { rate: playbackRate })}
                   >
-                    <Text style={styles.seekText}>-5s</Text>
-                  </Pressable>
-                  <Pressable
-                    style={({ pressed }) => [styles.seekButton, pressed && { opacity: 0.62 }]}
-                    onPress={() => seekRelative(5)}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('detail.seek.forward')}
-                  >
-                    <Text style={styles.seekText}>+5s</Text>
+                    <Text style={styles.seekText}>{playbackRate}×</Text>
                   </Pressable>
                 </View>
               </View>
@@ -299,6 +314,11 @@ const styles = StyleSheet.create({
     top: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  seekGroup: {
+    flexDirection: 'row',
+    gap: 6,
   },
   seekButton: {
     paddingVertical: 3,
