@@ -1,4 +1,7 @@
-import { ALERT_COOLDOWN_MS, alertContent, inQuietHours, passageIdFromUrl, shouldAlert } from '../src/surveillance/alerts';
+import {
+  ALERT_COOLDOWN_MS, alertContent, inQuietHours, passageIdFromUrl, recentPassages, REPEAT_WINDOW_MS,
+  shouldAlert, shouldRefreshAlert,
+} from '../src/surveillance/alerts';
 
 const ON = { notif: true, notifDet: true, quietHours: false, quietStart: 22, quietEnd: 7 };
 
@@ -68,6 +71,57 @@ describe('quiet hours', () => {
   });
 });
 
+describe('shouldRefreshAlert', () => {
+  const now = Date.UTC(2026, 4, 3, 14, 32);
+
+  it('updates the alert on screen for a passage back inside the cooldown', () => {
+    expect(shouldRefreshAlert(ON, now - 10_000, now)).toBe(true);
+    expect(shouldRefreshAlert(ON, now - (ALERT_COOLDOWN_MS - 1), now)).toBe(true);
+  });
+
+  it('leaves the ringing to shouldAlert once the cooldown has passed', () => {
+    expect(shouldRefreshAlert(ON, now - ALERT_COOLDOWN_MS, now)).toBe(false);
+  });
+
+  it('has nothing to update before any alert was sent', () => {
+    expect(shouldRefreshAlert(ON, null, now)).toBe(false);
+  });
+
+  it('does not touch the notification while alerts are off', () => {
+    expect(shouldRefreshAlert({ ...ON, notif: false }, now - 1_000, now)).toBe(false);
+    expect(shouldRefreshAlert({ ...ON, notifDet: false }, now - 1_000, now)).toBe(false);
+  });
+
+  it('does not touch it during quiet hours either', () => {
+    const inside = new Date(2026, 4, 3, 23, 0).getTime();
+    expect(shouldRefreshAlert({ ...ON, quietHours: true }, inside - 1_000, inside)).toBe(false);
+  });
+
+  it('is never true together with shouldAlert', () => {
+    for (const elapsed of [0, 1, ALERT_COOLDOWN_MS - 1, ALERT_COOLDOWN_MS, 5 * ALERT_COOLDOWN_MS]) {
+      expect(shouldAlert(ON, now - elapsed, now) && shouldRefreshAlert(ON, now - elapsed, now)).toBe(false);
+    }
+  });
+});
+
+describe('recentPassages', () => {
+  it('keeps what is inside the window, this passage last', () => {
+    const now = 10 * REPEAT_WINDOW_MS;
+    expect(recentPassages([now - 1_000, now - REPEAT_WINDOW_MS + 1], now)).toEqual([now - 1_000, now - REPEAT_WINDOW_MS + 1, now]);
+  });
+
+  it('forgets what has left the window', () => {
+    const now = 10 * REPEAT_WINDOW_MS;
+    expect(recentPassages([now - REPEAT_WINDOW_MS, now - 2 * REPEAT_WINDOW_MS], now)).toEqual([now]);
+  });
+
+  it('does not mutate the list it was given', () => {
+    const before = [1_000];
+    recentPassages(before, 2_000);
+    expect(before).toEqual([1_000]);
+  });
+});
+
 describe('alertContent', () => {
   it('names the kind and pads the time', () => {
     const at = new Date(2026, 4, 3, 9, 5).getTime();
@@ -75,6 +129,16 @@ describe('alertContent', () => {
       title: 'Personne détectée',
       body: 'À 09:05 · enregistrement en cours',
     });
+  });
+
+  it('says nothing about repetition for a first visit', () => {
+    const at = new Date(2026, 4, 3, 9, 5).getTime();
+    expect(alertContent('Personne', at, 1).body).toBe('À 09:05 · enregistrement en cours');
+  });
+
+  it('counts the visits of the last ten minutes from the second one', () => {
+    const at = new Date(2026, 4, 3, 9, 5).getTime();
+    expect(alertContent('Personne', at, 3).body).toBe('À 09:05 · passage n° 3 en 10 min · enregistrement en cours');
   });
 
   it('distinguishes an animal', () => {
