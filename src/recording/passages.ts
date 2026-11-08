@@ -9,7 +9,18 @@ export interface Passage {
 }
 
 /** Never infer identity from elapsed time: two nearby clips may be unrelated. */
+let cachedInput: DetectionEvent[] | null = null;
+let cachedResult: Passage[] | null = null;
+
+export function clearPassagesCache(): void {
+  cachedInput = null;
+  cachedResult = null;
+}
+
+/** Never infer identity from elapsed time: two nearby clips may be unrelated. */
 export function groupPassages(events: DetectionEvent[]): Passage[] {
+  if (events === cachedInput && cachedResult != null) return cachedResult;
+
   const groups = new Map<string, DetectionEvent[]>();
   for (const event of events) {
     const key = event.passageId
@@ -19,7 +30,7 @@ export function groupPassages(events: DetectionEvent[]): Passage[] {
     group.push(event);
     groups.set(key, group);
   }
-  return [...groups]
+  const result = [...groups]
     .map(([id, clips]) => {
       const ordered = [...clips].sort(
         (a, b) => a.timestamp - b.timestamp || a.id - b.id,
@@ -55,4 +66,8 @@ export function groupPassages(events: DetectionEvent[]): Passage[] {
         b.summary.timestamp - a.summary.timestamp ||
         b.summary.id - a.summary.id,
     );
+
+  cachedInput = events;
+  cachedResult = result;
+  return result;
 }

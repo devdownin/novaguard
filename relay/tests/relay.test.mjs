@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
-import { WebSocket } from 'ws';
+import WebSocket from 'ws';
 import { createRelay } from '../src/relay.js';
 import { authenticate, deviceIdFor, route, SIGNED_PREFIX } from '../src/protocol.js';
 

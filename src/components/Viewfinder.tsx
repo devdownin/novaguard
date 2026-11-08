@@ -11,6 +11,7 @@ import { GridOverlay } from './GridOverlay';
 import { CameraFeed } from './CameraFeed';
 import { useCameraDevice } from 'react-native-vision-camera';
 import { devicePositionFor, NO_DEVICE_GRACE_MS, physicalDeviceFilterFor, standbyLabelKey } from '../camera/deviceSelection';
+import { useReducedMotion } from '../utils/useReducedMotion';
 import { DetectionOverlay } from './DetectionOverlay';
 import { ZoneLayer } from './ZoneLayer';
 import { LiveClock } from './LiveClock';
@@ -146,9 +147,32 @@ export function Viewfinder() {
   // The frame's edge carries the state: green while watching, coral while
   // filming, amber on a fault — readable from across the room.
   const edge = monitoring || recording ? statusColor(surveillanceStatus) : null;
+  const reducedMotion = useReducedMotion();
+  const recBorderAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!recording || reducedMotion) {
+      recBorderAnim.setValue(1);
+      return undefined;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(recBorderAnim, { toValue: 0.35, duration: 600, useNativeDriver: true }),
+        Animated.timing(recBorderAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [recording, reducedMotion, recBorderAnim]);
 
   return (
     <View style={[styles.frame, edge ? [styles.frameGlowActive, { borderColor: edge }] : styles.frameGlowIdle]} onLayout={onLayout}>
+      {recording && (
+        <Animated.View
+          style={[styles.recordingLining, { borderColor: color.recording, opacity: recBorderAnim }]}
+          pointerEvents="none"
+        />
+      )}
       {/* Standby background — only visible where the real camera isn't covering it. */}
       <LinearGradient
         colors={['#20232f', '#14161f', '#0c0e15']}
@@ -289,6 +313,12 @@ const styles = StyleSheet.create({
   frameGlowActive: {
     borderWidth: 1.5,
     borderColor: color.accent600,
+  },
+  recordingLining: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 2,
+    borderRadius: 12,
+    zIndex: 15,
   },
   glowBlob: {
     position: 'absolute',

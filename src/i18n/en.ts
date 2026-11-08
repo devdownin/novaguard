@@ -114,6 +114,9 @@ export const en: Record<StringKey, string> = {
 
   // ── event detail ─────────────────────────────────────────────────────
   'detail.play': 'Play the recording',
+  'detail.seek.backward': 'Rewind 5 s',
+  'detail.seek.forward': 'Forward 5 s',
+  'detail.rate': 'Playback speed: {rate}×',
   'detail.noClip': 'NO VIDEO FOR THIS EVENT',
   'detail.when': 'Date & time',
   'detail.type': 'Type',
@@ -148,6 +151,7 @@ export const en: Record<StringKey, string> = {
   'evidence.verify': 'Verification: a file’s SHA-256 fingerprint changes as soon as a single byte is modified. To check a clip: “sha256sum <file>” (Linux), “shasum -a 256 <file>” (macOS), “certutil -hashfile <file> SHA256” (Windows).',
   'detail.export': 'Export as evidence',
   'detail.export.busy': 'Preparing the export…',
+  'detail.export.progress': 'Hashing clip {current} / {total}…',
   'detail.export.sub': 'Every clip of the passage and a report with their SHA-256 fingerprints.',
   'detail.exportError': 'Export failed: no readable clip, or no app to receive it.',
   'detail.file.none': 'None',
