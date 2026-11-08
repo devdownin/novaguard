@@ -116,6 +116,9 @@ export const fr = {
 
   // ── event detail ─────────────────────────────────────────────────────
   'detail.play': "Lire l'enregistrement",
+  'detail.seek.backward': 'Reculer de 5 s',
+  'detail.seek.forward': 'Avancer de 5 s',
+  'detail.rate': 'Vitesse de lecture : {rate}×',
   'detail.noClip': 'AUCUNE VIDÉO POUR CET ÉVÈNEMENT',
   'detail.when': 'Date & heure',
   'detail.type': 'Type',
@@ -150,6 +153,7 @@ export const fr = {
   'evidence.verify': 'Vérification : l’empreinte SHA-256 d’un fichier change dès qu’un seul octet est modifié. Pour contrôler un clip : « sha256sum <fichier> » (Linux), « shasum -a 256 <fichier> » (macOS), « certutil -hashfile <fichier> SHA256 » (Windows).',
   'detail.export': 'Exporter comme preuve',
   'detail.export.busy': 'Préparation de l’export…',
+  'detail.export.progress': 'Hachage du clip {current} / {total}…',
   'detail.export.sub': 'Tous les clips du passage et un rapport avec leurs empreintes SHA-256.',
   'detail.exportError': 'Export impossible : aucun clip lisible, ou aucune application pour le recevoir.',
   'detail.file.none': 'Aucun',
