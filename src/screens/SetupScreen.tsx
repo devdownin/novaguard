@@ -595,6 +595,10 @@ export function SetupScreen() {
             </>
           ) : null}
 
+          <View style={[styles.subBlock, styles.subBlockDivided]}>
+            <Text style={styles.subLabel}>{t('setup.section.stream')}</Text>
+          </View>
+
           <SettingRow label={t('setup.mcpTls')} subtitle={t('setup.mcpTls.sub')}>
             <Switch value={settings.mcpTls} onValueChange={s.toggleMcpTls} accessibilityLabel={t('setup.mcpTls')} />
           </SettingRow>

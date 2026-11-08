@@ -6,16 +6,16 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 
 ## [Non publié]
 
-## [1.1.0] - 2026-10-16
-
 ### Ajouté
 - L’alerte de détection montre ce que voit la caméra, écran éteint compris (Réglages → Notifications → « Image dans l’alerte », activé par défaut). Le texte part aussitôt et l’image suit dès que la caméra la livre, sans faire sonner une seconde fois. Elle n’est visible qu’après déverrouillage et n’est jamais transmise à une montre.
 - « Connecter un assistant → Sur ce téléphone » précise que le programme doit tourner sur le téléphone : un assistant exécuté chez son éditeur (claude.ai, Claude Code sur le web) passe par « Dans le cloud ».
 - « Connecter un assistant » : reprise du dernier assistant en un appui, détection de Termux, « Tester le serveur » (réponse du serveur, sans compter comme connexion), QR code de la configuration, schéma du relais sur le chemin cloud.
 - Autorisation d’un assistant du cloud : « Autoriser 24 h » met fin à l’accès tout seul ; « Autoriser, sans limite » garde le comportement précédent.
 - Heures calmes (Réglages → Notifications) : pas d’alerte sur une plage horaire, par exemple de 22 h à 7 h ; les passages sont enregistrés et rangés dans l’Historique comme d’habitude.
-- Un passage qui revient dans la minute ne fait plus sonner l'alerte, mais la met à jour : « passage n° 3 en 10 min » remplace « enregistrement en cours » sur la notification encore affichée, avec son image. Une notification balayée ne revient pas.
-- Zones ignorées (Réglages → Détection) : jusqu’à trois rectangles — une télé, une fenêtre, un rideau — où rien ne déclenche. Le critère est celui de la zone de détection, les pieds : quelqu’un qui passe devant reste détecté.
+- « Connecter un assistant » (Réglages → Serveur MCP) : on indique où tourne l’assistant (téléphone, Wi-Fi, cloud) puis lequel, l’écran nomme ce qui empêche encore la connexion avec le bouton qui le lève, fournit l’adresse ou la configuration à copier et confirme dès que le téléphone a reçu une requête. L’adresse du relais devient modifiable depuis cet écran.
+- « Connecter un assistant » propose le niveau d’accès (regarder, ou regarder et piloter tant que le pilotage est actif) et liste les assistants déjà autorisés, avec leur dernière utilisation et un bouton « Révoquer ».
+- « Connecter un assistant → Sur ce téléphone » : un agent installé sur le même appareil (Termux…) reçoit sa configuration complète sur l’adresse locale, sans clé ni Wi-Fi.
+ → Détection) : jusqu’à trois rectangles — une télé, une fenêtre, un rideau — où rien ne déclenche. Le critère est celui de la zone de détection, les pieds : quelqu’un qui passe devant reste détecté.
 - `get_configuration` (MCP) indique le nombre de zones ignorées, l’image dans l’alerte et les heures calmes.
 
 ### Modifié
@@ -381,6 +381,5 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et ce p
 - Section « À propos » : version, licence, lien vers le dépôt, licences tierces.
 - Persistance locale des réglages, permissions et de l'historique (`AsyncStorage`).
 
-[Non publié]: https://github.com/devdownin/novaguard/compare/v1.1.0...HEAD
-[1.1.0]: https://github.com/devdownin/novaguard/compare/v1.0.0...v1.1.0
+[Non publié]: https://github.com/devdownin/novaguard/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/devdownin/novaguard/releases/tag/v1.0.0
